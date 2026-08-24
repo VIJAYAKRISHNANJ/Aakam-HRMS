@@ -1,0 +1,141 @@
+import axios from "axios";
+
+/*
+|--------------------------------------------------------------------------
+| API
+|--------------------------------------------------------------------------
+*/
+
+const API_URL =
+  "http://localhost:5000/api";
+
+/*
+|--------------------------------------------------------------------------
+| Employee
+|--------------------------------------------------------------------------
+*/
+
+export interface Employee {
+  id: number;
+
+  employeeCode: string;
+
+  firstName: string;
+
+  lastName: string | null;
+
+  fullName: string;
+
+  email: string;
+
+  departmentId: number | null;
+
+  department: string;
+
+  joiningDate: string;
+
+  status: string;
+
+  employmentType: string;
+
+  createdAt: string;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Department
+|--------------------------------------------------------------------------
+*/
+
+export interface WorkforceDepartment {
+  id: number;
+
+  name: string;
+
+  code: string;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Employee Directory
+|--------------------------------------------------------------------------
+*/
+
+export interface EmployeeDirectoryData {
+  employees: Employee[];
+
+  total: number;
+
+  departments: WorkforceDepartment[];
+}
+
+interface EmployeeDirectoryResponse {
+  success: boolean;
+
+  data: EmployeeDirectoryData;
+}
+
+export interface EmployeeDirectoryFilters {
+  search?: string;
+
+  departmentId?: string;
+
+  status?: string;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Get Employees
+|--------------------------------------------------------------------------
+*/
+
+export const getEmployees =
+  async (
+    filters: EmployeeDirectoryFilters = {},
+  ): Promise<EmployeeDirectoryData> => {
+    const response =
+      await axios.get<EmployeeDirectoryResponse>(
+        `${API_URL}/employees`,
+        {
+          params: {
+            search:
+              filters.search ||
+              undefined,
+
+            departmentId:
+              filters.departmentId ||
+              undefined,
+
+            status:
+              filters.status ||
+              undefined,
+          },
+        },
+      );
+
+    return response.data.data;
+  };
+
+/*
+|--------------------------------------------------------------------------
+| Get Employee Profile
+|--------------------------------------------------------------------------
+*/
+
+interface EmployeeProfileResponse {
+  success: boolean;
+
+  data: Employee;
+}
+
+export const getEmployeeById =
+  async (
+    employeeId: number | string,
+  ): Promise<Employee> => {
+    const response =
+      await axios.get<EmployeeProfileResponse>(
+        `${API_URL}/employees/${employeeId}`,
+      );
+
+    return response.data.data;
+  };

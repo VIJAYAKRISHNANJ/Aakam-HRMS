@@ -13,81 +13,85 @@ import {
   Users,
   WalletCards,
   X,
-} from 'lucide-react'
+} from "lucide-react";
+
+import {
+  NavLink,
+} from "react-router-dom";
 
 interface SidebarProps {
-  open: boolean
-  onClose: () => void
+  open: boolean;
+  onClose: () => void;
 }
 
 interface NavItem {
-  label: string
-  icon: React.ElementType
-  path: string
+  label: string;
+  icon: React.ElementType;
+  path: string;
 }
 
 const navItems: NavItem[] = [
   {
-    label: 'Dashboard',
+    label: "Dashboard",
     icon: LayoutDashboard,
-    path: '/dashboard',
+    path: "/dashboard",
   },
   {
-    label: 'Workforce',
+    label: "Workforce",
     icon: Users,
-    path: '/workforce',
+    path: "/workforce",
   },
   {
-    label: 'Recruitment',
+    label: "Recruitment",
     icon: BriefcaseBusiness,
-    path: '/recruitment',
+    path: "/recruitment",
   },
   {
-    label: 'Clients',
+    label: "Clients",
     icon: Building2,
-    path: '/clients',
+    path: "/clients",
   },
   {
-    label: 'Onboarding',
+    label: "Onboarding",
     icon: UserPlus,
-    path: '/onboarding',
+    path: "/onboarding",
   },
   {
-    label: 'Payroll',
+    label: "Payroll",
     icon: WalletCards,
-    path: '/payroll',
+    path: "/payroll",
   },
   {
-    label: 'Performance',
+    label: "Performance",
     icon: Sparkles,
-    path: '/performance',
+    path: "/performance",
   },
   {
-    label: 'Training',
+    label: "Training",
     icon: GraduationCap,
-    path: '/training',
+    path: "/training",
   },
   {
-    label: 'Reports',
+    label: "Reports",
     icon: BarChart3,
-    path: '/reports',
+    path: "/reports",
   },
   {
-    label: 'Notifications',
+    label: "Notifications",
     icon: Bell,
-    path: '/notifications',
+    path: "/notifications",
   },
   {
-    label: 'Settings',
+    label: "Settings",
     icon: Settings,
-    path: '/settings',
+    path: "/settings",
   },
   {
-    label: 'Exit',
+    label: "Exit",
     icon: LogOut,
-    path: '/exit',
+    path: "/exit",
   },
-]
+];
 
 function Sidebar({
   open,
@@ -128,39 +132,27 @@ function Sidebar({
           transition-transform
           duration-300
           ease-in-out
-
           ${
             open
-              ? 'translate-x-0'
-              : '-translate-x-full'
+              ? "translate-x-0"
+              : "-translate-x-full"
           }
-
           lg:translate-x-0
         `}
       >
-
         {/* ===================================================
             BRAND
         =================================================== */}
 
         <div className="flex h-[86px] shrink-0 items-center px-5">
-
           <div className="flex items-center gap-3">
-
-            {/* LOGO */}
-
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 via-blue-500 to-cyan-400 shadow-lg shadow-blue-950/30">
-
               <span className="text-xl font-black text-white">
                 A
               </span>
-
             </div>
 
-            {/* BRAND */}
-
             <div>
-
               <p className="text-[17px] font-bold tracking-tight text-white">
                 Aakam HRMS
               </p>
@@ -168,12 +160,8 @@ function Sidebar({
               <p className="mt-0.5 text-[9px] font-medium uppercase tracking-[0.14em] text-slate-500">
                 Human Resource Management
               </p>
-
             </div>
-
           </div>
-
-          {/* MOBILE CLOSE */}
 
           <button
             type="button"
@@ -183,124 +171,109 @@ function Sidebar({
           >
             <X size={18} />
           </button>
-
         </div>
 
         {/* ===================================================
             NAVIGATION
 
-            ALL ITEMS HAVE EXACT SAME HEIGHT
-            ALL GAPS ARE EXACTLY THE SAME
-            NO SCROLLBAR
+            Equal item height + equal spacing
+            No sidebar scrollbar
         =================================================== */}
 
         <nav className="min-h-0 flex-1 overflow-hidden px-3 pt-1">
-
           <div className="flex flex-col gap-[8px]">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.label}
+                to={item.path}
+                onClick={onClose}
+                className={({ isActive }) => `
+                  group
+                  flex
+                  h-[44px]
+                  min-h-[44px]
+                  w-full
+                  shrink-0
+                  items-center
+                  gap-3
+                  rounded-xl
+                  px-3
+                  text-[14px]
+                  font-medium
+                  transition-all
+                  duration-200
+                  ${
+                    isActive
+                      ? `
+                        bg-gradient-to-r
+                        from-blue-600/80
+                        to-violet-600/70
+                        text-white
+                        shadow-lg
+                        shadow-blue-950/30
+                        ring-1
+                        ring-blue-400/20
+                      `
+                      : `
+                        text-slate-300
+                        hover:bg-white/[0.06]
+                        hover:text-white
+                      `
+                  }
+                `}
+              >
+                {({ isActive }) => {
+                  const Icon =
+                    item.icon;
 
-            {navItems.map((item) => {
-              const Icon = item.icon
+                  return (
+                    <>
+                      <span
+                        className={`
+                          flex
+                          h-9
+                          w-9
+                          shrink-0
+                          items-center
+                          justify-center
+                          rounded-lg
+                          ${
+                            isActive
+                              ? "bg-white/10 text-blue-200"
+                              : "text-slate-400 group-hover:text-blue-300"
+                          }
+                        `}
+                      >
+                        <Icon
+                          size={19}
+                          strokeWidth={
+                            isActive
+                              ? 2.2
+                              : 1.9
+                          }
+                        />
+                      </span>
 
-              const active =
-                item.path === '/dashboard'
+                      <span className="min-w-0 flex-1 truncate">
+                        {item.label}
+                      </span>
 
-              return (
-                <a
-                  key={item.label}
-                  href={item.path}
-                  onClick={onClose}
-                  className={`
-                    group
-                    flex
-                    h-[44px]
-                    min-h-[44px]
-                    w-full
-                    shrink-0
-                    items-center
-                    gap-3
-                    rounded-xl
-                    px-3
-                    text-[14px]
-                    font-medium
-                    transition-all
-                    duration-200
-
-                    ${
-                      active
-                        ? `
-                          bg-gradient-to-r
-                          from-blue-600/80
-                          to-violet-600/70
-                          text-white
-                          shadow-lg
-                          shadow-blue-950/30
-                          ring-1
-                          ring-blue-400/20
-                        `
-                        : `
-                          text-slate-300
-                          hover:bg-white/[0.06]
-                          hover:text-white
-                        `
-                    }
-                  `}
-                >
-
-                  {/* ICON */}
-
-                  <span
-                    className={`
-                      flex
-                      h-9
-                      w-9
-                      shrink-0
-                      items-center
-                      justify-center
-                      rounded-lg
-
-                      ${
-                        active
-                          ? 'bg-white/10 text-blue-200'
-                          : 'text-slate-400 group-hover:text-blue-300'
-                      }
-                    `}
-                  >
-
-                    <Icon
-                      size={19}
-                      strokeWidth={
-                        active ? 2.2 : 1.9
-                      }
-                    />
-
-                  </span>
-
-                  {/* LABEL */}
-
-                  <span className="min-w-0 flex-1 truncate">
-                    {item.label}
-                  </span>
-
-                  {/* DASHBOARD ARROW */}
-
-                  {active && (
-                    <ChevronRight
-                      size={15}
-                      className="shrink-0 text-blue-200"
-                    />
-                  )}
-
-                </a>
-              )
-            })}
-
+                      {isActive && (
+                        <ChevronRight
+                          size={15}
+                          className="shrink-0 text-blue-200"
+                        />
+                      )}
+                    </>
+                  );
+                }}
+              </NavLink>
+            ))}
           </div>
-
         </nav>
-
       </aside>
     </>
-  )
+  );
 }
 
-export default Sidebar
+export default Sidebar;

@@ -2,15 +2,27 @@ import {
   Bell,
   Menu,
   Search,
-} from 'lucide-react'
+} from "lucide-react";
+
+import {
+  useLocation,
+} from "react-router-dom";
 
 interface HeaderProps {
-  onOpenSidebar: () => void
+  onOpenSidebar: () => void;
 }
 
 function Header({
   onOpenSidebar,
 }: HeaderProps) {
+  const location =
+    useLocation();
+
+  const isWorkforce =
+    location.pathname.startsWith(
+      "/workforce",
+    );
+
   return (
     <header
       className="
@@ -32,9 +44,6 @@ function Header({
       ===================================================== */}
 
       <div className="flex min-w-0 items-center gap-3">
-
-        {/* MOBILE MENU */}
-
         <button
           type="button"
           onClick={onOpenSidebar}
@@ -59,35 +68,46 @@ function Header({
           <Menu className="h-5 w-5" />
         </button>
 
-        {/* =================================================
-            HEADER TEXT
-        ================================================= */}
-
         <div className="min-w-0">
+          {isWorkforce ? (
+            <h1
+              className="
+                m-0
+                text-2xl
+                font-semibold
+                tracking-tight
+                text-slate-900
+                sm:text-[28px]
+              "
+            >
+              Employees
+            </h1>
+          ) : (
+            <>
+              <p className="text-sm font-medium text-slate-500">
+                Welcome back
+              </p>
 
-          <p className="text-sm font-medium text-slate-500">
-            Welcome back
-          </p>
+              <h1
+                className="
+                  m-0
+                  text-2xl
+                  font-semibold
+                  tracking-tight
+                  text-slate-900
+                  sm:text-[30px]
+                "
+              >
+                HR Dashboard
+              </h1>
 
-          <h1
-            className="
-              m-0
-              text-2xl
-              font-semibold
-              tracking-tight
-              text-slate-900
-              sm:text-[30px]
-            "
-          >
-            HR Dashboard
-          </h1>
-
-          <p className="m-0 mt-1 text-sm text-slate-500">
-            Here's what's happening with your organization.
-          </p>
-
+              <p className="m-0 mt-1 text-sm text-slate-500">
+                Here's what's happening with
+                your organization.
+              </p>
+            </>
+          )}
         </div>
-
       </div>
 
       {/* =====================================================
@@ -104,9 +124,6 @@ function Header({
           sm:items-center
         "
       >
-
-        {/* SEARCH */}
-
         <label
           className="
             flex
@@ -139,14 +156,7 @@ function Header({
           />
         </label>
 
-        {/* =================================================
-            HEADER ACTIONS
-        ================================================= */}
-
         <div className="flex items-center gap-2 sm:gap-3">
-
-          {/* NOTIFICATIONS */}
-
           <button
             type="button"
             className="
@@ -183,8 +193,6 @@ function Header({
             />
           </button>
 
-          {/* USER */}
-
           <button
             type="button"
             className="
@@ -204,7 +212,6 @@ function Header({
             "
             aria-label="Open user menu"
           >
-
             <div
               className="
                 flex
@@ -226,7 +233,6 @@ function Header({
             </div>
 
             <div className="hidden sm:block">
-
               <p className="text-sm font-semibold text-slate-900">
                 Anita Kumar
               </p>
@@ -234,17 +240,12 @@ function Header({
               <p className="text-xs text-slate-500">
                 HR Manager
               </p>
-
             </div>
-
           </button>
-
         </div>
-
       </div>
-
     </header>
-  )
+  );
 }
 
-export default Header
+export default Header;
