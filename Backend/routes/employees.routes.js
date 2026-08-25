@@ -49,6 +49,7 @@ router.get("/:id", async (req, res) => {
 
     res.json({
       success: true,
+
       data: {
         id: Number(employee.id),
 
@@ -109,7 +110,7 @@ router.get("/:id", async (req, res) => {
 |--------------------------------------------------------------------------
 | GET /api/employees
 |--------------------------------------------------------------------------
-| Employee directory
+| Get employee directory
 |--------------------------------------------------------------------------
 */
 
@@ -152,7 +153,7 @@ router.get("/", async (req, res) => {
 
     /*
     |--------------------------------------------------------------------------
-    | Department filter
+    | Department
     |--------------------------------------------------------------------------
     */
 
@@ -168,7 +169,7 @@ router.get("/", async (req, res) => {
 
     /*
     |--------------------------------------------------------------------------
-    | Status filter
+    | Status
     |--------------------------------------------------------------------------
     */
 
@@ -182,6 +183,12 @@ router.get("/", async (req, res) => {
       );
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | WHERE
+    |--------------------------------------------------------------------------
+    */
+
     const whereClause =
       conditions.length > 0
         ? `WHERE ${conditions.join(
@@ -191,7 +198,7 @@ router.get("/", async (req, res) => {
 
     /*
     |--------------------------------------------------------------------------
-    | Employee query
+    | Employees
     |--------------------------------------------------------------------------
     */
 
@@ -227,7 +234,7 @@ router.get("/", async (req, res) => {
 
     /*
     |--------------------------------------------------------------------------
-    | Department query
+    | Departments
     |--------------------------------------------------------------------------
     */
 
@@ -269,7 +276,8 @@ router.get("/", async (req, res) => {
 
               fullName:
                 `${employee.first_name} ${
-                  employee.last_name ?? ""
+                  employee.last_name ??
+                  ""
                 }`.trim(),
 
               email:
@@ -335,14 +343,16 @@ router.get("/", async (req, res) => {
 
 /*
 |--------------------------------------------------------------------------
-| POST /api/employees
+| PUT /api/employees/:id
 |--------------------------------------------------------------------------
-| Create a new employee
+| Update an existing employee
 |--------------------------------------------------------------------------
 */
 
-router.post("/", async (req, res) => {
+router.put("/:id", async (req, res) => {
   try {
+    const { id } = req.params;
+
     const {
       employeeCode,
       firstName,
@@ -350,261 +360,129 @@ router.post("/", async (req, res) => {
       email,
       departmentId,
       joiningDate,
-      status = "ACTIVE",
-      employmentType = "FULL_TIME",
+      employmentStatus,
+      employmentType,
     } = req.body;
 
     /*
     |--------------------------------------------------------------------------
-    | Validate required fields
+    | Confirm employee exists
     |--------------------------------------------------------------------------
     */
 
-    if (
-      !employeeCode ||
-      !firstName ||
-      !email ||
-      !joiningDate
-    ) {
-      return res.status(400).json({
+    const existingResult = await pool.query(
+      `SELECT id FROM employees WHERE id = $1 LIMIT 1;`,
+      [id],
+    );
+
+    if (existingResult.rows.length === 0) {
+      return res.status(404).json({
         success: false,
-        message:
-          "Employee code, first name, email, and joining date are required",
+        message: "Employee not found",
       });
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Clean input
+    | Update
+    |--------------------------------------------------------------------------
+    | Duplicate employee_code / email is caught below and returned as a
+    | clean 409, instead of surfacing the raw PostgreSQL unique-violation
+    | error (code 23505).
     |--------------------------------------------------------------------------
     */
 
-    const cleanEmployeeCode =
-      employeeCode.trim();
-
-    const cleanFirstName =
-      firstName.trim();
-
-    const cleanLastName =
-      lastName?.trim() || null;
-
-    const cleanEmail =
-      email.trim().toLowerCase();
-
-    /*
-    |--------------------------------------------------------------------------
-    | Validate employee code
-    |--------------------------------------------------------------------------
-    */
-
-    const employeeCodeCheck =
+    try {
       await pool.query(
         `
-          SELECT id
-          FROM employees
-          WHERE employee_code = $1
-          LIMIT 1;
-        `,
-        [cleanEmployeeCode],
-      );
-
-    if (
-      employeeCodeCheck.rows.length > 0
-    ) {
-      return res.status(409).json({
-        success: false,
-        message:
-          "Employee code already exists",
-      });
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Validate email
-    |--------------------------------------------------------------------------
-    */
-
-    const emailCheck =
-      await pool.query(
-        `
-          SELECT id
-          FROM employees
-          WHERE LOWER(email) = LOWER($1)
-          LIMIT 1;
-        `,
-        [cleanEmail],
-      );
-
-    if (
-      emailCheck.rows.length > 0
-    ) {
-      return res.status(409).json({
-        success: false,
-        message:
-          "Employee email already exists",
-      });
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Validate department
-    |--------------------------------------------------------------------------
-    */
-
-    let cleanDepartmentId =
-      null;
-
-    if (
-      departmentId !== undefined &&
-      departmentId !== null &&
-      departmentId !== ""
-    ) {
-      cleanDepartmentId =
-        Number(departmentId);
-
-      if (
-        !Number.isInteger(
-          cleanDepartmentId,
-        )
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Invalid department ID",
-        });
-      }
-
-      const departmentCheck =
-        await pool.query(
-          `
-            SELECT id
-            FROM departments
-            WHERE id = $1
-            LIMIT 1;
-          `,
-          [cleanDepartmentId],
-        );
-
-      if (
-        departmentCheck.rows.length === 0
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Selected department does not exist",
-        });
-      }
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Validate joining date
-    |--------------------------------------------------------------------------
-    */
-
-    const parsedDate =
-      new Date(joiningDate);
-
-    if (
-      Number.isNaN(
-        parsedDate.getTime(),
-      )
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Invalid joining date",
-      });
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Normalize status/type
-    |--------------------------------------------------------------------------
-    */
-
-    const cleanStatus =
-      String(status)
-        .trim()
-        .toUpperCase();
-
-    const cleanEmploymentType =
-      String(employmentType)
-        .trim()
-        .toUpperCase();
-
-    /*
-    |--------------------------------------------------------------------------
-    | Insert employee
-    |--------------------------------------------------------------------------
-    */
-
-    const result =
-      await pool.query(
-        `
-          INSERT INTO employees (
-            employee_code,
-            first_name,
-            last_name,
-            email,
-            department_id,
-            joining_date,
-            employment_status,
-            employment_type
-          )
-          VALUES (
-            $1,
-            $2,
-            $3,
-            $4,
-            $5,
-            $6,
-            $7,
-            $8
-          )
-          RETURNING
-            id,
-            employee_code,
-            first_name,
-            last_name,
-            email,
-            department_id,
-            joining_date,
-            employment_status,
-            employment_type,
-            created_at;
+          UPDATE employees
+          SET
+            employee_code = $1,
+            first_name = $2,
+            last_name = $3,
+            email = $4,
+            department_id = $5,
+            joining_date = $6,
+            employment_status = $7,
+            employment_type = $8
+          WHERE id = $9;
         `,
         [
-          cleanEmployeeCode,
-          cleanFirstName,
-          cleanLastName,
-          cleanEmail,
-          cleanDepartmentId,
+          employeeCode,
+          firstName,
+          lastName || null,
+          email,
+          departmentId || null,
           joiningDate,
-          cleanStatus,
-          cleanEmploymentType,
+          employmentStatus,
+          employmentType,
+          id,
         ],
       );
+    } catch (updateError) {
+      if (updateError.code === "23505") {
+        const constraint =
+          updateError.constraint || "";
 
-    const employee =
-      result.rows[0];
+        let field = "employee code or email";
+
+        if (constraint.includes("email")) {
+          field = "email";
+        } else if (
+          constraint.includes(
+            "employee_code",
+          )
+        ) {
+          field = "employee code";
+        }
+
+        return res.status(409).json({
+          success: false,
+          message: `An employee with this ${field} already exists.`,
+        });
+      }
+
+      throw updateError;
+    }
 
     /*
     |--------------------------------------------------------------------------
-    | Success response
+    | Fetch updated employee
+    |--------------------------------------------------------------------------
+    | Same query/response shape as GET /api/employees/:id
     |--------------------------------------------------------------------------
     */
 
-    res.status(201).json({
+    const result = await pool.query(
+      `
+        SELECT
+          e.id,
+          e.employee_code,
+          e.first_name,
+          e.last_name,
+          e.email,
+          e.department_id,
+          d.name AS department_name,
+          e.joining_date,
+          e.employment_status,
+          e.employment_type,
+          e.created_at
+        FROM employees e
+        LEFT JOIN departments d
+          ON d.id = e.department_id
+        WHERE e.id = $1
+        LIMIT 1;
+      `,
+      [id],
+    );
+
+    const employee = result.rows[0];
+
+    res.json({
       success: true,
 
-      message:
-        "Employee created successfully",
-
       data: {
-        id: Number(
-          employee.id,
-        ),
+        id: Number(employee.id),
 
         employeeCode:
           employee.employee_code,
@@ -625,10 +503,12 @@ router.post("/", async (req, res) => {
 
         departmentId:
           employee.department_id
-            ? Number(
-                employee.department_id,
-              )
+            ? Number(employee.department_id)
             : null,
+
+        department:
+          employee.department_name ??
+          "Unassigned",
 
         joiningDate:
           employee.joining_date,
@@ -645,52 +525,14 @@ router.post("/", async (req, res) => {
     });
   } catch (error) {
     console.error(
-      "Create employee error:",
+      "Employee update error:",
       error,
     );
-
-    /*
-    |--------------------------------------------------------------------------
-    | PostgreSQL unique constraint fallback
-    |--------------------------------------------------------------------------
-    */
-
-    if (
-      error.code === "23505"
-    ) {
-      return res.status(409).json({
-        success: false,
-        message:
-          "Employee code or email already exists",
-      });
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | PostgreSQL foreign key fallback
-    |--------------------------------------------------------------------------
-    */
-
-    if (
-      error.code === "23503"
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Invalid department",
-      });
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | General error
-    |--------------------------------------------------------------------------
-    */
 
     res.status(500).json({
       success: false,
       message:
-        "Failed to create employee",
+        "Failed to update employee",
     });
   }
 });

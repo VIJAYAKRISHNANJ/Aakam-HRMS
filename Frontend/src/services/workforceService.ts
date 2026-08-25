@@ -189,3 +189,52 @@ export const createEmployee =
 
     return response.data.data;
   };
+
+/*
+|--------------------------------------------------------------------------
+| Update Employee
+|--------------------------------------------------------------------------
+| Connects to PUT /api/employees/:id. Same field shape as
+| CreateEmployeePayload since the editable fields are identical.
+|--------------------------------------------------------------------------
+*/
+
+export interface UpdateEmployeePayload {
+  employeeCode: string;
+
+  firstName: string;
+
+  lastName?: string;
+
+  email: string;
+
+  departmentId: number;
+
+  joiningDate: string;
+
+  employmentStatus: string;
+
+  employmentType: string;
+}
+
+interface UpdateEmployeeResponse {
+  success: boolean;
+
+  data: Employee;
+
+  message?: string;
+}
+
+export const updateEmployee =
+  async (
+    employeeId: number | string,
+    payload: UpdateEmployeePayload,
+  ): Promise<Employee> => {
+    const response =
+      await axios.put<UpdateEmployeeResponse>(
+        `${API_URL}/employees/${employeeId}`,
+        payload,
+      );
+
+    return response.data.data;
+  };

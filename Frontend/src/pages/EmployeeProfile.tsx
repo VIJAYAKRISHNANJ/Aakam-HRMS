@@ -3,6 +3,7 @@ import {
   BriefcaseBusiness,
   CalendarDays,
   Mail,
+  Pencil,
   User,
   Users,
 } from "lucide-react";
@@ -288,11 +289,21 @@ function EmployeeProfile() {
                 </div>
               </div>
 
-              <span className="inline-flex w-fit items-center rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
-                {formatValue(
-                  employee.status,
-                )}
-              </span>
+              <div className="flex w-fit items-center gap-3">
+                <span className="inline-flex w-fit items-center rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+                  {formatValue(
+                    employee.status,
+                  )}
+                </span>
+
+                <Link
+                  to={`/workforce/employees/${employee.id}/edit`}
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold tracking-wide text-slate-700 transition hover:bg-slate-50"
+                >
+                  <Pencil size={14} />
+                  Edit
+                </Link>
+              </div>
             </div>
           </div>
         </section>

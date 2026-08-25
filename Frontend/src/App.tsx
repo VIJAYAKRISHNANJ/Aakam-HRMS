@@ -1,12 +1,8 @@
-import {
-  Navigate,
-  Route,
-  Routes,
-} from "react-router-dom";
-
+import { Navigate, Route, Routes } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import Workforce from "./pages/Workforce";
 import AddEmployee from "./pages/AddEmployee";
+import EditEmployee from "./pages/EditEmployee";
 import EmployeeProfile from "./pages/EmployeeProfile";
 
 function App() {
@@ -14,12 +10,7 @@ function App() {
     <Routes>
       <Route
         path="/"
-        element={
-          <Navigate
-            to="/dashboard"
-            replace
-          />
-        }
+        element={<Navigate to="/dashboard" replace />}
       />
 
       <Route
@@ -38,10 +29,13 @@ function App() {
       />
 
       <Route
+        path="/workforce/employees/:id/edit"
+        element={<EditEmployee />}
+      />
+
+      <Route
         path="/workforce/employees/:id"
-        element={
-          <EmployeeProfile />
-        }
+        element={<EmployeeProfile />}
       />
     </Routes>
   );
