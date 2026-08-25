@@ -49,7 +49,6 @@ router.get("/:id", async (req, res) => {
 
     res.json({
       success: true,
-
       data: {
         id: Number(employee.id),
 
@@ -110,7 +109,7 @@ router.get("/:id", async (req, res) => {
 |--------------------------------------------------------------------------
 | GET /api/employees
 |--------------------------------------------------------------------------
-| Get employee directory
+| Employee directory
 |--------------------------------------------------------------------------
 */
 
@@ -153,7 +152,7 @@ router.get("/", async (req, res) => {
 
     /*
     |--------------------------------------------------------------------------
-    | Department
+    | Department filter
     |--------------------------------------------------------------------------
     */
 
@@ -169,7 +168,7 @@ router.get("/", async (req, res) => {
 
     /*
     |--------------------------------------------------------------------------
-    | Status
+    | Status filter
     |--------------------------------------------------------------------------
     */
 
@@ -183,12 +182,6 @@ router.get("/", async (req, res) => {
       );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | WHERE
-    |--------------------------------------------------------------------------
-    */
-
     const whereClause =
       conditions.length > 0
         ? `WHERE ${conditions.join(
@@ -198,7 +191,7 @@ router.get("/", async (req, res) => {
 
     /*
     |--------------------------------------------------------------------------
-    | Employees
+    | Employee query
     |--------------------------------------------------------------------------
     */
 
@@ -234,7 +227,7 @@ router.get("/", async (req, res) => {
 
     /*
     |--------------------------------------------------------------------------
-    | Departments
+    | Department query
     |--------------------------------------------------------------------------
     */
 
@@ -276,8 +269,7 @@ router.get("/", async (req, res) => {
 
               fullName:
                 `${employee.first_name} ${
-                  employee.last_name ??
-                  ""
+                  employee.last_name ?? ""
                 }`.trim(),
 
               email:
@@ -337,6 +329,368 @@ router.get("/", async (req, res) => {
       success: false,
       message:
         "Failed to load employee directory",
+    });
+  }
+});
+
+/*
+|--------------------------------------------------------------------------
+| POST /api/employees
+|--------------------------------------------------------------------------
+| Create a new employee
+|--------------------------------------------------------------------------
+*/
+
+router.post("/", async (req, res) => {
+  try {
+    const {
+      employeeCode,
+      firstName,
+      lastName,
+      email,
+      departmentId,
+      joiningDate,
+      status = "ACTIVE",
+      employmentType = "FULL_TIME",
+    } = req.body;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Validate required fields
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+      !employeeCode ||
+      !firstName ||
+      !email ||
+      !joiningDate
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Employee code, first name, email, and joining date are required",
+      });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Clean input
+    |--------------------------------------------------------------------------
+    */
+
+    const cleanEmployeeCode =
+      employeeCode.trim();
+
+    const cleanFirstName =
+      firstName.trim();
+
+    const cleanLastName =
+      lastName?.trim() || null;
+
+    const cleanEmail =
+      email.trim().toLowerCase();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Validate employee code
+    |--------------------------------------------------------------------------
+    */
+
+    const employeeCodeCheck =
+      await pool.query(
+        `
+          SELECT id
+          FROM employees
+          WHERE employee_code = $1
+          LIMIT 1;
+        `,
+        [cleanEmployeeCode],
+      );
+
+    if (
+      employeeCodeCheck.rows.length > 0
+    ) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Employee code already exists",
+      });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Validate email
+    |--------------------------------------------------------------------------
+    */
+
+    const emailCheck =
+      await pool.query(
+        `
+          SELECT id
+          FROM employees
+          WHERE LOWER(email) = LOWER($1)
+          LIMIT 1;
+        `,
+        [cleanEmail],
+      );
+
+    if (
+      emailCheck.rows.length > 0
+    ) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Employee email already exists",
+      });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Validate department
+    |--------------------------------------------------------------------------
+    */
+
+    let cleanDepartmentId =
+      null;
+
+    if (
+      departmentId !== undefined &&
+      departmentId !== null &&
+      departmentId !== ""
+    ) {
+      cleanDepartmentId =
+        Number(departmentId);
+
+      if (
+        !Number.isInteger(
+          cleanDepartmentId,
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid department ID",
+        });
+      }
+
+      const departmentCheck =
+        await pool.query(
+          `
+            SELECT id
+            FROM departments
+            WHERE id = $1
+            LIMIT 1;
+          `,
+          [cleanDepartmentId],
+        );
+
+      if (
+        departmentCheck.rows.length === 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Selected department does not exist",
+        });
+      }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Validate joining date
+    |--------------------------------------------------------------------------
+    */
+
+    const parsedDate =
+      new Date(joiningDate);
+
+    if (
+      Number.isNaN(
+        parsedDate.getTime(),
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid joining date",
+      });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Normalize status/type
+    |--------------------------------------------------------------------------
+    */
+
+    const cleanStatus =
+      String(status)
+        .trim()
+        .toUpperCase();
+
+    const cleanEmploymentType =
+      String(employmentType)
+        .trim()
+        .toUpperCase();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Insert employee
+    |--------------------------------------------------------------------------
+    */
+
+    const result =
+      await pool.query(
+        `
+          INSERT INTO employees (
+            employee_code,
+            first_name,
+            last_name,
+            email,
+            department_id,
+            joining_date,
+            employment_status,
+            employment_type
+          )
+          VALUES (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8
+          )
+          RETURNING
+            id,
+            employee_code,
+            first_name,
+            last_name,
+            email,
+            department_id,
+            joining_date,
+            employment_status,
+            employment_type,
+            created_at;
+        `,
+        [
+          cleanEmployeeCode,
+          cleanFirstName,
+          cleanLastName,
+          cleanEmail,
+          cleanDepartmentId,
+          joiningDate,
+          cleanStatus,
+          cleanEmploymentType,
+        ],
+      );
+
+    const employee =
+      result.rows[0];
+
+    /*
+    |--------------------------------------------------------------------------
+    | Success response
+    |--------------------------------------------------------------------------
+    */
+
+    res.status(201).json({
+      success: true,
+
+      message:
+        "Employee created successfully",
+
+      data: {
+        id: Number(
+          employee.id,
+        ),
+
+        employeeCode:
+          employee.employee_code,
+
+        firstName:
+          employee.first_name,
+
+        lastName:
+          employee.last_name,
+
+        fullName:
+          `${employee.first_name} ${
+            employee.last_name ?? ""
+          }`.trim(),
+
+        email:
+          employee.email,
+
+        departmentId:
+          employee.department_id
+            ? Number(
+                employee.department_id,
+              )
+            : null,
+
+        joiningDate:
+          employee.joining_date,
+
+        status:
+          employee.employment_status,
+
+        employmentType:
+          employee.employment_type,
+
+        createdAt:
+          employee.created_at,
+      },
+    });
+  } catch (error) {
+    console.error(
+      "Create employee error:",
+      error,
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | PostgreSQL unique constraint fallback
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+      error.code === "23505"
+    ) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Employee code or email already exists",
+      });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | PostgreSQL foreign key fallback
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+      error.code === "23503"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid department",
+      });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | General error
+    |--------------------------------------------------------------------------
+    */
+
+    res.status(500).json({
+      success: false,
+      message:
+        "Failed to create employee",
     });
   }
 });

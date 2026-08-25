@@ -6,6 +6,7 @@ import {
 
 import Dashboard from "./pages/Dashboard";
 import Workforce from "./pages/Workforce";
+import AddEmployee from "./pages/AddEmployee";
 import EmployeeProfile from "./pages/EmployeeProfile";
 
 function App() {
@@ -29,6 +30,11 @@ function App() {
       <Route
         path="/workforce"
         element={<Workforce />}
+      />
+
+      <Route
+        path="/workforce/employees/new"
+        element={<AddEmployee />}
       />
 
       <Route

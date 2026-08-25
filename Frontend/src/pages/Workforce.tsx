@@ -391,12 +391,10 @@ function Workforce() {
               Import
             </button>
 
-            <button
-              type="button"
-              disabled
+            <Link
+              to="/workforce/employees/new"
               className="
                 inline-flex
-                cursor-not-allowed
                 items-center
                 gap-2
                 rounded-lg
@@ -407,7 +405,8 @@ function Workforce() {
                 font-semibold
                 tracking-wide
                 text-white
-                opacity-60
+                transition
+                hover:bg-teal-800
               "
             >
               <Plus
@@ -415,7 +414,7 @@ function Workforce() {
               />
 
               Add Employee
-            </button>
+            </Link>
           </div>
         </section>
 

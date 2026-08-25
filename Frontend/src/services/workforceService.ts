@@ -139,3 +139,53 @@ export const getEmployeeById =
 
     return response.data.data;
   };
+
+/*
+|--------------------------------------------------------------------------
+| Create Employee
+|--------------------------------------------------------------------------
+| Connects to the existing POST /api/employees endpoint.
+| Field names use the same camelCase convention already used by the
+| GET /api/employees query params (search, departmentId, status) and by
+| the Employee interface above (employeeCode, firstName, joiningDate, ...).
+|--------------------------------------------------------------------------
+*/
+
+export interface CreateEmployeePayload {
+  employeeCode: string;
+
+  firstName: string;
+
+  lastName?: string;
+
+  email: string;
+
+  departmentId: number;
+
+  joiningDate: string;
+
+  employmentStatus: string;
+
+  employmentType: string;
+}
+
+interface CreateEmployeeResponse {
+  success: boolean;
+
+  data: Employee;
+
+  message?: string;
+}
+
+export const createEmployee =
+  async (
+    payload: CreateEmployeePayload,
+  ): Promise<Employee> => {
+    const response =
+      await axios.post<CreateEmployeeResponse>(
+        `${API_URL}/employees`,
+        payload,
+      );
+
+    return response.data.data;
+  };
