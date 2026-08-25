@@ -1,14 +1,13 @@
 import {
   ArrowLeft,
   CheckCircle2,
+  CircleAlert,
   Loader2,
 } from "lucide-react";
-
 import {
   useEffect,
   useState,
 } from "react";
-
 import {
   Link,
   useNavigate,
@@ -16,19 +15,12 @@ import {
 } from "react-router-dom";
 
 import DashboardLayout from "../components/layout/DashboardLayout";
-
 import {
   getEmployeeById,
   getEmployees,
   updateEmployee,
   type WorkforceDepartment,
 } from "../services/workforceService";
-
-/*
-|--------------------------------------------------------------------------
-| Form State
-|--------------------------------------------------------------------------
-*/
 
 interface EditEmployeeForm {
   employeeCode: string;
@@ -41,6 +33,10 @@ interface EditEmployeeForm {
   employmentType: string;
 }
 
+type FormErrors = Partial<
+  Record<keyof EditEmployeeForm, string>
+>;
+
 const emptyForm: EditEmployeeForm = {
   employeeCode: "",
   firstName: "",
@@ -51,16 +47,6 @@ const emptyForm: EditEmployeeForm = {
   employmentStatus: "ACTIVE",
   employmentType: "FULL_TIME",
 };
-
-type FormErrors = Partial<
-  Record<keyof EditEmployeeForm, string>
->;
-
-/*
-|--------------------------------------------------------------------------
-| Options
-|--------------------------------------------------------------------------
-*/
 
 const statusOptions = [
   { value: "ACTIVE", label: "Active" },
@@ -76,11 +62,16 @@ const employmentTypeOptions = [
   { value: "INTERN", label: "Intern" },
 ];
 
-/*
-|--------------------------------------------------------------------------
-| Helpers
-|--------------------------------------------------------------------------
-*/
+const getFieldClasses = (
+  hasError: boolean,
+): string =>
+  [
+    "h-12 w-full rounded-xl border bg-white px-4 text-sm text-slate-800 outline-none transition",
+    "placeholder:text-slate-400 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500",
+    hasError
+      ? "border-red-300 focus:border-red-500 focus:ring-4 focus:ring-red-500/10"
+      : "border-slate-200 hover:border-slate-300 focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10",
+  ].join(" ");
 
 const toDateInputValue = (
   value: string,
@@ -98,49 +89,28 @@ const toDateInputValue = (
   return date.toISOString().slice(0, 10);
 };
 
-/*
-|--------------------------------------------------------------------------
-| Component
-|--------------------------------------------------------------------------
-*/
-
 function EditEmployee() {
   const { id } = useParams<{ id: string }>();
-
   const navigate = useNavigate();
 
   const [form, setForm] =
     useState<EditEmployeeForm>(emptyForm);
-
   const [errors, setErrors] =
     useState<FormErrors>({});
-
   const [departments, setDepartments] =
     useState<WorkforceDepartment[]>([]);
-
   const [departmentsLoading, setDepartmentsLoading] =
     useState(true);
-
   const [pageLoading, setPageLoading] =
     useState(true);
-
   const [loadError, setLoadError] =
     useState("");
-
   const [submitting, setSubmitting] =
     useState(false);
-
   const [submitError, setSubmitError] =
     useState("");
-
   const [success, setSuccess] =
     useState(false);
-
-  /*
-  |--------------------------------------------------------------------------
-  | Load existing employee + departments (real PostgreSQL data)
-  |--------------------------------------------------------------------------
-  */
 
   useEffect(() => {
     const loadData = async () => {
@@ -148,10 +118,8 @@ function EditEmployee() {
         setLoadError(
           "Employee ID is missing.",
         );
-
         setPageLoading(false);
         setDepartmentsLoading(false);
-
         return;
       }
 
@@ -209,12 +177,6 @@ function EditEmployee() {
     loadData();
   }, [id]);
 
-  /*
-  |--------------------------------------------------------------------------
-  | Handlers
-  |--------------------------------------------------------------------------
-  */
-
   const handleChange =
     (field: keyof EditEmployeeForm) =>
     (
@@ -249,7 +211,8 @@ function EditEmployee() {
     }
 
     if (!form.email.trim()) {
-      nextErrors.email = "Email is required.";
+      nextErrors.email =
+        "Email is required.";
     } else if (
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
         form.email.trim(),
@@ -287,7 +250,6 @@ function EditEmployee() {
   ) => {
     event.preventDefault();
 
-    // Guard against duplicate submission
     if (submitting || success || !id) {
       return;
     }
@@ -317,7 +279,6 @@ function EditEmployee() {
 
       setSuccess(true);
 
-      // Brief pause so the success state is visible before navigating
       window.setTimeout(() => {
         navigate(`/workforce/employees/${id}`);
       }, 900);
@@ -330,7 +291,6 @@ function EditEmployee() {
       const backendMessage = (
         requestError as {
           response?: {
-            status?: number;
             data?: { message?: string };
           };
         }
@@ -340,28 +300,30 @@ function EditEmployee() {
         backendMessage ||
           "Unable to update employee. Please check the details and try again.",
       );
-
       setSubmitting(false);
     }
   };
 
   const fieldDisabled = submitting || success;
 
-  /*
-  |--------------------------------------------------------------------------
-  | Loading / load-error states
-  |--------------------------------------------------------------------------
-  */
-
   if (pageLoading) {
     return (
       <DashboardLayout>
-        <div className="flex min-h-[500px] items-center justify-center">
-          <div className="text-center">
-            <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-teal-600" />
+        <div className="flex min-h-[520px] items-center justify-center">
+          <div className="dashboard-card w-full max-w-md px-6 py-10 text-center sm:px-8">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-50 text-teal-700">
+              <Loader2
+                size={24}
+                className="animate-spin"
+              />
+            </div>
 
-            <p className="text-sm text-slate-500">
-              Loading employee details...
+            <h2 className="mt-5 text-lg font-semibold text-slate-900">
+              Loading employee details
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              Fetching the latest employee information so you can update the record.
             </p>
           </div>
         </div>
@@ -372,15 +334,23 @@ function EditEmployee() {
   if (loadError) {
     return (
       <DashboardLayout>
-        <div className="flex min-h-[500px] items-center justify-center">
-          <div className="text-center">
-            <p className="text-sm font-medium text-red-700">
+        <div className="flex min-h-[520px] items-center justify-center">
+          <div className="dashboard-card w-full max-w-lg px-6 py-10 text-center sm:px-8">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+              <CircleAlert size={24} />
+            </div>
+
+            <h2 className="mt-5 text-lg font-semibold text-slate-900">
+              Unable to load employee
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-slate-500">
               {loadError}
             </p>
 
             <Link
               to="/workforce"
-              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800"
+              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800"
             >
               <ArrowLeft size={16} />
               Back to Workforce
@@ -391,325 +361,328 @@ function EditEmployee() {
     );
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | Render
-  |--------------------------------------------------------------------------
-  */
-
   return (
     <DashboardLayout>
-      <div className="flex w-full min-w-0 max-w-3xl flex-col gap-6">
-        {/* =================================================
-            BACK
-        ================================================= */}
-
+      <div className="flex w-full min-w-0 max-w-5xl flex-col gap-6">
         <Link
           to={`/workforce/employees/${id}`}
-          className="inline-flex w-fit items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-teal-700"
+          className="inline-flex w-fit items-center gap-2 rounded-full px-1 text-sm font-medium text-slate-600 transition hover:text-teal-700"
         >
           <ArrowLeft size={17} />
           Back to Employee Profile
         </Link>
 
-        {/* =================================================
-            HEADER
-        ================================================= */}
-
-        <div>
+        <section>
           <h1 className="m-0 text-[32px] font-semibold leading-10 tracking-tight text-slate-900">
             Edit Employee
           </h1>
-
           <p className="mt-1 text-sm text-slate-600">
-            Update this employee's details in
-            Aakam HRMS.
+            Update employee information while keeping the existing workforce record accurate.
           </p>
-        </div>
-
-        {/* =================================================
-            SUBMIT ERROR
-        ================================================= */}
+        </section>
 
         {submitError && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {submitError}
-          </div>
-        )}
-
-        {/* =================================================
-            SUCCESS
-        ================================================= */}
-
-        {success && (
-          <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-            <CheckCircle2 size={17} />
-            Employee updated successfully.
-            Redirecting to their profile...
-          </div>
-        )}
-
-        {/* =================================================
-            FORM
-        ================================================= */}
-
-        <section className="dashboard-card p-5 sm:p-6">
-          <form onSubmit={handleSubmit} noValidate>
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-              {/* EMPLOYEE CODE */}
+          <section className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm text-red-700">
+            <div className="flex items-start gap-3">
+              <CircleAlert
+                size={18}
+                className="mt-0.5 shrink-0"
+              />
               <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Employee Code
-                </label>
-
-                <input
-                  type="text"
-                  value={form.employeeCode}
-                  onChange={handleChange(
-                    "employeeCode",
-                  )}
-                  disabled={fieldDisabled}
-                  placeholder="e.g. AAK011"
-                  className={`h-10 w-full rounded-lg border bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 ${
-                    errors.employeeCode
-                      ? "border-red-300 focus:border-red-500 focus:ring-red-500/20"
-                      : "border-slate-300 focus:border-teal-600 focus:ring-teal-600/20"
-                  }`}
-                />
-
-                {errors.employeeCode && (
-                  <p className="mt-1.5 text-xs text-red-600">
-                    {errors.employeeCode}
-                  </p>
-                )}
-              </div>
-
-              {/* EMAIL */}
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Email
-                </label>
-
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={handleChange("email")}
-                  disabled={fieldDisabled}
-                  placeholder="name@aakam.com"
-                  className={`h-10 w-full rounded-lg border bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 ${
-                    errors.email
-                      ? "border-red-300 focus:border-red-500 focus:ring-red-500/20"
-                      : "border-slate-300 focus:border-teal-600 focus:ring-teal-600/20"
-                  }`}
-                />
-
-                {errors.email && (
-                  <p className="mt-1.5 text-xs text-red-600">
-                    {errors.email}
-                  </p>
-                )}
-              </div>
-
-              {/* FIRST NAME */}
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  First Name
-                </label>
-
-                <input
-                  type="text"
-                  value={form.firstName}
-                  onChange={handleChange(
-                    "firstName",
-                  )}
-                  disabled={fieldDisabled}
-                  placeholder="e.g. Arun"
-                  className={`h-10 w-full rounded-lg border bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 ${
-                    errors.firstName
-                      ? "border-red-300 focus:border-red-500 focus:ring-red-500/20"
-                      : "border-slate-300 focus:border-teal-600 focus:ring-teal-600/20"
-                  }`}
-                />
-
-                {errors.firstName && (
-                  <p className="mt-1.5 text-xs text-red-600">
-                    {errors.firstName}
-                  </p>
-                )}
-              </div>
-
-              {/* LAST NAME */}
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Last Name
-                </label>
-
-                <input
-                  type="text"
-                  value={form.lastName}
-                  onChange={handleChange(
-                    "lastName",
-                  )}
-                  disabled={fieldDisabled}
-                  placeholder="e.g. Kumar (optional)"
-                  className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 disabled:cursor-not-allowed disabled:bg-slate-50"
-                />
-              </div>
-
-              {/* DEPARTMENT */}
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Department
-                </label>
-
-                <select
-                  value={form.departmentId}
-                  onChange={handleChange(
-                    "departmentId",
-                  )}
-                  disabled={
-                    fieldDisabled ||
-                    departmentsLoading
-                  }
-                  className={`h-10 w-full rounded-lg border bg-white px-3 text-sm text-slate-700 outline-none transition focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 ${
-                    errors.departmentId
-                      ? "border-red-300 focus:border-red-500 focus:ring-red-500/20"
-                      : "border-slate-300 focus:border-teal-600 focus:ring-teal-600/20"
-                  }`}
-                >
-                  <option value="">
-                    {departmentsLoading
-                      ? "Loading departments..."
-                      : "Select department"}
-                  </option>
-
-                  {departments.map((department) => (
-                    <option
-                      key={department.id}
-                      value={department.id}
-                    >
-                      {department.name}
-                    </option>
-                  ))}
-                </select>
-
-                {errors.departmentId && (
-                  <p className="mt-1.5 text-xs text-red-600">
-                    {errors.departmentId}
-                  </p>
-                )}
-              </div>
-
-              {/* JOINING DATE */}
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Joining Date
-                </label>
-
-                <input
-                  type="date"
-                  value={form.joiningDate}
-                  onChange={handleChange(
-                    "joiningDate",
-                  )}
-                  disabled={fieldDisabled}
-                  className={`h-10 w-full rounded-lg border bg-white px-3 text-sm text-slate-800 outline-none transition focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 ${
-                    errors.joiningDate
-                      ? "border-red-300 focus:border-red-500 focus:ring-red-500/20"
-                      : "border-slate-300 focus:border-teal-600 focus:ring-teal-600/20"
-                  }`}
-                />
-
-                {errors.joiningDate && (
-                  <p className="mt-1.5 text-xs text-red-600">
-                    {errors.joiningDate}
-                  </p>
-                )}
-              </div>
-
-              {/* EMPLOYMENT STATUS */}
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Employment Status
-                </label>
-
-                <select
-                  value={form.employmentStatus}
-                  onChange={handleChange(
-                    "employmentStatus",
-                  )}
-                  disabled={fieldDisabled}
-                  className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 disabled:cursor-not-allowed disabled:bg-slate-50"
-                >
-                  {statusOptions.map((option) => (
-                    <option
-                      key={option.value}
-                      value={option.value}
-                    >
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* EMPLOYMENT TYPE */}
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Employment Type
-                </label>
-
-                <select
-                  value={form.employmentType}
-                  onChange={handleChange(
-                    "employmentType",
-                  )}
-                  disabled={fieldDisabled}
-                  className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 disabled:cursor-not-allowed disabled:bg-slate-50"
-                >
-                  {employmentTypeOptions.map(
-                    (option) => (
-                      <option
-                        key={option.value}
-                        value={option.value}
-                      >
-                        {option.label}
-                      </option>
-                    ),
-                  )}
-                </select>
+                <p className="font-semibold text-red-800">
+                  Unable to save changes
+                </p>
+                <p className="mt-1 leading-6">
+                  {submitError}
+                </p>
               </div>
             </div>
+          </section>
+        )}
 
-            {/* =================================================
-                ACTIONS
-            ================================================= */}
+        {success && (
+          <section className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 text-sm text-emerald-700">
+            <div className="flex items-start gap-3">
+              <CheckCircle2
+                size={18}
+                className="mt-0.5 shrink-0"
+              />
+              <div>
+                <p className="font-semibold text-emerald-800">
+                  Employee updated successfully
+                </p>
+                <p className="mt-1 leading-6">
+                  Redirecting to the employee profile with the latest details.
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
 
-            <div className="mt-8 flex items-center justify-end gap-3 border-t border-slate-100 pt-5">
-              <Link
-                to={`/workforce/employees/${id}`}
-                className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold tracking-wide text-slate-700 transition hover:bg-slate-50"
-              >
-                Cancel
-              </Link>
+        <section className="dashboard-card overflow-hidden">
+          <form onSubmit={handleSubmit} noValidate>
+            <div className="space-y-10 px-6 py-6 sm:px-8 sm:py-8">
+              <section>
+                <div className="mb-6">
+                  <h2 className="text-base font-semibold text-slate-900">
+                    Personal Information
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Maintain the employee's core identity and contact details.
+                  </p>
+                </div>
 
-              <button
-                type="submit"
-                disabled={fieldDisabled}
-                className="inline-flex items-center gap-2 rounded-lg bg-teal-700 px-5 py-2 text-xs font-semibold tracking-wide text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {submitting && (
-                  <Loader2
-                    size={15}
-                    className="animate-spin"
-                  />
-                )}
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Employee Code
+                    </label>
+                    <input
+                      type="text"
+                      value={form.employeeCode}
+                      onChange={handleChange(
+                        "employeeCode",
+                      )}
+                      disabled={fieldDisabled}
+                      placeholder="e.g. AAK011"
+                      className={getFieldClasses(
+                        Boolean(
+                          errors.employeeCode,
+                        ),
+                      )}
+                    />
+                    {errors.employeeCode && (
+                      <p className="mt-2 text-xs font-medium text-red-600">
+                        {errors.employeeCode}
+                      </p>
+                    )}
+                  </div>
 
-                {submitting
-                  ? "Saving..."
-                  : success
-                    ? "Saved"
-                    : "Save Changes"}
-              </button>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Work Email
+                    </label>
+                    <input
+                      type="email"
+                      value={form.email}
+                      onChange={handleChange(
+                        "email",
+                      )}
+                      disabled={fieldDisabled}
+                      placeholder="name@aakam.com"
+                      className={getFieldClasses(
+                        Boolean(errors.email),
+                      )}
+                    />
+                    {errors.email && (
+                      <p className="mt-2 text-xs font-medium text-red-600">
+                        {errors.email}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      First Name
+                    </label>
+                    <input
+                      type="text"
+                      value={form.firstName}
+                      onChange={handleChange(
+                        "firstName",
+                      )}
+                      disabled={fieldDisabled}
+                      placeholder="e.g. Arun"
+                      className={getFieldClasses(
+                        Boolean(
+                          errors.firstName,
+                        ),
+                      )}
+                    />
+                    {errors.firstName && (
+                      <p className="mt-2 text-xs font-medium text-red-600">
+                        {errors.firstName}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Last Name
+                    </label>
+                    <input
+                      type="text"
+                      value={form.lastName}
+                      onChange={handleChange(
+                        "lastName",
+                      )}
+                      disabled={fieldDisabled}
+                      placeholder="e.g. Kumar (optional)"
+                      className={getFieldClasses(
+                        false,
+                      )}
+                    />
+                  </div>
+                </div>
+              </section>
+
+              <section className="border-t border-slate-100 pt-8">
+                <div className="mb-6">
+                  <h2 className="text-base font-semibold text-slate-900">
+                    Employment Information
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Update department and employment details used in workforce operations.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Department
+                    </label>
+                    <select
+                      value={form.departmentId}
+                      onChange={handleChange(
+                        "departmentId",
+                      )}
+                      disabled={
+                        fieldDisabled ||
+                        departmentsLoading
+                      }
+                      className={getFieldClasses(
+                        Boolean(
+                          errors.departmentId,
+                        ),
+                      )}
+                    >
+                      <option value="">
+                        {departmentsLoading
+                          ? "Loading departments..."
+                          : "Select department"}
+                      </option>
+                      {departments.map((department) => (
+                        <option
+                          key={department.id}
+                          value={department.id}
+                        >
+                          {department.name}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.departmentId && (
+                      <p className="mt-2 text-xs font-medium text-red-600">
+                        {errors.departmentId}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Joining Date
+                    </label>
+                    <input
+                      type="date"
+                      value={form.joiningDate}
+                      onChange={handleChange(
+                        "joiningDate",
+                      )}
+                      disabled={fieldDisabled}
+                      className={getFieldClasses(
+                        Boolean(
+                          errors.joiningDate,
+                        ),
+                      )}
+                    />
+                    {errors.joiningDate && (
+                      <p className="mt-2 text-xs font-medium text-red-600">
+                        {errors.joiningDate}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Employment Status
+                    </label>
+                    <select
+                      value={form.employmentStatus}
+                      onChange={handleChange(
+                        "employmentStatus",
+                      )}
+                      disabled={fieldDisabled}
+                      className={getFieldClasses(
+                        false,
+                      )}
+                    >
+                      {statusOptions.map((option) => (
+                        <option
+                          key={option.value}
+                          value={option.value}
+                        >
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Employment Type
+                    </label>
+                    <select
+                      value={form.employmentType}
+                      onChange={handleChange(
+                        "employmentType",
+                      )}
+                      disabled={fieldDisabled}
+                      className={getFieldClasses(
+                        false,
+                      )}
+                    >
+                      {employmentTypeOptions.map(
+                        (option) => (
+                          <option
+                            key={option.value}
+                            value={option.value}
+                          >
+                            {option.label}
+                          </option>
+                        ),
+                      )}
+                    </select>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <div className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/50 px-6 py-5 sm:flex-row sm:items-center sm:justify-end sm:px-8">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Link
+                  to={`/workforce/employees/${id}`}
+                  className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Cancel
+                </Link>
+
+                <button
+                  type="submit"
+                  disabled={fieldDisabled}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {submitting && (
+                    <Loader2
+                      size={16}
+                      className="animate-spin"
+                    />
+                  )}
+                  {submitting
+                    ? "Saving Changes..."
+                    : success
+                      ? "Saved"
+                      : "Save Changes"}
+                </button>
+              </div>
             </div>
           </form>
         </section>
