@@ -6,14 +6,21 @@ import pool from "./db.js";
 
 import dashboardRoutes from "./routes/dashboard.routes.js";
 import employeeRoutes from "./routes/employees.routes.js";
+import companyRoutes from "./routes/company.routes.js";
+import branchRoutes from "./routes/branches.routes.js";
+import departmentRoutes from "./routes/departments.routes.js";
 
 const app = express();
 
-const PORT =
-  process.env.PORT || 5000;
+const PORT = process.env.PORT || 5000;
+
+/*
+|--------------------------------------------------------------------------
+| Middleware
+|--------------------------------------------------------------------------
+*/
 
 app.use(cors());
-
 app.use(express.json());
 
 /*
@@ -72,6 +79,39 @@ app.use(
 app.use(
   "/api/employees",
   employeeRoutes,
+);
+
+/*
+|--------------------------------------------------------------------------
+| Company
+|--------------------------------------------------------------------------
+*/
+
+app.use(
+  "/api/companies",
+  companyRoutes,
+);
+
+/*
+|--------------------------------------------------------------------------
+| Branches
+|--------------------------------------------------------------------------
+*/
+
+app.use(
+  "/api/branches",
+  branchRoutes,
+);
+
+/*
+|--------------------------------------------------------------------------
+| Departments
+|--------------------------------------------------------------------------
+*/
+
+app.use(
+  "/api/departments",
+  departmentRoutes,
 );
 
 /*
