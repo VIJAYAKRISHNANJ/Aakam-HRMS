@@ -9,6 +9,7 @@ import employeeRoutes from "./routes/employees.routes.js";
 import companyRoutes from "./routes/company.routes.js";
 import branchRoutes from "./routes/branches.routes.js";
 import departmentRoutes from "./routes/departments.routes.js";
+import notificationRoutes from "./routes/notifications.routes.js";
 
 const app = express();
 
@@ -112,6 +113,17 @@ app.use(
 app.use(
   "/api/departments",
   departmentRoutes,
+);
+
+/*
+|--------------------------------------------------------------------------
+| Notifications
+|--------------------------------------------------------------------------
+*/
+
+app.use(
+  "/api/notifications",
+  notificationRoutes,
 );
 
 /*

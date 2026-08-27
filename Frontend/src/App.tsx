@@ -32,6 +32,8 @@ import AddDepartment from "./pages/AddDepartment";
 
 import EditDepartment from "./pages/EditDepartment";
 
+import Notifications from "./pages/Notifications";
+
 function App() {
   return (
     <Routes>
@@ -138,6 +140,15 @@ function App() {
       <Route
         path="/organization/departments/edit/:id"
         element={<EditDepartment />}
+      />
+
+      {/* =====================================================
+          NOTIFICATIONS
+      ===================================================== */}
+
+      <Route
+        path="/notifications"
+        element={<Notifications />}
       />
 
     </Routes>

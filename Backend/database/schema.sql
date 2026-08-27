@@ -1,7 +1,8 @@
 -- ============================================
 -- AAKAM HRMS - DATABASE SCHEMA
--- MODULE 1 + MODULE 2 + MODULE 3
+-- MODULE 1 + MODULE 2 + MODULE 3 + MODULE 4
 -- ============================================
+
 
 -- ============================================
 -- DEPARTMENTS
@@ -203,3 +204,95 @@ CREATE TABLE IF NOT EXISTS companies (
     updated_at TIMESTAMP
         DEFAULT CURRENT_TIMESTAMP
 );
+
+
+-- ============================================
+-- MODULE 3 - BRANCHES
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS branches (
+    id SERIAL PRIMARY KEY,
+
+    company_id INTEGER NOT NULL
+        REFERENCES companies(id)
+        ON DELETE CASCADE,
+
+    branch_name VARCHAR(150) NOT NULL,
+
+    branch_code VARCHAR(30) NOT NULL,
+
+    address TEXT,
+
+    city VARCHAR(100),
+
+    state VARCHAR(100),
+
+    country VARCHAR(100)
+        DEFAULT 'India',
+
+    email VARCHAR(150),
+
+    phone VARCHAR(30),
+
+    status VARCHAR(30)
+        NOT NULL DEFAULT 'ACTIVE',
+
+    created_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE(company_id, branch_code)
+);
+
+
+-- ============================================
+-- MODULE 4 - NOTIFICATIONS
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id SERIAL PRIMARY KEY,
+
+    sender_name VARCHAR(150) NOT NULL,
+
+    recipient_type VARCHAR(30)
+        NOT NULL DEFAULT 'ALL',
+
+    message TEXT NOT NULL,
+
+    is_read BOOLEAN
+        NOT NULL DEFAULT FALSE,
+
+    created_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP
+);
+
+
+-- ============================================
+-- INDEXES
+-- ============================================
+
+CREATE INDEX IF NOT EXISTS idx_employees_department_id
+    ON employees(department_id);
+
+CREATE INDEX IF NOT EXISTS idx_job_positions_department_id
+    ON job_positions(department_id);
+
+CREATE INDEX IF NOT EXISTS idx_leave_requests_employee_id
+    ON leave_requests(employee_id);
+
+CREATE INDEX IF NOT EXISTS idx_attendance_employee_id
+    ON attendance_records(employee_id);
+
+CREATE INDEX IF NOT EXISTS idx_candidates_job_position_id
+    ON candidates(job_position_id);
+
+CREATE INDEX IF NOT EXISTS idx_branches_company_id
+    ON branches(company_id);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at
+    ON notifications(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_is_read
+    ON notifications(is_read);
