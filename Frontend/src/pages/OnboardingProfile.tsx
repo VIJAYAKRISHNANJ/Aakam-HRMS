@@ -1,38 +1,586 @@
-import { ArrowLeft, Check, ClipboardCheck, Edit, FileText, Plus, UserRound, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  ClipboardCheck,
+  Edit,
+  FileText,
+  Plus,
+  UserRound,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import DashboardLayout from "../components/layout/DashboardLayout";
-import { PageHeader, StateMessage } from "../components/recruitment/RecruitmentComponents";
 import {
-  completeOnboarding, createOnboardingDocument, createOnboardingEmployee, createOnboardingTask, getOnboarding, getOnboardingErrorMessage, joinOnboarding, updateOnboardingDocument, updateOnboardingTask,
-  type DocumentStatus, type DocumentType, type OnboardingDetail, type OnboardingDocument, type OnboardingTask, type TaskStatus,
+  PageHeader,
+  StateMessage,
+} from "../components/recruitment/RecruitmentComponents";
+import {
+  completeOnboarding,
+  createOnboardingDocument,
+  createOnboardingEmployee,
+  createOnboardingTask,
+  getOnboarding,
+  getOnboardingErrorMessage,
+  joinOnboarding,
+  updateOnboardingDocument,
+  updateOnboardingTask,
+  type DocumentStatus,
+  type DocumentType,
+  type OnboardingDetail,
+  type OnboardingDocument,
+  type OnboardingTask,
+  type TaskStatus,
 } from "../services/onboardingService";
 
-const label = (value: string) => value.toLowerCase().replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
-const date = (value: string | null) => value ? new Date(value).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "-";
-const statusClass = (status: string) => status === "COMPLETED" || status === "VERIFIED" ? "bg-emerald-100 text-emerald-700" : status === "REJECTED" || status === "CANCELLED" ? "bg-rose-100 text-rose-700" : "bg-teal-100 text-teal-700";
-const steps = ["Offer Accepted", "Documents", "Verification", "Joining", "Employee ID", "Department Allocation", "Assets/System", "Completed"];
+const label = (value: string) =>
+  value
+    .toLowerCase()
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+const date = (value: string | null) =>
+  value
+    ? new Date(value).toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "-";
+const statusClass = (status: string) =>
+  status === "COMPLETED" || status === "VERIFIED"
+    ? "bg-emerald-100 text-emerald-700"
+    : status === "REJECTED" || status === "CANCELLED"
+      ? "bg-rose-100 text-rose-700"
+      : "bg-teal-100 text-teal-700";
+const steps = [
+  "Offer Accepted",
+  "Documents",
+  "Verification",
+  "Joining",
+  "Employee ID",
+  "Department Allocation",
+  "Assets/System",
+  "Completed",
+];
 
 function OnboardingProfile() {
-  const { id } = useParams(); const [record, setRecord] = useState<OnboardingDetail | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [success, setSuccess] = useState(""); const [actionLoading, setActionLoading] = useState(""); const [taskName, setTaskName] = useState(""); const [taskOwner, setTaskOwner] = useState(""); const [taskDueDate, setTaskDueDate] = useState(""); const [documentName, setDocumentName] = useState(""); const [documentType, setDocumentType] = useState<DocumentType>("OTHER"); const [employeeCode, setEmployeeCode] = useState(""); const [joinDate, setJoinDate] = useState(""); const [showEmployeeForm, setShowEmployeeForm] = useState(false); const [showCompleteModal, setShowCompleteModal] = useState(false);
-  const load = useCallback(async () => { if (!id) return; try { setLoading(true); setError(""); setRecord(await getOnboarding(id)); } catch (requestError) { setError(getOnboardingErrorMessage(requestError, "Unable to load onboarding profile.")); } finally { setLoading(false); } }, [id]);
-  useEffect(() => { const timer = window.setTimeout(() => { void load(); }, 0); return () => window.clearTimeout(timer); }, [load]);
-  const run = async (name: string, action: () => Promise<void>) => { try { setActionLoading(name); setError(""); await action(); setSuccess("Action completed successfully."); await load(); } catch (requestError) { setError(getOnboardingErrorMessage(requestError, "Unable to complete action.")); } finally { setActionLoading(""); } };
-  const addTask = async (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); if (!id || !taskName.trim()) return setError("Task name is required."); await run("task", async () => { await createOnboardingTask(id, { taskName: taskName.trim(), owner: taskOwner.trim() || null, dueDate: taskDueDate || null }); setTaskName(""); setTaskOwner(""); setTaskDueDate(""); }); };
-  const addDocument = async (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); if (!id || !documentName.trim()) return setError("Document name is required."); await run("document", async () => { await createOnboardingDocument(id, { documentName: documentName.trim(), documentType }); setDocumentName(""); }); };
-  const stepIndex = record ? record.status === "COMPLETED" ? 7 : record.employeeId ? 4 : record.actualJoiningDate ? 3 : record.documentVerificationStatus === "VERIFIED" ? 2 : record.documentProgress.completed > 0 ? 1 : 0 : 0;
-  if (loading) return <DashboardLayout><StateMessage type="loading">Loading onboarding profile...</StateMessage></DashboardLayout>;
-  if (error && !record) return <DashboardLayout><StateMessage type="error">{error}</StateMessage></DashboardLayout>;
+  const { id } = useParams();
+  const [record, setRecord] = useState<OnboardingDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [actionLoading, setActionLoading] = useState("");
+  const [taskName, setTaskName] = useState("");
+  const [taskOwner, setTaskOwner] = useState("");
+  const [taskDueDate, setTaskDueDate] = useState("");
+  const [documentName, setDocumentName] = useState("");
+  const [documentType, setDocumentType] = useState<DocumentType>("OTHER");
+  const [employeeCode, setEmployeeCode] = useState("");
+  const [joinDate, setJoinDate] = useState("");
+  const [showEmployeeForm, setShowEmployeeForm] = useState(false);
+  const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const load = useCallback(async () => {
+    if (!id) return;
+    try {
+      setLoading(true);
+      setError("");
+      setRecord(await getOnboarding(id));
+    } catch (requestError) {
+      setError(
+        getOnboardingErrorMessage(
+          requestError,
+          "Unable to load onboarding profile.",
+        ),
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
+  const run = async (name: string, action: () => Promise<void>) => {
+    try {
+      setActionLoading(name);
+      setError("");
+      await action();
+      setSuccess("Action completed successfully.");
+      await load();
+    } catch (requestError) {
+      setError(
+        getOnboardingErrorMessage(requestError, "Unable to complete action."),
+      );
+    } finally {
+      setActionLoading("");
+    }
+  };
+  const addTask = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!id || !taskName.trim()) return setError("Task name is required.");
+    await run("task", async () => {
+      await createOnboardingTask(id, {
+        taskName: taskName.trim(),
+        owner: taskOwner.trim() || null,
+        dueDate: taskDueDate || null,
+      });
+      setTaskName("");
+      setTaskOwner("");
+      setTaskDueDate("");
+    });
+  };
+  const addDocument = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!id || !documentName.trim())
+      return setError("Document name is required.");
+    await run("document", async () => {
+      await createOnboardingDocument(id, {
+        documentName: documentName.trim(),
+        documentType,
+      });
+      setDocumentName("");
+    });
+  };
+  const stepIndex = record
+    ? record.status === "COMPLETED"
+      ? 7
+      : record.employeeId
+        ? 4
+        : record.actualJoiningDate
+          ? 3
+          : record.documentVerificationStatus === "VERIFIED"
+            ? 2
+            : record.documentProgress.completed > 0
+              ? 1
+              : 0
+    : 0;
+  if (loading)
+    return (
+      <DashboardLayout>
+        <StateMessage type="loading">
+          Loading onboarding profile...
+        </StateMessage>
+      </DashboardLayout>
+    );
+  if (error && !record)
+    return (
+      <DashboardLayout>
+        <StateMessage type="error">{error}</StateMessage>
+      </DashboardLayout>
+    );
   if (!record || !id) return null;
-  const updateTask = (task: OnboardingTask, status: TaskStatus) => run(`task-${task.id}`, async () => { await updateOnboardingTask(id, task.id, { status }); });
-  const updateDocument = (document: OnboardingDocument, status: DocumentStatus) => run(`document-${document.id}`, async () => { await updateOnboardingDocument(id, document.id, { status }); });
-  return <DashboardLayout><div className="flex min-w-0 flex-col gap-6"><div className="flex items-center justify-between gap-3"><Link to="/onboarding" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-teal-700"><ArrowLeft size={16} />Back to onboarding</Link><Link to={`/onboarding/edit/${id}`} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"><Edit size={16} />Edit</Link></div><PageHeader title={record.candidateName} subtitle={`${record.onboardingCode} · ${record.jobPosition ?? "No job position"}`} icon={UserRound} />{success && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div>}{error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-    <section className="rounded-xl border border-slate-200 bg-white p-6"><div className="flex items-center justify-between gap-4"><div><h2 className="font-semibold text-slate-900">Workflow progress</h2><p className="mt-1 text-sm text-slate-500">{label(record.status)}</p></div><span className={`rounded-full px-3 py-1.5 text-xs font-semibold ${statusClass(record.status)}`}>{label(record.status)}</span></div><div className="mt-7 grid gap-3 sm:grid-cols-4 lg:grid-cols-8">{steps.map((step, index) => <div key={step} className="flex items-center gap-2 lg:block"><div className={`flex h-9 w-9 items-center justify-center rounded-full border-2 text-xs font-bold ${index <= stepIndex ? "border-teal-600 bg-teal-600 text-white" : "border-slate-200 text-slate-400"}`}>{index < stepIndex ? <Check size={15} /> : index + 1}</div><p className={`mt-2 text-xs ${index <= stepIndex ? "font-semibold text-teal-700" : "text-slate-500"}`}>{step}</p></div>)}</div></section>
-    <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]"><section className="rounded-xl border border-slate-200 bg-white p-6"><h2 className="font-semibold text-slate-900">Candidate information</h2><dl className="mt-5 space-y-4 border-t border-slate-100 pt-5 text-sm">{[["Candidate", record.candidateName], ["Email", record.candidateEmail], ["Job position", record.jobPosition ?? "-"], ["Recruitment stage", label(record.recruitmentStage)], ["Expected joining date", date(record.expectedJoiningDate)], ["Actual joining date", date(record.actualJoiningDate)], ["Department", record.department], ["Employee ID", record.employeeCode ?? "Not created"]].map(([term, value]) => <div key={term} className="flex justify-between gap-4"><dt className="text-slate-500">{term}</dt><dd className="text-right font-medium text-slate-800">{value}</dd></div>)}</dl></section><section className="rounded-xl border border-slate-200 bg-white p-6"><h2 className="font-semibold text-slate-900">Documents</h2><form onSubmit={addDocument} className="mt-4 grid gap-2 sm:grid-cols-[1fr_180px_auto]"><input value={documentName} onChange={(event) => setDocumentName(event.target.value)} placeholder="Document name" className="h-10 rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-teal-600" /><select value={documentType} onChange={(event) => setDocumentType(event.target.value as DocumentType)} className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm"><option value="OTHER">Other</option><option value="RESUME">Resume</option><option value="IDENTITY_PROOF">Identity proof</option><option value="ADDRESS_PROOF">Address proof</option><option value="EDUCATIONAL_CERTIFICATE">Educational certificate</option><option value="EXPERIENCE_CERTIFICATE">Experience certificate</option><option value="OFFER_DOCUMENTATION">Offer documentation</option></select><button disabled={actionLoading === "document"} className="inline-flex items-center justify-center gap-1 rounded-lg bg-teal-700 px-3 text-sm font-semibold text-white"><Plus size={15} />Add</button></form><div className="mt-5 divide-y divide-slate-100">{record.documents.length === 0 ? <p className="py-4 text-sm text-slate-500">No documents added.</p> : record.documents.map((document) => <div key={document.id} className="flex items-center justify-between gap-3 py-3"><div className="flex min-w-0 items-center gap-2"><FileText size={17} className="shrink-0 text-slate-400" /><div><p className="truncate text-sm font-medium text-slate-800">{document.documentName}</p><p className="text-xs text-slate-500">{label(document.documentType)}</p></div></div><select value={document.status} disabled={actionLoading === `document-${document.id}`} onChange={(event) => updateDocument(document, event.target.value as DocumentStatus)} className={`rounded-full border-0 px-2.5 py-1 text-xs font-semibold ${statusClass(document.status)}`}><option value="PENDING">Pending</option><option value="SUBMITTED">Submitted</option><option value="VERIFIED">Verified</option><option value="REJECTED">Rejected</option></select></div>)}</div></section></div>
-    <section className="rounded-xl border border-slate-200 bg-white p-6"><div className="flex items-center gap-2"><ClipboardCheck size={19} className="text-teal-700" /><h2 className="font-semibold text-slate-900">Checklist / tasks</h2></div><form onSubmit={addTask} className="mt-4 grid gap-2 md:grid-cols-[1fr_180px_160px_auto]"><input value={taskName} onChange={(event) => setTaskName(event.target.value)} placeholder="Task name" className="h-10 rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-teal-600" /><input value={taskOwner} onChange={(event) => setTaskOwner(event.target.value)} placeholder="Owner" className="h-10 rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-teal-600" /><input type="date" value={taskDueDate} onChange={(event) => setTaskDueDate(event.target.value)} className="h-10 rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-teal-600" /><button disabled={actionLoading === "task"} className="inline-flex items-center justify-center gap-1 rounded-lg bg-teal-700 px-3 text-sm font-semibold text-white"><Plus size={15} />Add task</button></form><div className="mt-5 divide-y divide-slate-100">{record.tasks.length === 0 ? <p className="py-4 text-sm text-slate-500">No checklist tasks added.</p> : record.tasks.map((task) => <div key={task.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><p className="text-sm font-medium text-slate-800">{task.taskName}</p><p className="text-xs text-slate-500">{task.owner ?? "Unassigned"} · Due {date(task.dueDate)}</p></div><select value={task.status} disabled={actionLoading === `task-${task.id}`} onChange={(event) => updateTask(task, event.target.value as TaskStatus)} className={`rounded-full border-0 px-2.5 py-1 text-xs font-semibold ${statusClass(task.status)}`}><option value="PENDING">Pending</option><option value="IN_PROGRESS">In progress</option><option value="COMPLETED">Completed</option></select></div>)}</div></section>
-    <section className="grid gap-6 md:grid-cols-3"><div className="rounded-xl border border-slate-200 bg-white p-5"><p className="text-xs uppercase tracking-wide text-slate-500">Asset allocation</p><p className="mt-2 font-semibold text-slate-900">{label(record.assetAllocationStatus)}</p></div><div className="rounded-xl border border-slate-200 bg-white p-5"><p className="text-xs uppercase tracking-wide text-slate-500">System access</p><p className="mt-2 font-semibold text-slate-900">{label(record.systemAccessStatus)}</p></div><div className="rounded-xl border border-slate-200 bg-white p-5"><p className="text-xs uppercase tracking-wide text-slate-500">Document verification</p><p className="mt-2 font-semibold text-slate-900">{label(record.documentVerificationStatus)}</p></div></section>
-    <section className="rounded-xl border border-slate-200 bg-white p-6"><h2 className="font-semibold text-slate-900">Workflow actions</h2><div className="mt-4 flex flex-wrap gap-3">{!record.actualJoiningDate && <button disabled={!!actionLoading} onClick={() => run("join", async () => { await joinOnboarding(id, joinDate || undefined); })} className="rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white">{actionLoading === "join" ? "Joining..." : "Mark as joined"}</button>}{!record.employeeId && <button disabled={!!actionLoading} onClick={() => setShowEmployeeForm((current) => !current)} className="rounded-lg border border-teal-200 bg-teal-50 px-4 py-2.5 text-sm font-semibold text-teal-800">Create employee</button>}<button disabled={!!actionLoading || !record.employeeId} onClick={() => setShowCompleteModal(true)} className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">Complete onboarding</button></div>{!record.actualJoiningDate && <input type="date" value={joinDate} onChange={(event) => setJoinDate(event.target.value)} className="mt-4 h-10 rounded-lg border border-slate-300 px-3 text-sm" />}{showEmployeeForm && <form onSubmit={(event) => { event.preventDefault(); if (!employeeCode.trim()) return setError("Employee code is required."); run("employee", async () => { await createOnboardingEmployee(id, { employeeCode: employeeCode.trim(), joiningDate: joinDate || undefined }); setShowEmployeeForm(false); }); }} className="mt-5 flex flex-wrap gap-2"><input required value={employeeCode} onChange={(event) => setEmployeeCode(event.target.value)} placeholder="Employee code" className="h-10 rounded-lg border border-slate-300 px-3 text-sm" /><button disabled={actionLoading === "employee"} className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white">{actionLoading === "employee" ? "Creating..." : "Create and link employee"}</button></form>}</section>
-    {showCompleteModal && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4" role="presentation"><div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6" role="dialog" aria-modal="true"><div className="flex justify-between"><h2 className="font-semibold text-slate-900">Complete onboarding?</h2><button type="button" onClick={() => setShowCompleteModal(false)} aria-label="Close"><X size={18} /></button></div><p className="mt-3 text-sm text-slate-600">The backend will verify that every document and task is complete.</p><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setShowCompleteModal(false)} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700">Cancel</button><button type="button" onClick={() => { setShowCompleteModal(false); run("complete", async () => { await completeOnboarding(id); }); }} className="rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white">Complete</button></div></div></div>}
-  </div></DashboardLayout>;
+  const updateTask = (task: OnboardingTask, status: TaskStatus) =>
+    run(`task-${task.id}`, async () => {
+      await updateOnboardingTask(id, task.id, { status });
+    });
+  const updateDocument = (
+    document: OnboardingDocument,
+    status: DocumentStatus,
+  ) =>
+    run(`document-${document.id}`, async () => {
+      await updateOnboardingDocument(id, document.id, { status });
+    });
+  return (
+    <DashboardLayout>
+      <div className="flex min-w-0 flex-col gap-6">
+        <div className="flex items-center justify-between gap-3">
+          <Link
+            to="/onboarding"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-teal-700"
+          >
+            <ArrowLeft size={16} />
+            Back to onboarding
+          </Link>
+          <Link
+            to={`/onboarding/edit/${id}`}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <Edit size={16} />
+            Edit
+          </Link>
+        </div>
+        <PageHeader
+          title={record.candidateName}
+          subtitle={`${record.onboardingCode} · ${record.jobPosition ?? "No job position"}`}
+          icon={UserRound}
+        />
+        {success && (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {success}
+          </div>
+        )}
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+        <section className="rounded-xl border border-slate-200 bg-white p-6">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="font-semibold text-slate-900">
+                Workflow progress
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                {label(record.status)}
+              </p>
+            </div>
+            <span
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold ${statusClass(record.status)}`}
+            >
+              {label(record.status)}
+            </span>
+          </div>
+          <div className="mt-7 grid gap-3 sm:grid-cols-4 lg:grid-cols-8">
+            {steps.map((step, index) => (
+              <div key={step} className="flex items-center gap-2 lg:block">
+                <div
+                  className={`flex h-9 w-9 items-center justify-center rounded-full border-2 text-xs font-bold ${index <= stepIndex ? "border-teal-600 bg-teal-600 text-white" : "border-slate-200 text-slate-400"}`}
+                >
+                  {index < stepIndex ? <Check size={15} /> : index + 1}
+                </div>
+                <p
+                  className={`mt-2 text-xs ${index <= stepIndex ? "font-semibold text-teal-700" : "text-slate-500"}`}
+                >
+                  {step}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+        <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+          <section className="rounded-xl border border-slate-200 bg-white p-6">
+            <h2 className="font-semibold text-slate-900">
+              Candidate information
+            </h2>
+            <dl className="mt-5 space-y-4 border-t border-slate-100 pt-5 text-sm">
+              {[
+                ["Candidate", record.candidateName],
+                ["Email", record.candidateEmail],
+                ["Job position", record.jobPosition ?? "-"],
+                ["Recruitment stage", label(record.recruitmentStage)],
+                ["Expected joining date", date(record.expectedJoiningDate)],
+                ["Actual joining date", date(record.actualJoiningDate)],
+                ["Department", record.department],
+                ["Employee ID", record.employeeCode ?? "Not created"],
+              ].map(([term, value]) => (
+                <div key={term} className="flex justify-between gap-4">
+                  <dt className="text-slate-500">{term}</dt>
+                  <dd className="text-right font-medium text-slate-800">
+                    {value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+          <section className="rounded-xl border border-slate-200 bg-white p-6">
+            <h2 className="font-semibold text-slate-900">Documents</h2>
+            <form
+              onSubmit={addDocument}
+              className="mt-4 grid gap-2 sm:grid-cols-[1fr_180px_auto]"
+            >
+              <input
+                value={documentName}
+                onChange={(event) => setDocumentName(event.target.value)}
+                placeholder="Document name"
+                className="h-10 rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-teal-600"
+              />
+              <select
+                value={documentType}
+                onChange={(event) =>
+                  setDocumentType(event.target.value as DocumentType)
+                }
+                className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm"
+              >
+                <option value="OTHER">Other</option>
+                <option value="RESUME">Resume</option>
+                <option value="IDENTITY_PROOF">Identity proof</option>
+                <option value="ADDRESS_PROOF">Address proof</option>
+                <option value="EDUCATIONAL_CERTIFICATE">
+                  Educational certificate
+                </option>
+                <option value="EXPERIENCE_CERTIFICATE">
+                  Experience certificate
+                </option>
+                <option value="OFFER_DOCUMENTATION">Offer documentation</option>
+              </select>
+              <button
+                disabled={actionLoading === "document"}
+                className="inline-flex items-center justify-center gap-1 rounded-lg bg-teal-700 px-3 text-sm font-semibold text-white"
+              >
+                <Plus size={15} />
+                Add
+              </button>
+            </form>
+            <div className="mt-5 divide-y divide-slate-100">
+              {record.documents.length === 0 ? (
+                <p className="py-4 text-sm text-slate-500">
+                  No documents added.
+                </p>
+              ) : (
+                record.documents.map((document) => (
+                  <div
+                    key={document.id}
+                    className="flex items-center justify-between gap-3 py-3"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <FileText size={17} className="shrink-0 text-slate-400" />
+                      <div>
+                        <p className="truncate text-sm font-medium text-slate-800">
+                          {document.documentName}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {label(document.documentType)}
+                        </p>
+                      </div>
+                    </div>
+                    <select
+                      value={document.status}
+                      disabled={actionLoading === `document-${document.id}`}
+                      onChange={(event) =>
+                        updateDocument(
+                          document,
+                          event.target.value as DocumentStatus,
+                        )
+                      }
+                      className={`rounded-full border-0 px-2.5 py-1 text-xs font-semibold ${statusClass(document.status)}`}
+                    >
+                      <option value="PENDING">Pending</option>
+                      <option value="SUBMITTED">Submitted</option>
+                      <option value="VERIFIED">Verified</option>
+                      <option value="REJECTED">Rejected</option>
+                    </select>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+        <section className="rounded-xl border border-slate-200 bg-white p-6">
+          <div className="flex items-center gap-2">
+            <ClipboardCheck size={19} className="text-teal-700" />
+            <h2 className="font-semibold text-slate-900">Checklist / tasks</h2>
+          </div>
+          <form
+            onSubmit={addTask}
+            className="mt-4 grid gap-2 md:grid-cols-[1fr_180px_160px_auto]"
+          >
+            <input
+              value={taskName}
+              onChange={(event) => setTaskName(event.target.value)}
+              placeholder="Task name"
+              className="h-10 rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-teal-600"
+            />
+            <input
+              value={taskOwner}
+              onChange={(event) => setTaskOwner(event.target.value)}
+              placeholder="Owner"
+              className="h-10 rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-teal-600"
+            />
+            <input
+              type="date"
+              value={taskDueDate}
+              onChange={(event) => setTaskDueDate(event.target.value)}
+              className="h-10 rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-teal-600"
+            />
+            <button
+              disabled={actionLoading === "task"}
+              className="inline-flex items-center justify-center gap-1 rounded-lg bg-teal-700 px-3 text-sm font-semibold text-white"
+            >
+              <Plus size={15} />
+              Add task
+            </button>
+          </form>
+          <div className="mt-5 divide-y divide-slate-100">
+            {record.tasks.length === 0 ? (
+              <p className="py-4 text-sm text-slate-500">
+                No checklist tasks added.
+              </p>
+            ) : (
+              record.tasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="flex flex-wrap items-center justify-between gap-3 py-3"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">
+                      {task.taskName}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {task.owner ?? "Unassigned"} · Due {date(task.dueDate)}
+                    </p>
+                  </div>
+                  <select
+                    value={task.status}
+                    disabled={actionLoading === `task-${task.id}`}
+                    onChange={(event) =>
+                      updateTask(task, event.target.value as TaskStatus)
+                    }
+                    className={`rounded-full border-0 px-2.5 py-1 text-xs font-semibold ${statusClass(task.status)}`}
+                  >
+                    <option value="PENDING">Pending</option>
+                    <option value="IN_PROGRESS">In progress</option>
+                    <option value="COMPLETED">Completed</option>
+                  </select>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+        <section className="grid gap-6 md:grid-cols-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
+            <p className="text-xs uppercase tracking-wide text-slate-500">
+              Asset allocation
+            </p>
+            <p className="mt-2 font-semibold text-slate-900">
+              {label(record.assetAllocationStatus)}
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
+            <p className="text-xs uppercase tracking-wide text-slate-500">
+              System access
+            </p>
+            <p className="mt-2 font-semibold text-slate-900">
+              {label(record.systemAccessStatus)}
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
+            <p className="text-xs uppercase tracking-wide text-slate-500">
+              Document verification
+            </p>
+            <p className="mt-2 font-semibold text-slate-900">
+              {label(record.documentVerificationStatus)}
+            </p>
+          </div>
+        </section>
+        <section className="rounded-xl border border-slate-200 bg-white p-6">
+          <h2 className="font-semibold text-slate-900">Workflow actions</h2>
+          <div className="mt-4 flex flex-wrap gap-3">
+            {!record.actualJoiningDate && (
+              <button
+                disabled={!!actionLoading}
+                onClick={() =>
+                  run("join", async () => {
+                    await joinOnboarding(id, joinDate || undefined);
+                  })
+                }
+                className="rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white"
+              >
+                {actionLoading === "join" ? "Joining..." : "Mark as joined"}
+              </button>
+            )}
+            {!record.employeeId && (
+              <button
+                disabled={!!actionLoading}
+                onClick={() => setShowEmployeeForm((current) => !current)}
+                className="rounded-lg border border-teal-200 bg-teal-50 px-4 py-2.5 text-sm font-semibold text-teal-800"
+              >
+                Create employee
+              </button>
+            )}
+            <button
+              disabled={!!actionLoading || !record.employeeId}
+              onClick={() => setShowCompleteModal(true)}
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Complete onboarding
+            </button>
+          </div>
+          {!record.actualJoiningDate && (
+            <input
+              type="date"
+              value={joinDate}
+              onChange={(event) => setJoinDate(event.target.value)}
+              className="mt-4 h-10 rounded-lg border border-slate-300 px-3 text-sm"
+            />
+          )}
+          {showEmployeeForm && (
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!employeeCode.trim())
+                  return setError("Employee code is required.");
+                run("employee", async () => {
+                  await createOnboardingEmployee(id, {
+                    employeeCode: employeeCode.trim(),
+                    joiningDate: joinDate || undefined,
+                  });
+                  setShowEmployeeForm(false);
+                });
+              }}
+              className="mt-5 flex flex-wrap gap-2"
+            >
+              <input
+                required
+                value={employeeCode}
+                onChange={(event) => setEmployeeCode(event.target.value)}
+                placeholder="Employee code"
+                className="h-10 rounded-lg border border-slate-300 px-3 text-sm"
+              />
+              <button
+                disabled={actionLoading === "employee"}
+                className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white"
+              >
+                {actionLoading === "employee"
+                  ? "Creating..."
+                  : "Create and link employee"}
+              </button>
+            </form>
+          )}
+        </section>
+        {showCompleteModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4"
+            role="presentation"
+          >
+            <div
+              className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6"
+              role="dialog"
+              aria-modal="true"
+            >
+              <div className="flex justify-between">
+                <h2 className="font-semibold text-slate-900">
+                  Complete onboarding?
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setShowCompleteModal(false)}
+                  aria-label="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <p className="mt-3 text-sm text-slate-600">
+                The backend will verify that every document and task is
+                complete.
+              </p>
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCompleteModal(false)}
+                  className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCompleteModal(false);
+                    run("complete", async () => {
+                      await completeOnboarding(id);
+                    });
+                  }}
+                  className="rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white"
+                >
+                  Complete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </DashboardLayout>
+  );
 }
 export default OnboardingProfile;

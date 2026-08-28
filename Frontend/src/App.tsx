@@ -48,6 +48,11 @@ import AddPayroll from "./pages/AddPayroll";
 import EditPayroll from "./pages/EditPayroll";
 import PayrollDetails from "./pages/PayrollDetails";
 
+import Performance from "./pages/Performance";
+import AddPerformance from "./pages/AddPerformance";
+import EditPerformance from "./pages/EditPerformance";
+import PerformanceDetails from "./pages/PerformanceDetails";
+
 function App() {
   return (
     <Routes>
@@ -119,6 +124,11 @@ function App() {
       <Route path="/payroll/new" element={<AddPayroll />} />
       <Route path="/payroll/edit/:id" element={<EditPayroll />} />
       <Route path="/payroll/:id" element={<PayrollDetails />} />
+
+      <Route path="/performance" element={<Performance />} />
+      <Route path="/performance/new" element={<AddPerformance />} />
+      <Route path="/performance/edit/:id" element={<EditPerformance />} />
+      <Route path="/performance/:id" element={<PerformanceDetails />} />
 
       {/* =====================================================
           CLIENTS
