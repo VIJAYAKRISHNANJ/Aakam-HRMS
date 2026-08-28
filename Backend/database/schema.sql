@@ -1,6 +1,7 @@
 -- ============================================
 -- AAKAM HRMS - DATABASE SCHEMA
 -- MODULE 1 + MODULE 2 + MODULE 3 + MODULE 4
+-- MODULE 5 - TRAINING
 -- ============================================
 
 
@@ -10,11 +11,8 @@
 
 CREATE TABLE IF NOT EXISTS departments (
     id SERIAL PRIMARY KEY,
-
     name VARCHAR(100) NOT NULL UNIQUE,
-
     code VARCHAR(20) NOT NULL UNIQUE,
-
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -25,26 +23,17 @@ CREATE TABLE IF NOT EXISTS departments (
 
 CREATE TABLE IF NOT EXISTS employees (
     id SERIAL PRIMARY KEY,
-
     employee_code VARCHAR(30) NOT NULL UNIQUE,
-
     first_name VARCHAR(100) NOT NULL,
-
     last_name VARCHAR(100),
-
     email VARCHAR(150) NOT NULL UNIQUE,
-
     department_id INTEGER
         REFERENCES departments(id),
-
     joining_date DATE NOT NULL,
-
     employment_status VARCHAR(30)
         NOT NULL DEFAULT 'ACTIVE',
-
     employment_type VARCHAR(30)
         NOT NULL DEFAULT 'FULL_TIME',
-
     created_at TIMESTAMP
         DEFAULT CURRENT_TIMESTAMP
 );
@@ -78,9 +67,15 @@ CREATE TABLE IF NOT EXISTS performance_reviews (
 
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    UNIQUE(employee_id, review_period_start, review_period_end),
+    UNIQUE(
+        employee_id,
+        review_period_start,
+        review_period_end
+    ),
 
-    CHECK (review_period_start <= review_period_end)
+    CHECK (
+        review_period_start <= review_period_end
+    )
 );
 
 
@@ -88,7 +83,8 @@ CREATE TABLE IF NOT EXISTS performance_goals (
     id SERIAL PRIMARY KEY,
 
     performance_review_id INTEGER NOT NULL
-        REFERENCES performance_reviews(id) ON DELETE CASCADE,
+        REFERENCES performance_reviews(id)
+        ON DELETE CASCADE,
 
     title VARCHAR(150) NOT NULL,
 
@@ -98,13 +94,24 @@ CREATE TABLE IF NOT EXISTS performance_goals (
 
     status VARCHAR(30)
         NOT NULL DEFAULT 'NOT_STARTED'
-        CHECK (status IN ('NOT_STARTED', 'IN_PROGRESS', 'COMPLETED')),
+        CHECK (
+            status IN (
+                'NOT_STARTED',
+                'IN_PROGRESS',
+                'COMPLETED'
+            )
+        ),
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
 
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
 
-    UNIQUE(performance_review_id, title)
+    UNIQUE(
+        performance_review_id,
+        title
+    )
 );
 
 
@@ -186,7 +193,10 @@ CREATE TABLE IF NOT EXISTS attendance_records (
 
     check_out TIME,
 
-    UNIQUE(employee_id, attendance_date)
+    UNIQUE(
+        employee_id,
+        attendance_date
+    )
 );
 
 
@@ -230,6 +240,7 @@ CREATE TABLE IF NOT EXISTS payroll_runs (
     created_at TIMESTAMP
         DEFAULT CURRENT_TIMESTAMP
 );
+
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_payroll_runs_payroll_month
     ON payroll_runs(payroll_month);
@@ -317,7 +328,10 @@ CREATE TABLE IF NOT EXISTS branches (
     updated_at TIMESTAMP
         DEFAULT CURRENT_TIMESTAMP,
 
-    UNIQUE(company_id, branch_code)
+    UNIQUE(
+        company_id,
+        branch_code
+    )
 );
 
 
@@ -434,26 +448,34 @@ CREATE TABLE IF NOT EXISTS onboardings (
     department_id INTEGER NOT NULL
         REFERENCES departments(id),
 
-    status VARCHAR(30) NOT NULL DEFAULT 'INITIATED',
+    status VARCHAR(30)
+        NOT NULL DEFAULT 'INITIATED',
 
-    document_verification_status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+    document_verification_status VARCHAR(30)
+        NOT NULL DEFAULT 'PENDING',
 
-    asset_allocation_status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+    asset_allocation_status VARCHAR(30)
+        NOT NULL DEFAULT 'PENDING',
 
-    system_access_status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+    system_access_status VARCHAR(30)
+        NOT NULL DEFAULT 'PENDING',
 
     completion_date TIMESTAMP,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
 
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP
 );
+
 
 CREATE TABLE IF NOT EXISTS onboarding_tasks (
     id SERIAL PRIMARY KEY,
 
     onboarding_id INTEGER NOT NULL
-        REFERENCES onboardings(id) ON DELETE CASCADE,
+        REFERENCES onboardings(id)
+        ON DELETE CASCADE,
 
     task_name VARCHAR(150) NOT NULL,
 
@@ -461,28 +483,35 @@ CREATE TABLE IF NOT EXISTS onboarding_tasks (
 
     owner VARCHAR(150),
 
-    status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+    status VARCHAR(30)
+        NOT NULL DEFAULT 'PENDING',
 
     due_date DATE,
 
     completed_at TIMESTAMP,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
 
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP
 );
+
 
 CREATE TABLE IF NOT EXISTS onboarding_documents (
     id SERIAL PRIMARY KEY,
 
     onboarding_id INTEGER NOT NULL
-        REFERENCES onboardings(id) ON DELETE CASCADE,
+        REFERENCES onboardings(id)
+        ON DELETE CASCADE,
 
     document_name VARCHAR(150) NOT NULL,
 
-    document_type VARCHAR(50) NOT NULL DEFAULT 'OTHER',
+    document_type VARCHAR(50)
+        NOT NULL DEFAULT 'OTHER',
 
-    status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+    status VARCHAR(30)
+        NOT NULL DEFAULT 'PENDING',
 
     verified_by VARCHAR(150),
 
@@ -490,10 +519,13 @@ CREATE TABLE IF NOT EXISTS onboarding_documents (
 
     remarks TEXT,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
 
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP
 );
+
 
 CREATE INDEX IF NOT EXISTS idx_onboardings_candidate_id
     ON onboardings(candidate_id);
@@ -512,3 +544,202 @@ CREATE INDEX IF NOT EXISTS idx_onboarding_tasks_onboarding_id
 
 CREATE INDEX IF NOT EXISTS idx_onboarding_documents_onboarding_id
     ON onboarding_documents(onboarding_id);
+
+
+-- ============================================
+-- MODULE 5 - TRAINING MANAGEMENT
+-- ============================================
+
+
+-- ============================================
+-- TRAINING PROGRAMS
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS training_programs (
+    id SERIAL PRIMARY KEY,
+
+    course_name VARCHAR(150) NOT NULL,
+
+    category VARCHAR(100) NOT NULL,
+
+    trainer VARCHAR(150) NOT NULL,
+
+    duration VARCHAR(100) NOT NULL,
+
+    cost NUMERIC(12,2)
+        NOT NULL DEFAULT 0
+        CHECK (cost >= 0),
+
+    mode VARCHAR(30)
+        NOT NULL
+        CHECK (
+            mode IN (
+                'ONLINE',
+                'OFFLINE',
+                'HYBRID'
+            )
+        ),
+
+    assessment TEXT,
+
+    description TEXT,
+
+    status VARCHAR(30)
+        NOT NULL DEFAULT 'ACTIVE'
+        CHECK (
+            status IN (
+                'ACTIVE',
+                'INACTIVE'
+            )
+        ),
+
+    created_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP
+);
+
+
+-- ============================================
+-- EMPLOYEE TRAINING ENROLLMENTS
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS training_enrollments (
+    id SERIAL PRIMARY KEY,
+
+    training_program_id INTEGER NOT NULL
+        REFERENCES training_programs(id)
+        ON DELETE CASCADE,
+
+    employee_id INTEGER NOT NULL
+        REFERENCES employees(id)
+        ON DELETE CASCADE,
+
+    status VARCHAR(30)
+        NOT NULL DEFAULT 'ASSIGNED'
+        CHECK (
+            status IN (
+                'ASSIGNED',
+                'REGISTERED',
+                'ATTENDED',
+                'COMPLETED',
+                'ASSESSMENT',
+                'CERTIFICATE'
+            )
+        ),
+
+    assigned_date DATE
+        NOT NULL DEFAULT CURRENT_DATE,
+
+    registered_date DATE,
+
+    attended_date DATE,
+
+    completed_date DATE,
+
+    assessment_score NUMERIC(5,2)
+        CHECK (
+            assessment_score IS NULL
+            OR (
+                assessment_score >= 0
+                AND assessment_score <= 100
+            )
+        ),
+
+    assessment_result VARCHAR(30)
+        CHECK (
+            assessment_result IS NULL
+            OR assessment_result IN (
+                'PASS',
+                'FAIL'
+            )
+        ),
+
+    certificate_name VARCHAR(150),
+
+    certificate_url TEXT,
+
+    certificate_date DATE,
+
+    remarks TEXT,
+
+    created_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE(
+        training_program_id,
+        employee_id
+    )
+);
+
+
+-- ============================================
+-- EMPLOYEE SKILL DEVELOPMENT
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS employee_skills (
+    id SERIAL PRIMARY KEY,
+
+    employee_id INTEGER NOT NULL
+        REFERENCES employees(id)
+        ON DELETE CASCADE,
+
+    training_enrollment_id INTEGER
+        REFERENCES training_enrollments(id)
+        ON DELETE SET NULL,
+
+    skill_name VARCHAR(150) NOT NULL,
+
+    skill_level VARCHAR(30)
+        NOT NULL DEFAULT 'BEGINNER'
+        CHECK (
+            skill_level IN (
+                'BEGINNER',
+                'INTERMEDIATE',
+                'ADVANCED',
+                'EXPERT'
+            )
+        ),
+
+    acquired_date DATE,
+
+    remarks TEXT,
+
+    created_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE(
+        employee_id,
+        skill_name
+    )
+);
+
+
+-- ============================================
+-- TRAINING INDEXES
+-- ============================================
+
+CREATE INDEX IF NOT EXISTS idx_training_programs_category
+    ON training_programs(category);
+
+CREATE INDEX IF NOT EXISTS idx_training_programs_status
+    ON training_programs(status);
+
+CREATE INDEX IF NOT EXISTS idx_training_enrollments_program_id
+    ON training_enrollments(training_program_id);
+
+CREATE INDEX IF NOT EXISTS idx_training_enrollments_employee_id
+    ON training_enrollments(employee_id);
+
+CREATE INDEX IF NOT EXISTS idx_training_enrollments_status
+    ON training_enrollments(status);
+
+CREATE INDEX IF NOT EXISTS idx_employee_skills_employee_id
+    ON employee_skills(employee_id);

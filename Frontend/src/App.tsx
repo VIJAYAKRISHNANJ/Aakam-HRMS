@@ -53,6 +53,11 @@ import AddPerformance from "./pages/AddPerformance";
 import EditPerformance from "./pages/EditPerformance";
 import PerformanceDetails from "./pages/PerformanceDetails";
 
+import Training from "./pages/Training";
+import AddTraining from "./pages/AddTraining";
+import EditTraining from "./pages/EditTraining";
+import TrainingDetails from "./pages/TrainingDetails";
+
 function App() {
   return (
     <Routes>
@@ -129,6 +134,11 @@ function App() {
       <Route path="/performance/new" element={<AddPerformance />} />
       <Route path="/performance/edit/:id" element={<EditPerformance />} />
       <Route path="/performance/:id" element={<PerformanceDetails />} />
+
+      <Route path="/training" element={<Training />} />
+      <Route path="/training/new" element={<AddTraining />} />
+      <Route path="/training/edit/:id" element={<EditTraining />} />
+      <Route path="/training/:id" element={<TrainingDetails />} />
 
       {/* =====================================================
           CLIENTS

@@ -15,6 +15,7 @@ import clientsRoutes from "./routes/clients.routes.js";
 import onboardingRoutes from "./routes/onboarding.routes.js";
 import payrollRoutes from "./routes/payroll.routes.js";
 import performanceRoutes from "./routes/performance.routes.js";
+import trainingRoutes from "./routes/training.routes.js";
 
 const app = express();
 
@@ -142,6 +143,14 @@ app.use("/api/payroll", payrollRoutes);
 */
 
 app.use("/api/performance", performanceRoutes);
+
+/*
+|--------------------------------------------------------------------------
+| Training
+|--------------------------------------------------------------------------
+*/
+
+app.use("/api/training", trainingRoutes);
 
 /*
 |--------------------------------------------------------------------------
