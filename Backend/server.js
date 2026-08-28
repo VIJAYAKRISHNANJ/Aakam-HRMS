@@ -10,6 +10,11 @@ import companyRoutes from "./routes/company.routes.js";
 import branchRoutes from "./routes/branches.routes.js";
 import departmentRoutes from "./routes/departments.routes.js";
 import notificationRoutes from "./routes/notifications.routes.js";
+import recruitmentRoutes from "./routes/recruitment.routes.js";
+import clientsRoutes from "./routes/clients.routes.js";
+import onboardingRoutes from "./routes/onboarding.routes.js";
+import payrollRoutes from "./routes/payroll.routes.js";
+import performanceRoutes from "./routes/performance.routes.js";
 
 const app = express();
 
@@ -30,35 +35,25 @@ app.use(express.json());
 |--------------------------------------------------------------------------
 */
 
-app.get(
-  "/api/health",
-  async (req, res) => {
-    try {
-      await pool.query("SELECT 1");
+app.get("/api/health", async (req, res) => {
+  try {
+    await pool.query("SELECT 1");
 
-      res.json({
-        success: true,
-        message:
-          "Aakam HRMS Backend is running",
-        database:
-          "PostgreSQL connected",
-        time:
-          new Date().toISOString(),
-      });
-    } catch (error) {
-      console.error(
-        "Database health check failed:",
-        error,
-      );
+    res.json({
+      success: true,
+      message: "Aakam HRMS Backend is running",
+      database: "PostgreSQL connected",
+      time: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Database health check failed:", error);
 
-      res.status(500).json({
-        success: false,
-        message:
-          "Backend is running, but PostgreSQL is not connected",
-      });
-    }
-  },
-);
+    res.status(500).json({
+      success: false,
+      message: "Backend is running, but PostgreSQL is not connected",
+    });
+  }
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -66,10 +61,7 @@ app.get(
 |--------------------------------------------------------------------------
 */
 
-app.use(
-  "/api/dashboard",
-  dashboardRoutes,
-);
+app.use("/api/dashboard", dashboardRoutes);
 
 /*
 |--------------------------------------------------------------------------
@@ -77,10 +69,7 @@ app.use(
 |--------------------------------------------------------------------------
 */
 
-app.use(
-  "/api/employees",
-  employeeRoutes,
-);
+app.use("/api/employees", employeeRoutes);
 
 /*
 |--------------------------------------------------------------------------
@@ -88,10 +77,7 @@ app.use(
 |--------------------------------------------------------------------------
 */
 
-app.use(
-  "/api/companies",
-  companyRoutes,
-);
+app.use("/api/companies", companyRoutes);
 
 /*
 |--------------------------------------------------------------------------
@@ -99,10 +85,7 @@ app.use(
 |--------------------------------------------------------------------------
 */
 
-app.use(
-  "/api/branches",
-  branchRoutes,
-);
+app.use("/api/branches", branchRoutes);
 
 /*
 |--------------------------------------------------------------------------
@@ -110,10 +93,7 @@ app.use(
 |--------------------------------------------------------------------------
 */
 
-app.use(
-  "/api/departments",
-  departmentRoutes,
-);
+app.use("/api/departments", departmentRoutes);
 
 /*
 |--------------------------------------------------------------------------
@@ -121,10 +101,47 @@ app.use(
 |--------------------------------------------------------------------------
 */
 
-app.use(
-  "/api/notifications",
-  notificationRoutes,
-);
+app.use("/api/notifications", notificationRoutes);
+
+/*
+|--------------------------------------------------------------------------
+| Recruitment
+|--------------------------------------------------------------------------
+*/
+
+app.use("/api/recruitment", recruitmentRoutes);
+
+/*
+|--------------------------------------------------------------------------
+| Clients
+|--------------------------------------------------------------------------
+*/
+
+app.use("/api/clients", clientsRoutes);
+
+/*
+|--------------------------------------------------------------------------
+| Onboarding
+|--------------------------------------------------------------------------
+*/
+
+app.use("/api/onboarding", onboardingRoutes);
+
+/*
+|--------------------------------------------------------------------------
+| Payroll
+|--------------------------------------------------------------------------
+*/
+
+app.use("/api/payroll", payrollRoutes);
+
+/*
+|--------------------------------------------------------------------------
+| Performance
+|--------------------------------------------------------------------------
+*/
+
+app.use("/api/performance", performanceRoutes);
 
 /*
 |--------------------------------------------------------------------------
@@ -132,11 +149,6 @@ app.use(
 |--------------------------------------------------------------------------
 */
 
-app.listen(
-  PORT,
-  () => {
-    console.log(
-      `Aakam HRMS Backend running on http://localhost:${PORT}`,
-    );
-  },
-);
+app.listen(PORT, () => {
+  console.log(`Aakam HRMS Backend running on http://localhost:${PORT}`);
+});

@@ -27,6 +27,35 @@ VALUES
 ('AAK010', 'Anjali', 'Nair', 'anjali.nair@aakam.com', 3, '2025-09-01', 'ACTIVE', 'FULL_TIME');
 
 
+-- Performance reviews
+INSERT INTO performance_reviews
+(employee_id, reviewer_id, review_period_start, review_period_end, rating, status)
+SELECT employee.id, reviewer.id, seed.review_period_start, seed.review_period_end, seed.rating, seed.status
+FROM (VALUES
+	('AAK001', 'AAK006', DATE '2026-01-01', DATE '2026-06-30', 4, 'IN_REVIEW'),
+	('AAK002', 'AAK006', DATE '2025-07-01', DATE '2025-12-31', 5, 'COMPLETED'),
+	('AAK003', 'AAK001', DATE '2026-01-01', DATE '2026-06-30', 3, 'DRAFT')
+) AS seed(employee_code, reviewer_code, review_period_start, review_period_end, rating, status)
+INNER JOIN employees employee ON employee.employee_code = seed.employee_code
+INNER JOIN employees reviewer ON reviewer.employee_code = seed.reviewer_code
+ON CONFLICT (employee_id, review_period_start, review_period_end) DO NOTHING;
+
+INSERT INTO performance_goals
+(performance_review_id, title, description, target, status)
+SELECT review.id, seed.title, seed.description, seed.target, seed.status
+FROM (VALUES
+	('AAK001', DATE '2026-01-01', DATE '2026-06-30', 'Improve release reliability', 'Reduce production rollback incidents.', 'Less than 2 rollback incidents per quarter.', 'IN_PROGRESS'),
+	('AAK002', DATE '2025-07-01', DATE '2025-12-31', 'Mentor engineering peers', 'Support junior team members through regular coaching.', 'Complete 6 mentoring sessions.', 'COMPLETED'),
+	('AAK003', DATE '2026-01-01', DATE '2026-06-30', 'Improve operational response time', 'Document and streamline incident response.', 'Publish an updated response playbook.', 'NOT_STARTED')
+) AS seed(employee_code, review_period_start, review_period_end, title, description, target, status)
+INNER JOIN employees employee ON employee.employee_code = seed.employee_code
+INNER JOIN performance_reviews review
+	ON review.employee_id = employee.id
+	AND review.review_period_start = seed.review_period_start
+	AND review.review_period_end = seed.review_period_end
+ON CONFLICT (performance_review_id, title) DO NOTHING;
+
+
 -- Open Job Positions
 INSERT INTO job_positions (title, department_id, openings, status) VALUES
 ('Senior Software Engineer', 1, 3, 'OPEN'),
@@ -75,4 +104,67 @@ VALUES
 INSERT INTO payroll_runs
 (payroll_month, status, pending_approvals)
 VALUES
-('2026-08-01', 'PROCESSING', 3);
+('2026-08-01', 'PROCESSING', 3),
+('2026-09-01', 'PENDING', 0)
+ON CONFLICT (payroll_month) DO NOTHING;
+
+
+-- Clients
+INSERT INTO clients
+(client_code, client_name, contact_person, email, phone, address, city, state, country, status)
+VALUES
+('AAKCL001', 'TechNova Solutions', 'Ananya Mehta', 'ananya.mehta@technova.example', '+91 98765 43210', '12 Residency Road', 'Bengaluru', 'Karnataka', 'India', 'ACTIVE'),
+('AAKCL002', 'GreenField Enterprises', 'Rohan Kapoor', 'rohan.kapoor@greenfield.example', '+91 98123 45678', '45 Park Street', 'Kolkata', 'West Bengal', 'India', 'ACTIVE'),
+('AAKCL003', 'BluePeak Technologies', 'Nisha Menon', 'nisha.menon@bluepeak.example', '+91 97654 32109', '8 Anna Salai', 'Chennai', 'Tamil Nadu', 'India', 'INACTIVE')
+ON CONFLICT (client_code) DO NOTHING;
+
+
+-- Onboarding
+INSERT INTO onboardings
+(onboarding_code, candidate_id, expected_joining_date, department_id, status)
+SELECT
+	'ONB001',
+	c.id,
+	'2026-09-15',
+	1,
+	'DOCUMENTS_PENDING'
+FROM candidates c
+WHERE c.email = 'lakshmi@example.com'
+	AND EXISTS (SELECT 1 FROM departments WHERE id = 1)
+	AND NOT EXISTS (
+		SELECT 1 FROM onboardings WHERE onboarding_code = 'ONB001'
+	);
+
+INSERT INTO onboarding_tasks
+(onboarding_id, task_name, description, owner, status, due_date)
+SELECT
+	o.id,
+	'Collect identity proof',
+	'Collect and review the candidate identity document.',
+	'HR Operations',
+	'PENDING',
+	'2026-09-10'
+FROM onboardings o
+WHERE o.onboarding_code = 'ONB001'
+	AND NOT EXISTS (
+		SELECT 1
+		FROM onboarding_tasks t
+		WHERE t.onboarding_id = o.id
+			AND t.task_name = 'Collect identity proof'
+	);
+
+INSERT INTO onboarding_documents
+(onboarding_id, document_name, document_type, status)
+SELECT
+	o.id,
+	'Identity Proof',
+	'IDENTITY_PROOF',
+	'PENDING'
+FROM onboardings o
+WHERE o.onboarding_code = 'ONB001'
+	AND NOT EXISTS (
+		SELECT 1
+		FROM onboarding_documents d
+		WHERE d.onboarding_id = o.id
+			AND d.document_type = 'IDENTITY_PROOF'
+	);

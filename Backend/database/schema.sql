@@ -51,6 +51,77 @@ CREATE TABLE IF NOT EXISTS employees (
 
 
 -- ============================================
+-- PERFORMANCE REVIEWS
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS performance_reviews (
+    id SERIAL PRIMARY KEY,
+
+    employee_id INTEGER NOT NULL
+        REFERENCES employees(id),
+
+    reviewer_id INTEGER
+        REFERENCES employees(id),
+
+    review_period_start DATE NOT NULL,
+
+    review_period_end DATE NOT NULL,
+
+    rating INTEGER
+        CHECK (rating IS NULL OR rating BETWEEN 1 AND 5),
+
+    status VARCHAR(30)
+        NOT NULL DEFAULT 'DRAFT'
+        CHECK (status IN ('DRAFT', 'IN_REVIEW', 'COMPLETED')),
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE(employee_id, review_period_start, review_period_end),
+
+    CHECK (review_period_start <= review_period_end)
+);
+
+
+CREATE TABLE IF NOT EXISTS performance_goals (
+    id SERIAL PRIMARY KEY,
+
+    performance_review_id INTEGER NOT NULL
+        REFERENCES performance_reviews(id) ON DELETE CASCADE,
+
+    title VARCHAR(150) NOT NULL,
+
+    description TEXT,
+
+    target TEXT,
+
+    status VARCHAR(30)
+        NOT NULL DEFAULT 'NOT_STARTED'
+        CHECK (status IN ('NOT_STARTED', 'IN_PROGRESS', 'COMPLETED')),
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE(performance_review_id, title)
+);
+
+
+CREATE INDEX IF NOT EXISTS idx_performance_reviews_employee_id
+    ON performance_reviews(employee_id);
+
+CREATE INDEX IF NOT EXISTS idx_performance_reviews_reviewer_id
+    ON performance_reviews(reviewer_id);
+
+CREATE INDEX IF NOT EXISTS idx_performance_reviews_status
+    ON performance_reviews(status);
+
+CREATE INDEX IF NOT EXISTS idx_performance_goals_review_id
+    ON performance_goals(performance_review_id);
+
+
+-- ============================================
 -- OPEN JOB POSITIONS
 -- ============================================
 
@@ -159,6 +230,9 @@ CREATE TABLE IF NOT EXISTS payroll_runs (
     created_at TIMESTAMP
         DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payroll_runs_payroll_month
+    ON payroll_runs(payroll_month);
 
 
 -- ============================================
@@ -270,6 +344,43 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 
 -- ============================================
+-- CLIENTS
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS clients (
+    id SERIAL PRIMARY KEY,
+
+    client_code VARCHAR(30) NOT NULL UNIQUE,
+
+    client_name VARCHAR(150) NOT NULL,
+
+    contact_person VARCHAR(150),
+
+    email VARCHAR(150),
+
+    phone VARCHAR(30),
+
+    address TEXT,
+
+    city VARCHAR(100),
+
+    state VARCHAR(100),
+
+    country VARCHAR(100)
+        DEFAULT 'India',
+
+    status VARCHAR(30)
+        NOT NULL DEFAULT 'ACTIVE',
+
+    created_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP
+);
+
+
+-- ============================================
 -- INDEXES
 -- ============================================
 
@@ -296,3 +407,108 @@ CREATE INDEX IF NOT EXISTS idx_notifications_created_at
 
 CREATE INDEX IF NOT EXISTS idx_notifications_is_read
     ON notifications(is_read);
+
+CREATE INDEX IF NOT EXISTS idx_clients_status
+    ON clients(status);
+
+
+-- ============================================
+-- ONBOARDING
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS onboardings (
+    id SERIAL PRIMARY KEY,
+
+    onboarding_code VARCHAR(40) NOT NULL UNIQUE,
+
+    candidate_id INTEGER NOT NULL
+        REFERENCES candidates(id),
+
+    employee_id INTEGER
+        REFERENCES employees(id),
+
+    expected_joining_date DATE NOT NULL,
+
+    actual_joining_date DATE,
+
+    department_id INTEGER NOT NULL
+        REFERENCES departments(id),
+
+    status VARCHAR(30) NOT NULL DEFAULT 'INITIATED',
+
+    document_verification_status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+
+    asset_allocation_status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+
+    system_access_status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+
+    completion_date TIMESTAMP,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS onboarding_tasks (
+    id SERIAL PRIMARY KEY,
+
+    onboarding_id INTEGER NOT NULL
+        REFERENCES onboardings(id) ON DELETE CASCADE,
+
+    task_name VARCHAR(150) NOT NULL,
+
+    description TEXT,
+
+    owner VARCHAR(150),
+
+    status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+
+    due_date DATE,
+
+    completed_at TIMESTAMP,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS onboarding_documents (
+    id SERIAL PRIMARY KEY,
+
+    onboarding_id INTEGER NOT NULL
+        REFERENCES onboardings(id) ON DELETE CASCADE,
+
+    document_name VARCHAR(150) NOT NULL,
+
+    document_type VARCHAR(50) NOT NULL DEFAULT 'OTHER',
+
+    status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+
+    verified_by VARCHAR(150),
+
+    verified_at TIMESTAMP,
+
+    remarks TEXT,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_onboardings_candidate_id
+    ON onboardings(candidate_id);
+
+CREATE INDEX IF NOT EXISTS idx_onboardings_employee_id
+    ON onboardings(employee_id);
+
+CREATE INDEX IF NOT EXISTS idx_onboardings_department_id
+    ON onboardings(department_id);
+
+CREATE INDEX IF NOT EXISTS idx_onboardings_status
+    ON onboardings(status);
+
+CREATE INDEX IF NOT EXISTS idx_onboarding_tasks_onboarding_id
+    ON onboarding_tasks(onboarding_id);
+
+CREATE INDEX IF NOT EXISTS idx_onboarding_documents_onboarding_id
+    ON onboarding_documents(onboarding_id);
