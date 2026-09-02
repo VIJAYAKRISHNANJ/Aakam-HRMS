@@ -13,7 +13,10 @@ import {
   useState,
 } from "react";
 
-import { Link } from "react-router-dom";
+import {
+  Link,
+  useNavigate,
+} from "react-router-dom";
 
 import DashboardLayout from "../components/layout/DashboardLayout";
 
@@ -25,6 +28,8 @@ import {
 } from "../services/branchService";
 
 function Branches() {
+  const navigate = useNavigate();
+
   const [branches, setBranches] =
     useState<Branch[]>([]);
 
@@ -125,6 +130,20 @@ function Branches() {
         (letter) =>
           letter.toUpperCase(),
       );
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | Open Branch Profile
+  |--------------------------------------------------------------------------
+  */
+
+  const openBranchProfile = (
+    branchId: number,
+  ) => {
+    navigate(
+      `/organization/branches/${branchId}`,
+    );
   };
 
   return (
@@ -462,8 +481,30 @@ function Branches() {
                   (branch) => (
                     <div
                       key={branch.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() =>
+                        openBranchProfile(
+                          branch.id,
+                        )
+                      }
+                      onKeyDown={(event) => {
+                        if (
+                          event.key ===
+                            "Enter" ||
+                          event.key ===
+                            " "
+                        ) {
+                          event.preventDefault();
+
+                          openBranchProfile(
+                            branch.id,
+                          );
+                        }
+                      }}
                       className="
                         grid
+                        cursor-pointer
                         grid-cols-1
                         gap-4
                         px-6
@@ -614,7 +655,15 @@ function Branches() {
 
                       {/* Edit */}
 
-                      <div className="flex justify-start md:justify-end">
+                      <div
+                        className="flex justify-start md:justify-end"
+                        onClick={(event) =>
+                          event.stopPropagation()
+                        }
+                        onKeyDown={(event) =>
+                          event.stopPropagation()
+                        }
+                      >
 
                         <Link
                           to={`/organization/branches/edit/${branch.id}`}

@@ -16,6 +16,10 @@ import onboardingRoutes from "./routes/onboarding.routes.js";
 import payrollRoutes from "./routes/payroll.routes.js";
 import performanceRoutes from "./routes/performance.routes.js";
 import trainingRoutes from "./routes/training.routes.js";
+import reportsRoutes from "./routes/reports.routes.js";
+import exitsRoutes from "./routes/exits.routes.js";
+import authRoutes from "./routes/auth.routes.js";
+import usersRoutes from "./routes/users.routes.js";
 
 const app = express();
 
@@ -106,6 +110,22 @@ app.use("/api/notifications", notificationRoutes);
 
 /*
 |--------------------------------------------------------------------------
+| Authentication
+|--------------------------------------------------------------------------
+*/
+
+app.use("/api/auth", authRoutes);
+
+/*
+|--------------------------------------------------------------------------
+| User Management
+|--------------------------------------------------------------------------
+*/
+
+app.use("/api/users", usersRoutes);
+
+/*
+|--------------------------------------------------------------------------
 | Recruitment
 |--------------------------------------------------------------------------
 */
@@ -154,10 +174,37 @@ app.use("/api/training", trainingRoutes);
 
 /*
 |--------------------------------------------------------------------------
+| Reports
+|--------------------------------------------------------------------------
+*/
+
+app.use("/api/reports", reportsRoutes);
+
+/*
+|--------------------------------------------------------------------------
+| Exit Management
+|--------------------------------------------------------------------------
+*/
+
+app.use("/api/exits", exitsRoutes);
+
+/*
+|--------------------------------------------------------------------------
 | Start Server
 |--------------------------------------------------------------------------
 */
 
-app.listen(PORT, () => {
-  console.log(`Aakam HRMS Backend running on http://localhost:${PORT}`);
-});
+const startServer = async () => {
+  try {
+    await pool.query("SELECT 1");
+
+    app.listen(PORT, () => {
+      console.log(`Aakam HRMS Backend running on http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error("Failed to start backend:", error);
+    process.exit(1);
+  }
+};
+
+startServer();

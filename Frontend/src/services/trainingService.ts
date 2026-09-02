@@ -2,8 +2,17 @@ import axios from "axios";
 
 const API_URL = "http://localhost:5000/api/training";
 
-export const trainingModes = ["ONLINE", "OFFLINE", "HYBRID"] as const;
-export const trainingStatuses = ["ACTIVE", "INACTIVE"] as const;
+export const trainingModes = [
+  "ONLINE",
+  "OFFLINE",
+  "HYBRID",
+] as const;
+
+export const trainingStatuses = [
+  "ACTIVE",
+  "INACTIVE",
+] as const;
+
 export const enrollmentStatuses = [
   "ASSIGNED",
   "REGISTERED",
@@ -12,8 +21,18 @@ export const enrollmentStatuses = [
   "ASSESSMENT",
   "CERTIFICATE",
 ] as const;
-export const assessmentResults = ["PASS", "FAIL"] as const;
-export const skillLevels = ["BEGINNER", "INTERMEDIATE", "ADVANCED", "EXPERT"] as const;
+
+export const assessmentResults = [
+  "PASS",
+  "FAIL",
+] as const;
+
+export const skillLevels = [
+  "BEGINNER",
+  "INTERMEDIATE",
+  "ADVANCED",
+  "EXPERT",
+] as const;
 
 export type TrainingMode = (typeof trainingModes)[number];
 export type TrainingStatus = (typeof trainingStatuses)[number];
@@ -40,11 +59,11 @@ export interface TrainingEnrollment {
   id: number;
   trainingProgramId: number;
   employeeId: number;
-  employeeCode: string;
   employeeName: string;
-  employeeDepartment: string;
-  status: EnrollmentStatus | string;
+  employeeCode: string;
+  employeeDepartment: string | null;
   assignedDate: string | null;
+  status: EnrollmentStatus | string;
   registeredDate: string | null;
   attendedDate: string | null;
   completedDate: string | null;
@@ -61,8 +80,8 @@ export interface TrainingEnrollment {
 export interface EmployeeSkill {
   id: number;
   employeeId: number;
-  employeeCode: string;
   employeeName: string;
+  employeeCode: string;
   trainingEnrollmentId: number | null;
   skillName: string;
   skillLevel: SkillLevel | string;
@@ -77,94 +96,278 @@ export interface TrainingProgramDetail extends TrainingProgram {
   skills: EmployeeSkill[];
 }
 
-export interface TrainingProgramPayload {
-  courseName?: string;
+export interface TrainingFilters {
+  search?: string;
   category?: string;
-  trainer?: string;
-  duration?: string;
-  cost?: number;
-  mode?: TrainingMode;
-  assessment?: string | null;
-  description?: string | null;
-  status?: TrainingStatus;
+  status?: string;
 }
 
-export interface TrainingEnrollmentPayload {
-  employeeId?: number;
-  status?: EnrollmentStatus;
-  assignedDate?: string | null;
-  registeredDate?: string | null;
-  attendedDate?: string | null;
-  completedDate?: string | null;
-  assessmentScore?: number | null;
-  assessmentResult?: AssessmentResult | null;
-  certificateName?: string | null;
-  certificateUrl?: string | null;
-  certificateDate?: string | null;
-  remarks?: string | null;
+export interface CreateTrainingProgramPayload {
+  courseName: string;
+  category: string;
+  trainer: string;
+  duration: string;
+  cost: number;
+  mode: TrainingMode;
+  assessment: string | null;
+  description: string | null;
+  status: TrainingStatus;
 }
 
-export interface TrainingSkillPayload {
-  employeeId?: number;
+export interface UpdateTrainingProgramPayload {
+  courseName: string;
+  category: string;
+  trainer: string;
+  duration: string;
+  cost: number;
+  mode: TrainingMode;
+  assessment: string | null;
+  description: string | null;
+  status: TrainingStatus;
+}
+
+export interface CreateTrainingEnrollmentPayload {
+  employeeId: number;
+  assignedDate: string | null;
+  remarks: string | null;
+}
+
+export interface UpdateTrainingEnrollmentPayload {
+  status: EnrollmentStatus;
+  registeredDate: string | null;
+  attendedDate: string | null;
+  completedDate: string | null;
+  assessmentScore: number | null;
+  assessmentResult: AssessmentResult | null;
+  certificateName: string | null;
+  certificateUrl: string | null;
+  certificateDate: string | null;
+  remarks: string | null;
+}
+
+export interface CreateTrainingSkillPayload {
+  employeeId: number;
+  skillName: string;
+  skillLevel: SkillLevel;
+  acquiredDate: string | null;
+  remarks: string | null;
   trainingEnrollmentId?: number | null;
-  skillName?: string;
-  skillLevel?: SkillLevel;
-  acquiredDate?: string | null;
-  remarks?: string | null;
 }
 
-interface ApiResponse<T> {
+export interface UpdateTrainingSkillPayload {
+  employeeId: number;
+  skillName: string;
+  skillLevel: SkillLevel;
+  acquiredDate: string | null;
+  remarks: string | null;
+  trainingEnrollmentId?: number | null;
+}
+
+interface TrainingListResponse {
   success: boolean;
-  data: T;
-  message?: string;
+  data: TrainingProgram[];
+  total: number;
 }
 
-const request = async <T>(promise: Promise<{ data: ApiResponse<T> }>, fallback: string): Promise<T> => {
-  try {
-    const response = await promise;
-    if (!response.data.success) throw new Error(response.data.message || fallback);
-    return response.data.data;
-  } catch (error) {
-    throw new Error(getTrainingErrorMessage(error, fallback), { cause: error });
-  }
+interface TrainingProgramResponse {
+  success: boolean;
+  data: TrainingProgramDetail;
+}
+
+interface TrainingEnrollmentResponse {
+  success: boolean;
+  data: TrainingEnrollment[];
+  total: number;
+}
+
+interface TrainingSkillResponse {
+  success: boolean;
+  data: EmployeeSkill[];
+  total: number;
+}
+
+/* =========================================================
+   TRAINING PROGRAMS
+   ========================================================= */
+
+export const getTrainingPrograms = async (
+  filters: TrainingFilters = {},
+): Promise<TrainingProgram[]> => {
+  const response = await axios.get<TrainingListResponse>(API_URL, {
+    params: {
+      search: filters.search || undefined,
+      category: filters.category || undefined,
+      status: filters.status || undefined,
+    },
+  });
+
+  return response.data.data;
 };
 
-export const getTrainingPrograms = (filters: { search?: string; category?: string; status?: string } = {}): Promise<TrainingProgram[]> =>
-  request(axios.get<ApiResponse<TrainingProgram[]>>(API_URL, { params: { search: filters.search || undefined, category: filters.category || undefined, status: filters.status || undefined } }), "Unable to load training programs.");
+export const getTrainingProgram = async (
+  id: string | number,
+): Promise<TrainingProgramDetail> => {
+  const response = await axios.get<TrainingProgramResponse>(
+    `${API_URL}/${id}`,
+  );
 
-export const getTrainingProgram = (id: number | string): Promise<TrainingProgramDetail> =>
-  request(axios.get<ApiResponse<TrainingProgramDetail>>(`${API_URL}/${id}`), "Unable to load this training program.");
+  return response.data.data;
+};
 
-export const createTrainingProgram = (payload: TrainingProgramPayload): Promise<TrainingProgram> =>
-  request(axios.post<ApiResponse<TrainingProgram>>(API_URL, payload), "Failed to create training program.");
+export const createTrainingProgram = async (
+  payload: CreateTrainingProgramPayload,
+): Promise<TrainingProgram> => {
+  const response = await axios.post<{
+    success: boolean;
+    data: TrainingProgram;
+  }>(API_URL, payload);
 
-export const updateTrainingProgram = (id: number | string, payload: TrainingProgramPayload): Promise<TrainingProgram> =>
-  request(axios.put<ApiResponse<TrainingProgram>>(`${API_URL}/${id}`, payload), "Failed to update training program.");
+  return response.data.data;
+};
 
-export const getTrainingEnrollments = (id: number | string): Promise<TrainingEnrollment[]> =>
-  request(axios.get<ApiResponse<TrainingEnrollment[]>>(`${API_URL}/${id}/enrollments`), "Unable to load training enrollments.");
+export const updateTrainingProgram = async (
+  id: string | number,
+  payload: UpdateTrainingProgramPayload,
+): Promise<TrainingProgram> => {
+  const response = await axios.put<{
+    success: boolean;
+    data: TrainingProgram;
+  }>(`${API_URL}/${id}`, payload);
 
-export const createTrainingEnrollment = (id: number | string, payload: TrainingEnrollmentPayload): Promise<TrainingEnrollment> =>
-  request(axios.post<ApiResponse<TrainingEnrollment>>(`${API_URL}/${id}/enrollments`, payload), "Failed to enroll employee.");
+  return response.data.data;
+};
 
-export const updateTrainingEnrollment = (id: number | string, enrollmentId: number | string, payload: TrainingEnrollmentPayload): Promise<TrainingEnrollment> =>
-  request(axios.put<ApiResponse<TrainingEnrollment>>(`${API_URL}/${id}/enrollments/${enrollmentId}`, payload), "Failed to update training enrollment.");
+export const deleteTrainingProgram = async (
+  id: string | number,
+): Promise<void> => {
+  await axios.delete(`${API_URL}/${id}`);
+};
 
-export const getTrainingSkills = (id: number | string): Promise<EmployeeSkill[]> =>
-  request(axios.get<ApiResponse<EmployeeSkill[]>>(`${API_URL}/${id}/skills`), "Unable to load training skills.");
+/* =========================================================
+   TRAINING ENROLLMENTS
+   ========================================================= */
 
-export const createTrainingSkill = (id: number | string, payload: TrainingSkillPayload): Promise<EmployeeSkill> =>
-  request(axios.post<ApiResponse<EmployeeSkill>>(`${API_URL}/${id}/skills`, payload), "Failed to create employee skill.");
+export const getTrainingEnrollments = async (
+  programId: string | number,
+): Promise<TrainingEnrollment[]> => {
+  const response = await axios.get<TrainingEnrollmentResponse>(
+    `${API_URL}/${programId}/enrollments`,
+  );
 
-export const getTrainingErrorMessage = (error: unknown, fallback: string): string => {
+  return response.data.data;
+};
+
+export const createTrainingEnrollment = async (
+  programId: string | number,
+  payload: CreateTrainingEnrollmentPayload,
+): Promise<TrainingEnrollment> => {
+  const response = await axios.post<{
+    success: boolean;
+    data: TrainingEnrollment;
+  }>(`${API_URL}/${programId}/enrollments`, payload);
+
+  return response.data.data;
+};
+
+export const updateTrainingEnrollment = async (
+  programId: string | number,
+  enrollmentId: string | number,
+  payload: UpdateTrainingEnrollmentPayload,
+): Promise<TrainingEnrollment> => {
+  const response = await axios.put<{
+    success: boolean;
+    data: TrainingEnrollment;
+  }>(
+    `${API_URL}/${programId}/enrollments/${enrollmentId}`,
+    payload,
+  );
+
+  return response.data.data;
+};
+
+export const deleteTrainingEnrollment = async (
+  programId: string | number,
+  enrollmentId: string | number,
+): Promise<void> => {
+  await axios.delete(
+    `${API_URL}/${programId}/enrollments/${enrollmentId}`,
+  );
+};
+
+/* =========================================================
+   EMPLOYEE SKILLS
+   ========================================================= */
+
+export const getTrainingSkills = async (
+  programId: string | number,
+): Promise<EmployeeSkill[]> => {
+  const response = await axios.get<TrainingSkillResponse>(
+    `${API_URL}/${programId}/skills`,
+  );
+
+  return response.data.data;
+};
+
+export const createTrainingSkill = async (
+  programId: string | number,
+  payload: CreateTrainingSkillPayload,
+): Promise<EmployeeSkill> => {
+  const response = await axios.post<{
+    success: boolean;
+    data: EmployeeSkill;
+  }>(`${API_URL}/${programId}/skills`, payload);
+
+  return response.data.data;
+};
+
+export const updateTrainingSkill = async (
+  programId: string | number,
+  skillId: string | number,
+  payload: UpdateTrainingSkillPayload,
+): Promise<EmployeeSkill> => {
+  const response = await axios.put<{
+    success: boolean;
+    data: EmployeeSkill;
+  }>(
+    `${API_URL}/${programId}/skills/${skillId}`,
+    payload,
+  );
+
+  return response.data.data;
+};
+
+export const deleteTrainingSkill = async (
+  programId: string | number,
+  skillId: string | number,
+): Promise<void> => {
+  await axios.delete(
+    `${API_URL}/${programId}/skills/${skillId}`,
+  );
+};
+
+/* =========================================================
+   ERROR HANDLING
+   ========================================================= */
+
+export const getTrainingErrorMessage = (
+  error: unknown,
+  fallback: string,
+): string => {
   if (axios.isAxiosError(error)) {
     const message = error.response?.data?.message;
-    if (typeof message === "string" && message.trim()) return message;
-    if (error.response?.status === 400) return "The submitted training data is invalid.";
-    if (error.response?.status === 404) return "Training program not found.";
-    if (error.response?.status === 409) return "This training action conflicts with the current records.";
-    if (error.response?.status === 500) return "The server could not complete this training request.";
+
+    if (typeof message === "string" && message.trim()) {
+      return message;
+    }
+
+    if (error.message) {
+      return error.message;
+    }
   }
-  if (error instanceof Error && error.message.trim()) return error.message;
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
   return fallback;
 };

@@ -1,8 +1,8 @@
-import { Edit, Eye, Plus, Trash2, X, XCircle } from "lucide-react";
+import { ArrowLeft, Edit, Plus, Trash2, X } from "lucide-react";
 
 import { useEffect, useState } from "react";
 
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import DashboardLayout from "../components/layout/DashboardLayout";
 
@@ -17,12 +17,13 @@ import {
   deleteJobPosition,
   getJobPositions,
   getRecruitmentErrorMessage,
-  updateJobPosition,
   type JobPosition,
   type JobStatus,
 } from "../services/recruitmentService.ts";
 
 function JobPositions() {
+  const navigate = useNavigate();
+
   const [jobs, setJobs] = useState<JobPosition[]>([]);
 
   const [search, setSearch] = useState("");
@@ -90,30 +91,12 @@ function JobPositions() {
 
   /*
   |--------------------------------------------------------------------------
-  | Close Job
+  | Open Job Details
   |--------------------------------------------------------------------------
   */
 
-  const closeJob = async (job: JobPosition) => {
-    try {
-      await updateJobPosition(job.id, {
-        title: job.title,
-        departmentId: job.departmentId,
-        openings: job.openings,
-        status: "CLOSED",
-      });
-
-      setSuccessMessage(`${job.title} was closed successfully.`);
-
-      load();
-    } catch (requestError: unknown) {
-      setError(
-        getRecruitmentErrorMessage(
-          requestError,
-          "Unable to close job position.",
-        ),
-      );
-    }
+  const openJobDetails = (job: JobPosition) => {
+    navigate(`/recruitment/jobs/${job.id}`);
   };
 
   /*
@@ -183,6 +166,37 @@ function JobPositions() {
     <DashboardLayout>
       <div className="flex min-w-0 flex-col gap-6">
         {/* =====================================================
+            BACK TO RECRUITMENT
+        ===================================================== */}
+
+        <div>
+          <Link
+            to="/recruitment"
+            className="
+              inline-flex
+              items-center
+              gap-2
+              rounded-xl
+              border
+              border-slate-300
+              bg-white
+              px-4
+              py-2.5
+              text-sm
+              font-semibold
+              text-slate-800
+              shadow-sm
+              transition
+              hover:bg-slate-50
+              hover:text-slate-900
+            "
+          >
+            <ArrowLeft size={17} />
+            Back to Recruitment
+          </Link>
+        </div>
+
+        {/* =====================================================
             PAGE HEADER
         ===================================================== */}
 
@@ -203,6 +217,7 @@ function JobPositions() {
                 text-sm
                 font-semibold
                 text-white
+                transition
                 hover:bg-teal-800
               "
             >
@@ -239,6 +254,8 @@ function JobPositions() {
                 text-sm
                 outline-none
                 focus:border-teal-600
+                focus:ring-1
+                focus:ring-teal-600
               "
             >
               <option value="">All statuses</option>
@@ -303,9 +320,28 @@ function JobPositions() {
         ) : filtered.length === 0 ? (
           <StateMessage type="empty">No job positions found.</StateMessage>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div
+            className="
+              overflow-hidden
+              rounded-xl
+              border
+              border-slate-200
+              bg-white
+            "
+          >
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-left text-sm">
+              <table
+                className="
+                  w-full
+                  min-w-[760px]
+                  text-left
+                  text-sm
+                "
+              >
+                {/* =================================================
+                    TABLE HEADER
+                ================================================= */}
+
                 <thead
                   className="
                     border-b
@@ -332,83 +368,121 @@ function JobPositions() {
                   </tr>
                 </thead>
 
+                {/* =================================================
+                    TABLE BODY
+                ================================================= */}
+
                 <tbody className="divide-y divide-slate-100">
                   {filtered.map((job) => (
-                    <tr key={job.id} className="hover:bg-slate-50">
-                      <td className="px-5 py-4 font-semibold text-slate-800">
-                        {job.title}
+                    <tr
+                      key={job.id}
+                      onClick={() => openJobDetails(job)}
+                      className="
+                        cursor-pointer
+                        transition
+                        hover:bg-slate-50
+                      "
+                    >
+                      {/* =================================================
+                          JOB TITLE
+                      ================================================= */}
+
+                      <td className="px-5 py-4">
+                        <p
+                          className="
+                            font-semibold
+                            text-slate-800
+                            transition
+                            group-hover:text-teal-700
+                          "
+                        >
+                          {job.title}
+                        </p>
                       </td>
 
-                      <td className="px-5 py-4 text-slate-600">
+                      {/* =================================================
+                          DEPARTMENT
+                      ================================================= */}
+
+                      <td
+                        className="
+                          px-5
+                          py-4
+                          text-slate-600
+                        "
+                      >
                         {job.department}
                       </td>
 
-                      <td className="px-5 py-4 text-slate-600">
+                      {/* =================================================
+                          OPENINGS
+                      ================================================= */}
+
+                      <td
+                        className="
+                          px-5
+                          py-4
+                          font-medium
+                          text-slate-700
+                        "
+                      >
                         {job.openings}
                       </td>
+
+                      {/* =================================================
+                          STATUS
+                      ================================================= */}
 
                       <td className="px-5 py-4">
                         <StatusBadge status={job.status} />
                       </td>
 
-                      <td className="px-5 py-4 text-slate-500">
+                      {/* =================================================
+                          CREATED DATE
+                      ================================================= */}
+
+                      <td
+                        className="
+                          px-5
+                          py-4
+                          text-slate-500
+                        "
+                      >
                         {job.createdAt}
                       </td>
 
-                      <td className="px-5 py-4">
+                      {/* =================================================
+                          ACTIONS
+                      ================================================= */}
+
+                      <td
+                        className="px-5 py-4"
+                        onClick={(event) => event.stopPropagation()}
+                      >
                         <div className="flex justify-end gap-1">
-                          {/* VIEW */}
-
-                          <Link
-                            title="View"
-                            to={`/recruitment/jobs/${job.id}`}
-                            className="
-                                rounded-md
-                                p-2
-                                text-slate-500
-                                hover:bg-slate-100
-                                hover:text-teal-700
-                              "
-                          >
-                            <Eye size={16} />
-                          </Link>
-
-                          {/* EDIT */}
+                          {/* =================================================
+                              EDIT
+                          ================================================= */}
 
                           <Link
                             title="Edit"
+                            aria-label={`Edit ${job.title}`}
                             to={`/recruitment/jobs/edit/${job.id}`}
                             className="
-                                rounded-md
-                                p-2
-                                text-slate-500
-                                hover:bg-slate-100
-                                hover:text-teal-700
-                              "
+                              rounded-md
+                              p-2
+                              text-slate-500
+                              transition
+                              hover:bg-slate-100
+                              hover:text-teal-700
+                            "
                           >
                             <Edit size={16} />
                           </Link>
 
-                          {/* CLOSE */}
-
-                          {job.status === "OPEN" && (
-                            <button
-                              type="button"
-                              title="Close"
-                              onClick={() => closeJob(job)}
-                              className="
-                                  rounded-md
-                                  p-2
-                                  text-slate-500
-                                  hover:bg-amber-50
-                                  hover:text-amber-700
-                                "
-                            >
-                              <XCircle size={16} />
-                            </button>
-                          )}
-
-                          {/* DELETE */}
+                          {/* =================================================
+                              DELETE
+                          ================================================= */}
 
                           <button
                             type="button"
@@ -417,14 +491,15 @@ function JobPositions() {
                             onClick={() => openDeleteModal(job)}
                             disabled={deletingId === job.id}
                             className="
-                                rounded-md
-                                p-2
-                                text-slate-500
-                                hover:bg-rose-50
-                                hover:text-rose-700
-                                disabled:cursor-not-allowed
-                                disabled:opacity-50
-                              "
+                              rounded-md
+                              p-2
+                              text-slate-500
+                              transition
+                              hover:bg-rose-50
+                              hover:text-rose-700
+                              disabled:cursor-not-allowed
+                              disabled:opacity-50
+                            "
                           >
                             <Trash2 size={16} />
                           </button>
@@ -440,7 +515,7 @@ function JobPositions() {
       </div>
 
       {/* =====================================================
-          CUSTOM DELETE CONFIRMATION MODAL
+          DELETE CONFIRMATION MODAL
       ===================================================== */}
 
       {jobToDelete && (
@@ -485,12 +560,13 @@ function JobPositions() {
             ================================================= */}
 
             <div className="flex items-start justify-between gap-4">
-              <div className="flex items-center gap-3">
+              <div className="flex items-start gap-4">
                 <div
                   className="
                     flex
                     h-11
                     w-11
+                    shrink-0
                     items-center
                     justify-center
                     rounded-xl
@@ -498,7 +574,7 @@ function JobPositions() {
                     text-rose-600
                   "
                 >
-                  <Trash2 size={21} />
+                  <Trash2 size={20} />
                 </div>
 
                 <div>
@@ -513,19 +589,31 @@ function JobPositions() {
                     Delete Job Position
                   </h2>
 
-                  <p className="mt-0.5 text-xs text-slate-500">
+                  <p
+                    className="
+                      mt-1
+                      text-xs
+                      font-medium
+                      text-slate-500
+                    "
+                  >
                     Permanent action
                   </p>
                 </div>
               </div>
 
+              {/* =================================================
+                  MODAL CLOSE BUTTON
+              ================================================= */}
+
               <button
                 type="button"
                 onClick={closeDeleteModal}
                 disabled={deletingId !== null}
+                aria-label="Close delete confirmation"
                 className="
                   rounded-lg
-                  p-2
+                  p-1.5
                   text-slate-400
                   transition
                   hover:bg-slate-100
@@ -533,7 +621,6 @@ function JobPositions() {
                   disabled:cursor-not-allowed
                   disabled:opacity-50
                 "
-                aria-label="Close"
               >
                 <X size={18} />
               </button>
@@ -553,17 +640,52 @@ function JobPositions() {
                 "
               >
                 Are you sure you want to delete{" "}
-                <span className="font-semibold text-slate-900">
+                <span
+                  className="
+                    font-semibold
+                    text-slate-900
+                  "
+                >
                   {jobToDelete.title}
                 </span>
                 ?
               </p>
 
-              <p className="mt-2 text-sm text-slate-500">
+              <p
+                className="
+                  mt-2
+                  text-sm
+                  leading-6
+                  text-slate-500
+                "
+              >
                 This action cannot be undone. The job position will be
                 permanently removed from the recruitment records.
               </p>
             </div>
+
+            {/* =================================================
+                MODAL ACTION ERROR
+            ================================================= */}
+
+            {actionError && (
+              <div
+                className="
+                  mt-4
+                  rounded-lg
+                  border
+                  border-red-200
+                  bg-red-50
+                  px-4
+                  py-3
+                  text-sm
+                  leading-5
+                  text-red-700
+                "
+              >
+                {actionError}
+              </div>
+            )}
 
             {/* =================================================
                 MODAL ACTIONS

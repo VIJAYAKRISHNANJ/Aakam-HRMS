@@ -20,6 +20,8 @@ import {
 
 import type { FormEvent } from "react";
 
+import DashboardLayout from "../components/layout/DashboardLayout";
+
 import {
   createNotification,
   deleteNotification,
@@ -32,48 +34,50 @@ import type {
   Notification,
 } from "../services/notificationService";
 
-/*
-|--------------------------------------------------------------------------
-| Notifications Page
-|--------------------------------------------------------------------------
-*/
-
 function Notifications() {
   const [notifications, setNotifications] =
     useState<Notification[]>([]);
 
   const [loading, setLoading] =
-    useState<boolean>(true);
+    useState(true);
 
   const [refreshing, setRefreshing] =
-    useState<boolean>(false);
+    useState(false);
 
   const [error, setError] =
-    useState<string>("");
+    useState("");
 
   const [message, setMessage] =
-    useState<string>("");
+    useState("");
 
   const [showCompose, setShowCompose] =
-    useState<boolean>(false);
+    useState(false);
 
   const [sending, setSending] =
-    useState<boolean>(false);
+    useState(false);
 
   const [senderName, setSenderName] =
-    useState<string>("Anita Kumar");
+    useState("Anita Kumar");
 
   const [notificationMessage, setNotificationMessage] =
-    useState<string>("");
+    useState("");
+
+  const [deleteTarget, setDeleteTarget] =
+    useState<number | null>(null);
+
+  const [deleting, setDeleting] =
+    useState(false);
 
   /*
   |--------------------------------------------------------------------------
-  | Load Notifications
+  | LOAD NOTIFICATIONS
   |--------------------------------------------------------------------------
   */
 
   const loadNotifications = useCallback(
-    async (showRefreshLoader = false) => {
+    async (
+      showRefreshLoader = false,
+    ) => {
       try {
         if (showRefreshLoader) {
           setRefreshing(true);
@@ -106,211 +110,216 @@ function Notifications() {
 
   /*
   |--------------------------------------------------------------------------
-  | Initial Load
+  | INITIAL LOAD
   |--------------------------------------------------------------------------
   */
 
   useEffect(() => {
-    loadNotifications();
+    void loadNotifications();
   }, [loadNotifications]);
 
   /*
   |--------------------------------------------------------------------------
-  | Send Notification
+  | SEND NOTIFICATION
   |--------------------------------------------------------------------------
   */
 
-  const handleSendNotification =
-    async (
-      event: FormEvent<HTMLFormElement>,
-    ) => {
-      event.preventDefault();
+  const handleSendNotification = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
 
-      const trimmedMessage =
-        notificationMessage.trim();
+    const trimmedSender =
+      senderName.trim();
 
-      const trimmedSender =
-        senderName.trim();
+    const trimmedMessage =
+      notificationMessage.trim();
 
-      if (!trimmedSender) {
-        setError(
-          "Please enter the sender name.",
-        );
-        return;
-      }
+    if (!trimmedSender) {
+      setError(
+        "Please enter the sender name.",
+      );
+      return;
+    }
 
-      if (!trimmedMessage) {
-        setError(
-          "Please enter a notification message.",
-        );
-        return;
-      }
+    if (!trimmedMessage) {
+      setError(
+        "Please enter a notification message.",
+      );
+      return;
+    }
 
-      try {
-        setSending(true);
-        setError("");
-        setMessage("");
+    try {
+      setSending(true);
+      setError("");
+      setMessage("");
 
-        await createNotification({
-          senderName: trimmedSender,
-          recipientType: "ALL",
-          message: trimmedMessage,
-        });
+      await createNotification({
+        senderName: trimmedSender,
+        recipientType: "ALL",
+        message: trimmedMessage,
+      });
 
-        setNotificationMessage("");
-        setShowCompose(false);
+      setNotificationMessage("");
+      setShowCompose(false);
 
-        setMessage(
-          "Notification sent successfully.",
-        );
+      setMessage(
+        "Notification sent successfully.",
+      );
 
-        await loadNotifications();
-      } catch (err) {
-        console.error(
-          "Failed to send notification:",
-          err,
-        );
+      await loadNotifications();
+    } catch (err) {
+      console.error(
+        "Failed to send notification:",
+        err,
+      );
 
-        setError(
-          "Failed to send notification. Please try again.",
-        );
-      } finally {
-        setSending(false);
-      }
-    };
+      setError(
+        "Failed to send notification. Please try again.",
+      );
+    } finally {
+      setSending(false);
+    }
+  };
 
   /*
   |--------------------------------------------------------------------------
-  | Mark One As Read
+  | MARK ONE AS READ
   |--------------------------------------------------------------------------
   */
 
-  const handleMarkAsRead =
-    async (
-      notificationId: number,
-    ) => {
-      try {
-        setError("");
+  const handleMarkAsRead = async (
+    notificationId: number,
+  ) => {
+    try {
+      setError("");
 
-        const updated =
-          await markNotificationAsRead(
-            notificationId,
-          );
-
-        setNotifications(
-          (currentNotifications) =>
-            currentNotifications.map(
-              (notification) =>
-                notification.id ===
-                updated.id
-                  ? updated
-                  : notification,
-            ),
-        );
-      } catch (err) {
-        console.error(
-          "Failed to mark notification as read:",
-          err,
-        );
-
-        setError(
-          "Failed to mark notification as read.",
-        );
-      }
-    };
-
-  /*
-  |--------------------------------------------------------------------------
-  | Mark All As Read
-  |--------------------------------------------------------------------------
-  */
-
-  const handleMarkAllAsRead =
-    async () => {
-      const unreadExists =
-        notifications.some(
-          (notification) =>
-            !notification.isRead,
-        );
-
-      if (!unreadExists) {
-        return;
-      }
-
-      try {
-        setError("");
-
-        await markAllNotificationsAsRead();
-
-        setNotifications(
-          (currentNotifications) =>
-            currentNotifications.map(
-              (notification) => ({
-                ...notification,
-                isRead: true,
-              }),
-            ),
-        );
-
-        setMessage(
-          "All notifications marked as read.",
-        );
-      } catch (err) {
-        console.error(
-          "Failed to mark all notifications as read:",
-          err,
-        );
-
-        setError(
-          "Failed to mark all notifications as read.",
-        );
-      }
-    };
-
-  /*
-  |--------------------------------------------------------------------------
-  | Delete Notification
-  |--------------------------------------------------------------------------
-  */
-
-  const handleDelete =
-    async (
-      notificationId: number,
-    ) => {
-      try {
-        setError("");
-
-        await deleteNotification(
+      const updated =
+        await markNotificationAsRead(
           notificationId,
         );
 
-        setNotifications(
-          (currentNotifications) =>
-            currentNotifications.filter(
-              (notification) =>
-                notification.id !==
-                notificationId,
-            ),
-        );
+      setNotifications(
+        (currentNotifications) =>
+          currentNotifications.map(
+            (notification) =>
+              notification.id ===
+              updated.id
+                ? updated
+                : notification,
+          ),
+      );
+    } catch (err) {
+      console.error(
+        "Failed to mark notification as read:",
+        err,
+      );
 
-        setMessage(
-          "Notification deleted successfully.",
-        );
-      } catch (err) {
-        console.error(
-          "Failed to delete notification:",
-          err,
-        );
-
-        setError(
-          "Failed to delete notification.",
-        );
-      }
-    };
+      setError(
+        "Failed to mark notification as read.",
+      );
+    }
+  };
 
   /*
   |--------------------------------------------------------------------------
-  | Helpers
+  | MARK ALL AS READ
+  |--------------------------------------------------------------------------
+  */
+
+  const handleMarkAllAsRead = async () => {
+    const unreadExists =
+      notifications.some(
+        (notification) =>
+          !notification.isRead,
+      );
+
+    if (!unreadExists) {
+      return;
+    }
+
+    try {
+      setError("");
+      setMessage("");
+
+      await markAllNotificationsAsRead();
+
+      setNotifications(
+        (currentNotifications) =>
+          currentNotifications.map(
+            (notification) => ({
+              ...notification,
+              isRead: true,
+            }),
+          ),
+      );
+
+      setMessage(
+        "All notifications marked as read.",
+      );
+    } catch (err) {
+      console.error(
+        "Failed to mark all notifications as read:",
+        err,
+      );
+
+      setError(
+        "Failed to mark all notifications as read.",
+      );
+    }
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | DELETE
+  |--------------------------------------------------------------------------
+  */
+
+  const handleDelete = async () => {
+    if (deleteTarget === null) {
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      setError("");
+      setMessage("");
+
+      await deleteNotification(
+        deleteTarget,
+      );
+
+      setNotifications(
+        (currentNotifications) =>
+          currentNotifications.filter(
+            (notification) =>
+              notification.id !==
+              deleteTarget,
+          ),
+      );
+
+      setDeleteTarget(null);
+
+      setMessage(
+        "Notification deleted successfully.",
+      );
+    } catch (err) {
+      console.error(
+        "Failed to delete notification:",
+        err,
+      );
+
+      setError(
+        "Failed to delete notification. Please try again.",
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | HELPERS
   |--------------------------------------------------------------------------
   */
 
@@ -319,6 +328,19 @@ function Notifications() {
       (notification) =>
         !notification.isRead,
     ).length;
+
+  const readCount =
+    notifications.filter(
+      (notification) =>
+        notification.isRead,
+    ).length;
+
+  const selectedNotification =
+    notifications.find(
+      (notification) =>
+        notification.id ===
+        deleteTarget,
+    );
 
   const formatDate = (
     dateString: string,
@@ -348,24 +370,23 @@ function Notifications() {
 
   /*
   |--------------------------------------------------------------------------
-  | Render
+  | PAGE
   |--------------------------------------------------------------------------
   */
 
   return (
-    <div className="min-h-full bg-slate-50 p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <DashboardLayout>
+      <div className="space-y-6">
 
-        {/* Header */}
+        {/* ================================================================
+            PAGE HEADER
+        ================================================================ */}
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 text-white shadow-md">
-                <Bell
-                  size={22}
-                  strokeWidth={2}
-                />
+                <Bell size={22} />
               </div>
 
               <div>
@@ -385,7 +406,7 @@ function Notifications() {
             <button
               type="button"
               onClick={() =>
-                loadNotifications(true)
+                void loadNotifications(true)
               }
               disabled={refreshing}
               className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
@@ -404,9 +425,11 @@ function Notifications() {
 
             <button
               type="button"
-              onClick={() =>
-                setShowCompose(true)
-              }
+              onClick={() => {
+                setError("");
+                setMessage("");
+                setShowCompose(true);
+              }}
               className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:from-blue-700 hover:to-violet-700"
             >
               <Send size={16} />
@@ -416,7 +439,9 @@ function Notifications() {
           </div>
         </div>
 
-        {/* Success Message */}
+        {/* ================================================================
+            SUCCESS
+        ================================================================ */}
 
         {message && (
           <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
@@ -438,7 +463,9 @@ function Notifications() {
           </div>
         )}
 
-        {/* Error Message */}
+        {/* ================================================================
+            ERROR
+        ================================================================ */}
 
         {error && (
           <div className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -456,9 +483,12 @@ function Notifications() {
           </div>
         )}
 
-        {/* Summary Cards */}
+        {/* ================================================================
+            SUMMARY
+        ================================================================ */}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
@@ -490,9 +520,7 @@ function Notifications() {
               </div>
 
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 text-violet-600">
-                <MessageSquare
-                  size={20}
-                />
+                <MessageSquare size={20} />
               </div>
             </div>
           </div>
@@ -505,29 +533,23 @@ function Notifications() {
                 </p>
 
                 <p className="mt-2 text-2xl font-bold text-slate-900">
-                  {
-                    notifications.filter(
-                      (
-                        notification,
-                      ) =>
-                        notification.isRead,
-                    ).length
-                  }
+                  {readCount}
                 </p>
               </div>
 
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-                <CheckCheck
-                  size={20}
-                />
+                <CheckCheck size={20} />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Notification List */}
+        {/* ================================================================
+            NOTIFICATION LIST
+        ================================================================ */}
 
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+
           <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="font-semibold text-slate-900">
@@ -542,17 +564,15 @@ function Notifications() {
 
             <button
               type="button"
-              onClick={
-                handleMarkAllAsRead
+              onClick={() =>
+                void handleMarkAllAsRead()
               }
               disabled={
                 unreadCount === 0
               }
               className="inline-flex items-center gap-2 self-start rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 sm:self-auto"
             >
-              <CheckCheck
-                size={16}
-              />
+              <CheckCheck size={16} />
 
               Mark all as read
             </button>
@@ -569,8 +589,7 @@ function Notifications() {
                 Loading notifications...
               </div>
             </div>
-          ) : notifications.length ===
-            0 ? (
+          ) : notifications.length === 0 ? (
             <div className="flex min-h-[300px] flex-col items-center justify-center px-6 text-center">
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400">
                 <Bell size={26} />
@@ -587,9 +606,11 @@ function Notifications() {
 
               <button
                 type="button"
-                onClick={() =>
-                  setShowCompose(true)
-                }
+                onClick={() => {
+                  setError("");
+                  setMessage("");
+                  setShowCompose(true);
+                }}
                 className="mt-5 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
               >
                 <Send size={16} />
@@ -600,13 +621,9 @@ function Notifications() {
           ) : (
             <div className="divide-y divide-slate-100">
               {notifications.map(
-                (
-                  notification,
-                ) => (
+                (notification) => (
                   <div
-                    key={
-                      notification.id
-                    }
+                    key={notification.id}
                     className={`group p-5 transition ${
                       notification.isRead
                         ? "bg-white"
@@ -615,18 +632,13 @@ function Notifications() {
                   >
                     <div className="flex gap-4">
 
-                      {/* Avatar */}
-
                       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-violet-600 text-white">
-                        <User
-                          size={19}
-                        />
+                        <User size={19} />
                       </div>
-
-                      {/* Content */}
 
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
                               <h3 className="font-semibold text-slate-900">
@@ -644,43 +656,36 @@ function Notifications() {
 
                             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                               <span>
-                                {
-                                  notification.recipientType ===
-                                  "ALL"
-                                    ? "Everyone"
-                                    : notification.recipientType
-                                }
+                                {notification.recipientType ===
+                                "ALL"
+                                  ? "Everyone"
+                                  : notification.recipientType}
                               </span>
 
-                              <span>
-                                •
-                              </span>
+                              <span>•</span>
 
                               <span>
-                                {
-                                  formatDate(
-                                    notification.createdAt,
-                                  )
-                                }
+                                {formatDate(
+                                  notification.createdAt,
+                                )}
                               </span>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:transition sm:group-hover:opacity-100">
+                          <div className="flex items-center gap-1">
+
                             {!notification.isRead && (
                               <button
                                 type="button"
                                 title="Mark as read"
                                 onClick={() =>
-                                  handleMarkAsRead(
+                                  void handleMarkAsRead(
                                     notification.id,
                                   )
                                 }
                                 className="rounded-lg p-2 text-slate-500 transition hover:bg-emerald-50 hover:text-emerald-600"
                               >
-                                <Check
-                                  size={17}
-                                />
+                                <Check size={17} />
                               </button>
                             )}
 
@@ -688,38 +693,32 @@ function Notifications() {
                               type="button"
                               title="Delete notification"
                               onClick={() =>
-                                handleDelete(
+                                setDeleteTarget(
                                   notification.id,
                                 )
                               }
                               className="rounded-lg p-2 text-slate-500 transition hover:bg-red-50 hover:text-red-600"
                             >
-                              <Trash2
-                                size={17}
-                              />
+                              <Trash2 size={17} />
                             </button>
                           </div>
                         </div>
 
                         <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
-                          {
-                            notification.message
-                          }
+                          {notification.message}
                         </p>
 
                         {!notification.isRead && (
                           <button
                             type="button"
                             onClick={() =>
-                              handleMarkAsRead(
+                              void handleMarkAsRead(
                                 notification.id,
                               )
                             }
                             className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 transition hover:text-blue-700"
                           >
-                            <Check
-                              size={14}
-                            />
+                            <Check size={14} />
 
                             Mark as read
                           </button>
@@ -734,14 +733,28 @@ function Notifications() {
         </div>
       </div>
 
-      {/* Compose Modal */}
+      {/* ================================================================
+          SEND MODAL
+      ================================================================ */}
 
       {showCompose && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
-
-            {/* Modal Header */}
-
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (
+              event.target ===
+                event.currentTarget &&
+              !sending
+            ) {
+              setShowCompose(false);
+            }
+          }}
+        >
+          <div
+            className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+          >
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
               <div>
                 <h2 className="text-lg font-bold text-slate-900">
@@ -758,13 +771,12 @@ function Notifications() {
                 onClick={() =>
                   setShowCompose(false)
                 }
-                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                disabled={sending}
+                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100"
               >
                 <X size={19} />
               </button>
             </div>
-
-            {/* Modal Body */}
 
             <form
               onSubmit={
@@ -772,8 +784,6 @@ function Notifications() {
               }
             >
               <div className="space-y-5 px-6 py-6">
-
-                {/* Sender */}
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-700">
@@ -794,13 +804,12 @@ function Notifications() {
                           event.target.value,
                         )
                       }
+                      disabled={sending}
+                      className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                       placeholder="Enter sender name"
-                      className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                     />
                   </div>
                 </div>
-
-                {/* Recipient */}
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-700">
@@ -826,11 +835,9 @@ function Notifications() {
                   </div>
                 </div>
 
-                {/* Message */}
-
                 <div>
                   <div className="mb-2 flex items-center justify-between">
-                    <label className="block text-sm font-semibold text-slate-700">
+                    <label className="text-sm font-semibold text-slate-700">
                       Message
                     </label>
 
@@ -838,7 +845,7 @@ function Notifications() {
                       {
                         notificationMessage.length
                       }{" "}
-                      characters
+                      / 1000
                     </span>
                   </div>
 
@@ -851,24 +858,23 @@ function Notifications() {
                         event.target.value,
                       )
                     }
-                    placeholder="Type your notification message..."
-                    rows={5}
+                    disabled={sending}
                     maxLength={1000}
-                    className="w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-3 text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    rows={5}
+                    placeholder="Type your notification message..."
+                    className="w-full resize-none rounded-lg border border-slate-300 px-3 py-3 text-sm leading-6 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
               </div>
 
-              {/* Modal Footer */}
-
-              <div className="flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4">
+              <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4">
                 <button
                   type="button"
                   onClick={() =>
                     setShowCompose(false)
                   }
                   disabled={sending}
-                  className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
                   Cancel
                 </button>
@@ -879,7 +885,7 @@ function Notifications() {
                     sending ||
                     !notificationMessage.trim()
                   }
-                  className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:from-blue-700 hover:to-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 px-5 py-2.5 text-sm font-semibold text-white hover:from-blue-700 hover:to-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {sending ? (
                     <>
@@ -903,7 +909,115 @@ function Notifications() {
           </div>
         </div>
       )}
-    </div>
+
+      {/* ================================================================
+          DELETE CONFIRMATION
+      ================================================================ */}
+
+      {deleteTarget !== null && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (
+              event.target ===
+              event.currentTarget
+            ) {
+              if (!deleting) {
+                setDeleteTarget(null);
+              }
+            }
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="mb-3 inline-flex rounded-lg bg-red-50 p-2.5 text-red-600">
+                  <Trash2 size={20} />
+                </div>
+
+                <h2 className="text-lg font-bold text-slate-900">
+                  Delete notification?
+                </h2>
+
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  Are you sure you want to delete
+                  this notification? This action
+                  cannot be undone.
+                </p>
+
+                {selectedNotification && (
+                  <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Notification
+                    </p>
+
+                    <p className="mt-1 line-clamp-3 text-sm leading-5 text-slate-700">
+                      {
+                        selectedNotification.message
+                      }
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setDeleteTarget(null)
+                }
+                disabled={deleting}
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() =>
+                  setDeleteTarget(null)
+                }
+                disabled={deleting}
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  void handleDelete()
+                }
+                disabled={deleting}
+                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deleting ? (
+                  <>
+                    <Loader2
+                      size={16}
+                      className="animate-spin"
+                    />
+
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={16} />
+
+                    Delete Notification
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </DashboardLayout>
   );
 }
 

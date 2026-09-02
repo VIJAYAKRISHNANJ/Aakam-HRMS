@@ -28,9 +28,13 @@ export interface Employee {
 
   email: string;
 
+  designation: string;
+
   departmentId: number | null;
 
   department: string;
+
+  systemRole: string;
 
   joiningDate: string;
 
@@ -89,32 +93,31 @@ export interface EmployeeDirectoryFilters {
 |--------------------------------------------------------------------------
 */
 
-export const getEmployees =
-  async (
-    filters: EmployeeDirectoryFilters = {},
-  ): Promise<EmployeeDirectoryData> => {
-    const response =
-      await axios.get<EmployeeDirectoryResponse>(
-        `${API_URL}/employees`,
-        {
-          params: {
-            search:
-              filters.search ||
-              undefined,
+export const getEmployees = async (
+  filters: EmployeeDirectoryFilters = {},
+): Promise<EmployeeDirectoryData> => {
+  const response =
+    await axios.get<EmployeeDirectoryResponse>(
+      `${API_URL}/employees`,
+      {
+        params: {
+          search:
+            filters.search ||
+            undefined,
 
-            departmentId:
-              filters.departmentId ||
-              undefined,
+          departmentId:
+            filters.departmentId ||
+            undefined,
 
-            status:
-              filters.status ||
-              undefined,
-          },
+          status:
+            filters.status ||
+            undefined,
         },
-      );
+      },
+    );
 
-    return response.data.data;
-  };
+  return response.data.data;
+};
 
 /*
 |--------------------------------------------------------------------------
@@ -128,26 +131,20 @@ interface EmployeeProfileResponse {
   data: Employee;
 }
 
-export const getEmployeeById =
-  async (
-    employeeId: number | string,
-  ): Promise<Employee> => {
-    const response =
-      await axios.get<EmployeeProfileResponse>(
-        `${API_URL}/employees/${employeeId}`,
-      );
+export const getEmployeeById = async (
+  employeeId: number | string,
+): Promise<Employee> => {
+  const response =
+    await axios.get<EmployeeProfileResponse>(
+      `${API_URL}/employees/${employeeId}`,
+    );
 
-    return response.data.data;
-  };
+  return response.data.data;
+};
 
 /*
 |--------------------------------------------------------------------------
 | Create Employee
-|--------------------------------------------------------------------------
-| Connects to the existing POST /api/employees endpoint.
-| Field names use the same camelCase convention already used by the
-| GET /api/employees query params (search, departmentId, status) and by
-| the Employee interface above (employeeCode, firstName, joiningDate, ...).
 |--------------------------------------------------------------------------
 */
 
@@ -159,6 +156,8 @@ export interface CreateEmployeePayload {
   lastName?: string;
 
   email: string;
+
+  designation: string;
 
   departmentId: number;
 
@@ -177,25 +176,21 @@ interface CreateEmployeeResponse {
   message?: string;
 }
 
-export const createEmployee =
-  async (
-    payload: CreateEmployeePayload,
-  ): Promise<Employee> => {
-    const response =
-      await axios.post<CreateEmployeeResponse>(
-        `${API_URL}/employees`,
-        payload,
-      );
+export const createEmployee = async (
+  payload: CreateEmployeePayload,
+): Promise<Employee> => {
+  const response =
+    await axios.post<CreateEmployeeResponse>(
+      `${API_URL}/employees`,
+      payload,
+    );
 
-    return response.data.data;
-  };
+  return response.data.data;
+};
 
 /*
 |--------------------------------------------------------------------------
 | Update Employee
-|--------------------------------------------------------------------------
-| Connects to PUT /api/employees/:id. Same field shape as
-| CreateEmployeePayload since the editable fields are identical.
 |--------------------------------------------------------------------------
 */
 
@@ -207,6 +202,8 @@ export interface UpdateEmployeePayload {
   lastName?: string;
 
   email: string;
+
+  designation: string;
 
   departmentId: number;
 
@@ -225,16 +222,50 @@ interface UpdateEmployeeResponse {
   message?: string;
 }
 
-export const updateEmployee =
-  async (
-    employeeId: number | string,
-    payload: UpdateEmployeePayload,
-  ): Promise<Employee> => {
-    const response =
-      await axios.put<UpdateEmployeeResponse>(
-        `${API_URL}/employees/${employeeId}`,
-        payload,
-      );
+export const updateEmployee = async (
+  employeeId: number | string,
+  payload: UpdateEmployeePayload,
+): Promise<Employee> => {
+  const response =
+    await axios.put<UpdateEmployeeResponse>(
+      `${API_URL}/employees/${employeeId}`,
+      payload,
+    );
 
-    return response.data.data;
-  };
+  return response.data.data;
+};
+
+/*
+|--------------------------------------------------------------------------
+| Delete Employee
+|--------------------------------------------------------------------------
+|
+| Connects to:
+| DELETE /api/employees/:id
+|
+| Backend remains responsible for:
+| - authorization
+| - foreign-key/dependency checks
+| - deciding whether deletion is allowed
+|--------------------------------------------------------------------------
+*/
+
+interface DeleteEmployeeResponse {
+  success: boolean;
+
+  message?: string;
+}
+
+export const deleteEmployee = async (
+  employeeId: number | string,
+): Promise<string> => {
+  const response =
+    await axios.delete<DeleteEmployeeResponse>(
+      `${API_URL}/employees/${employeeId}`,
+    );
+
+  return (
+    response.data.message ||
+    "Employee deleted successfully."
+  );
+};

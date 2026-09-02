@@ -1,12 +1,15 @@
 import {
   ArrowLeft,
   Edit,
+  Save,
 } from "lucide-react";
 
 import {
   useEffect,
   useState,
 } from "react";
+
+import type { FormEvent } from "react";
 
 import {
   Link,
@@ -23,7 +26,6 @@ import {
 
 import {
   getEmployees,
-  type Employee,
 } from "../services/workforceService";
 
 import {
@@ -35,113 +37,177 @@ import {
 } from "../services/performanceService";
 
 function EditPerformance() {
-  const { id } = useParams();
+  const { id } =
+    useParams();
 
-  const navigate = useNavigate();
+  const navigate =
+    useNavigate();
 
-  const [review, setReview] =
+  const [
+    review,
+    setReview,
+  ] =
     useState<PerformanceReview | null>(
       null,
     );
 
-  const [employees, setEmployees] =
-    useState<Employee[]>([]);
+  const [
+    employees,
+    setEmployees,
+  ] = useState<
+    Awaited<
+      ReturnType<typeof getEmployees>
+    >["employees"]
+  >([]);
 
-  const [employeeId, setEmployeeId] =
-    useState("");
+  const [
+    employeeId,
+    setEmployeeId,
+  ] = useState("");
 
-  const [reviewerId, setReviewerId] =
-    useState("");
+  const [
+    reviewerId,
+    setReviewerId,
+  ] = useState("");
 
-  const [start, setStart] =
-    useState("");
+  const [
+    start,
+    setStart,
+  ] = useState("");
 
-  const [end, setEnd] =
-    useState("");
+  const [
+    end,
+    setEnd,
+  ] = useState("");
 
-  const [rating, setRating] =
-    useState("");
+  const [
+    rating,
+    setRating,
+  ] = useState("");
 
-  const [status, setStatus] =
-    useState<PerformanceStatus>("DRAFT");
+  const [
+    status,
+    setStatus,
+  ] =
+    useState<PerformanceStatus>(
+      "DRAFT",
+    );
 
-  const [loading, setLoading] =
-    useState(true);
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
-  const [saving, setSaving] =
-    useState(false);
+  const [
+    saving,
+    setSaving,
+  ] = useState(false);
 
-  const [error, setError] =
-    useState("");
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+  /*
+  |--------------------------------------------------------------------------
+  | Load Review
+  |--------------------------------------------------------------------------
+  */
 
   useEffect(() => {
-    if (!id) return;
+    const load = async () => {
+      if (!id) {
+        setError(
+          "Invalid performance review ID.",
+        );
+        setLoading(false);
+        return;
+      }
 
-    Promise.all([
-      getPerformanceReview(id),
-      getEmployees(),
-    ])
-      .then(
-        ([
-          data,
+      try {
+        setLoading(true);
+        setError("");
+
+        const [
+          reviewData,
           employeeData,
-        ]) => {
-          setReview(data);
+        ] = await Promise.all([
+          getPerformanceReview(
+            id,
+          ),
+          getEmployees(),
+        ]);
 
-          setEmployees(
-            employeeData.employees,
-          );
+        setReview(
+          reviewData,
+        );
 
-          setEmployeeId(
-            String(data.employeeId),
-          );
+        setEmployees(
+          employeeData.employees,
+        );
 
-          setReviewerId(
-            data.reviewerId
-              ? String(data.reviewerId)
-              : "",
-          );
+        setEmployeeId(
+          String(
+            reviewData.employeeId,
+          ),
+        );
 
-          setStart(
-            data.reviewPeriodStart.slice(
-              0,
-              10,
-            ),
-          );
+        setReviewerId(
+          reviewData.reviewerId
+            ? String(
+                reviewData.reviewerId,
+              )
+            : "",
+        );
 
-          setEnd(
-            data.reviewPeriodEnd.slice(
-              0,
-              10,
-            ),
-          );
+        setStart(
+          reviewData.reviewPeriodStart.slice(
+            0,
+            10,
+          ),
+        );
 
-          setRating(
-            data.rating
-              ? String(data.rating)
-              : "",
-          );
+        setEnd(
+          reviewData.reviewPeriodEnd.slice(
+            0,
+            10,
+          ),
+        );
 
-          setStatus(
-            data.status as PerformanceStatus,
-          );
-        },
-      )
-      .catch((requestError) =>
+        setRating(
+          reviewData.rating
+            ? String(
+                reviewData.rating,
+              )
+            : "",
+        );
+
+        setStatus(
+          reviewData.status as PerformanceStatus,
+        );
+      } catch (requestError) {
         setError(
           getPerformanceErrorMessage(
             requestError,
             "Unable to load this performance review.",
           ),
-        ),
-      )
-      .finally(() =>
-        setLoading(false),
-      );
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void load();
   }, [id]);
 
+  /*
+  |--------------------------------------------------------------------------
+  | Submit
+  |--------------------------------------------------------------------------
+  */
+
   const submit = async (
-    event: React.FormEvent<HTMLFormElement>,
+    event: FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault();
 
@@ -189,11 +255,16 @@ function EditPerformance() {
         id,
         {
           employeeId:
-            Number(employeeId),
+            Number(
+              employeeId,
+            ),
 
-          reviewerId: reviewerId
-            ? Number(reviewerId)
-            : null,
+          reviewerId:
+            reviewerId
+              ? Number(
+                  reviewerId,
+                )
+              : null,
 
           reviewPeriodStart:
             start,
@@ -223,9 +294,74 @@ function EditPerformance() {
     }
   };
 
+  /*
+  |--------------------------------------------------------------------------
+  | Loading
+  |--------------------------------------------------------------------------
+  */
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <StateMessage type="loading">
+          Loading performance review...
+        </StateMessage>
+      </DashboardLayout>
+    );
+  }
+
+  if (error && !review) {
+    return (
+      <DashboardLayout>
+        <StateMessage type="error">
+          {error}
+        </StateMessage>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
-      <div className="flex min-w-0 flex-col gap-6">
+      <div className="flex w-full min-w-0 flex-col gap-6">
+
+        {/* =================================================
+            BACK BUTTON
+        ================================================= */}
+
+        <Link
+          to={
+            id
+              ? `/performance/${id}`
+              : "/performance"
+          }
+          className="
+            inline-flex
+            w-fit
+            items-center
+            gap-2
+            rounded-lg
+            border
+            border-slate-300
+            bg-white
+            px-4
+            py-2.5
+            text-sm
+            font-semibold
+            text-slate-700
+            shadow-sm
+            transition
+            hover:bg-slate-50
+            hover:text-slate-900
+          "
+        >
+          <ArrowLeft size={17} />
+          Back to Performance Review
+        </Link>
+
+        {/* =================================================
+            PAGE HEADER
+        ================================================= */}
+
         <PageHeader
           title="Edit Performance Review"
           subtitle={
@@ -236,208 +372,438 @@ function EditPerformance() {
           icon={Edit}
         />
 
-        <Link
-          to={
-            id
-              ? `/performance/${id}`
-              : "/performance"
-          }
-          className="inline-flex w-fit items-center gap-2 text-sm font-semibold text-slate-600 hover:text-teal-700"
+        {/* =================================================
+            FORM
+        ================================================= */}
+
+        <form
+          onSubmit={submit}
+          className="
+            w-full
+            rounded-xl
+            border
+            border-slate-200
+            bg-white
+            p-6
+          "
         >
-          <ArrowLeft size={16} />
-          Back to review
-        </Link>
 
-        {loading ? (
-          <StateMessage type="loading">
-            Loading performance review...
-          </StateMessage>
-        ) : error && !review ? (
-          <StateMessage type="error">
-            {error}
-          </StateMessage>
-        ) : (
-          <form
-            onSubmit={submit}
-            className="rounded-xl border border-slate-200 bg-white p-6"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="font-semibold text-slate-900">
-                  Review information
-                </h2>
-              </div>
-            </div>
+          <div>
 
-            {error && (
-              <div className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {error}
-              </div>
+            <h2 className="font-semibold text-slate-900">
+              Review information
+            </h2>
+
+            {review?.status ===
+              "COMPLETED" && (
+              <p className="mt-1 text-sm text-amber-600">
+                This review is completed, but it can still be edited.
+              </p>
             )}
 
-            <div className="mt-6 grid gap-5 md:grid-cols-2">
-              <label className="text-sm font-medium text-slate-700">
-                Employee
+          </div>
 
-                <select
-                  required
-                  value={employeeId}
-                  onChange={(event) =>
-                    setEmployeeId(
-                      event.target.value,
-                    )
-                  }
-                  className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 font-normal outline-none focus:border-teal-600"
-                >
-                  {employees.map(
-                    (employee) => (
-                      <option
-                        key={employee.id}
-                        value={employee.id}
-                      >
-                        {employee.fullName} ·{" "}
-                        {
-                          employee.employeeCode
-                        }
-                      </option>
-                    ),
-                  )}
-                </select>
-              </label>
-
-              <label className="text-sm font-medium text-slate-700">
-                Reviewer
-
-                <select
-                  value={reviewerId}
-                  onChange={(event) =>
-                    setReviewerId(
-                      event.target.value,
-                    )
-                  }
-                  className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 font-normal outline-none focus:border-teal-600"
-                >
-                  <option value="">
-                    No reviewer
-                  </option>
-
-                  {employees.map(
-                    (employee) => (
-                      <option
-                        key={employee.id}
-                        value={employee.id}
-                      >
-                        {employee.fullName}
-                      </option>
-                    ),
-                  )}
-                </select>
-              </label>
-
-              <label className="text-sm font-medium text-slate-700">
-                Review period start
-
-                <input
-                  required
-                  type="date"
-                  value={start}
-                  onChange={(event) =>
-                    setStart(
-                      event.target.value,
-                    )
-                  }
-                  className="mt-2 h-11 w-full rounded-lg border border-slate-300 px-3 font-normal outline-none focus:border-teal-600"
-                />
-              </label>
-
-              <label className="text-sm font-medium text-slate-700">
-                Review period end
-
-                <input
-                  required
-                  type="date"
-                  value={end}
-                  onChange={(event) =>
-                    setEnd(
-                      event.target.value,
-                    )
-                  }
-                  className="mt-2 h-11 w-full rounded-lg border border-slate-300 px-3 font-normal outline-none focus:border-teal-600"
-                />
-              </label>
-
-              <label className="text-sm font-medium text-slate-700">
-                Rating
-
-                <select
-                  required
-                  value={rating}
-                  onChange={(event) =>
-                    setRating(
-                      event.target.value,
-                    )
-                  }
-                  className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 font-normal outline-none focus:border-teal-600"
-                >
-                  <option value="">
-                    Select rating
-                  </option>
-
-                  {[1, 2, 3, 4, 5].map(
-                    (value) => (
-                      <option
-                        key={value}
-                        value={value}
-                      >
-                        {value} / 5
-                      </option>
-                    ),
-                  )}
-                </select>
-              </label>
-
-              <label className="text-sm font-medium text-slate-700">
-                Status
-
-                <select
-                  required
-                  value={status}
-                  onChange={(event) =>
-                    setStatus(
-                      event.target
-                        .value as PerformanceStatus,
-                    )
-                  }
-                  className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 font-normal outline-none focus:border-teal-600"
-                >
-                  <option value="DRAFT">
-                    Draft
-                  </option>
-
-                  <option value="IN_REVIEW">
-                    In Review
-                  </option>
-
-                  <option value="COMPLETED">
-                    Completed
-                  </option>
-                </select>
-              </label>
+          {error && (
+            <div
+              className="
+                mt-5
+                rounded-lg
+                border
+                border-red-200
+                bg-red-50
+                px-4
+                py-3
+                text-sm
+                text-red-700
+              "
+            >
+              {error}
             </div>
+          )}
 
-            <div className="mt-7 flex justify-end">
-              <button
-                type="submit"
+          <div className="mt-6 grid gap-5 md:grid-cols-2">
+
+            {/* EMPLOYEE */}
+
+            <label className="text-sm font-medium text-slate-700">
+              Employee
+
+              <select
+                required
+                value={employeeId}
+                onChange={(
+                  event,
+                ) =>
+                  setEmployeeId(
+                    event.target
+                      .value,
+                  )
+                }
                 disabled={saving}
-                className="rounded-lg bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+                className="
+                  mt-2
+                  h-11
+                  w-full
+                  rounded-lg
+                  border
+                  border-slate-300
+                  bg-white
+                  px-3
+                  font-normal
+                  outline-none
+                  transition
+                  focus:border-teal-600
+                  focus:ring-2
+                  focus:ring-teal-600/20
+                "
               >
-                {saving
-                  ? "Saving..."
-                  : "Save Changes"}
-              </button>
-            </div>
-          </form>
-        )}
+                <option value="">
+                  Select employee
+                </option>
+
+                {employees.map(
+                  (
+                    employee,
+                  ) => (
+                    <option
+                      key={
+                        employee.id
+                      }
+                      value={
+                        employee.id
+                      }
+                    >
+                      {
+                        employee.fullName
+                      }{" "}
+                      ·{" "}
+                      {
+                        employee.employeeCode
+                      }
+                    </option>
+                  ),
+                )}
+              </select>
+            </label>
+
+            {/* REVIEWER */}
+
+            <label className="text-sm font-medium text-slate-700">
+              Reviewer
+
+              <select
+                value={reviewerId}
+                onChange={(
+                  event,
+                ) =>
+                  setReviewerId(
+                    event.target
+                      .value,
+                  )
+                }
+                disabled={saving}
+                className="
+                  mt-2
+                  h-11
+                  w-full
+                  rounded-lg
+                  border
+                  border-slate-300
+                  bg-white
+                  px-3
+                  font-normal
+                  outline-none
+                  transition
+                  focus:border-teal-600
+                  focus:ring-2
+                  focus:ring-teal-600/20
+                "
+              >
+                <option value="">
+                  No reviewer
+                </option>
+
+                {employees.map(
+                  (
+                    employee,
+                  ) => (
+                    <option
+                      key={
+                        employee.id
+                      }
+                      value={
+                        employee.id
+                      }
+                    >
+                      {
+                        employee.fullName
+                      }
+                    </option>
+                  ),
+                )}
+              </select>
+            </label>
+
+            {/* START */}
+
+            <label className="text-sm font-medium text-slate-700">
+              Review period start
+
+              <input
+                required
+                type="date"
+                value={start}
+                onChange={(
+                  event,
+                ) =>
+                  setStart(
+                    event.target
+                      .value,
+                  )
+                }
+                disabled={saving}
+                className="
+                  mt-2
+                  block
+                  h-11
+                  w-full
+                  cursor-pointer
+                  rounded-lg
+                  border
+                  border-slate-300
+                  bg-white
+                  px-3
+                  text-sm
+                  outline-none
+                  transition
+                  focus:border-teal-600
+                  focus:ring-2
+                  focus:ring-teal-600/20
+                "
+              />
+            </label>
+
+            {/* END */}
+
+            <label className="text-sm font-medium text-slate-700">
+              Review period end
+
+              <input
+                required
+                type="date"
+                value={end}
+                onChange={(
+                  event,
+                ) =>
+                  setEnd(
+                    event.target
+                      .value,
+                  )
+                }
+                disabled={saving}
+                className="
+                  mt-2
+                  block
+                  h-11
+                  w-full
+                  cursor-pointer
+                  rounded-lg
+                  border
+                  border-slate-300
+                  bg-white
+                  px-3
+                  text-sm
+                  outline-none
+                  transition
+                  focus:border-teal-600
+                  focus:ring-2
+                  focus:ring-teal-600/20
+                "
+              />
+            </label>
+
+            {/* RATING */}
+
+            <label className="text-sm font-medium text-slate-700">
+              Rating
+
+              <select
+                required
+                value={rating}
+                onChange={(
+                  event,
+                ) =>
+                  setRating(
+                    event.target
+                      .value,
+                  )
+                }
+                disabled={saving}
+                className="
+                  mt-2
+                  h-11
+                  w-full
+                  rounded-lg
+                  border
+                  border-slate-300
+                  bg-white
+                  px-3
+                  font-normal
+                  outline-none
+                  transition
+                  focus:border-teal-600
+                  focus:ring-2
+                  focus:ring-teal-600/20
+                "
+              >
+                <option value="">
+                  Select rating
+                </option>
+
+                <option value="1">
+                  1 / 5
+                </option>
+
+                <option value="2">
+                  2 / 5
+                </option>
+
+                <option value="3">
+                  3 / 5
+                </option>
+
+                <option value="4">
+                  4 / 5
+                </option>
+
+                <option value="5">
+                  5 / 5
+                </option>
+              </select>
+            </label>
+
+            {/* STATUS */}
+
+            <label className="text-sm font-medium text-slate-700">
+              Status
+
+              <select
+                value={status}
+                onChange={(
+                  event,
+                ) =>
+                  setStatus(
+                    event.target
+                      .value as PerformanceStatus,
+                  )
+                }
+                disabled={saving}
+                className="
+                  mt-2
+                  h-11
+                  w-full
+                  rounded-lg
+                  border
+                  border-slate-300
+                  bg-white
+                  px-3
+                  font-normal
+                  outline-none
+                  transition
+                  focus:border-teal-600
+                  focus:ring-2
+                  focus:ring-teal-600/20
+                "
+              >
+                <option value="DRAFT">
+                  Draft
+                </option>
+
+                <option value="IN_REVIEW">
+                  In Review
+                </option>
+
+                <option value="COMPLETED">
+                  Completed
+                </option>
+              </select>
+            </label>
+
+          </div>
+
+          {/* =================================================
+              ACTIONS
+          ================================================= */}
+
+          <div
+            className="
+              mt-7
+              flex
+              flex-col-reverse
+              gap-3
+              sm:flex-row
+              sm:justify-end
+            "
+          >
+
+            <Link
+              to={
+                id
+                  ? `/performance/${id}`
+                  : "/performance"
+              }
+              className="
+                inline-flex
+                items-center
+                justify-center
+                rounded-lg
+                border
+                border-slate-300
+                bg-white
+                px-4
+                py-2.5
+                text-sm
+                font-semibold
+                text-slate-700
+                transition
+                hover:bg-slate-50
+              "
+            >
+              Cancel
+            </Link>
+
+            <button
+              type="submit"
+              disabled={saving}
+              className="
+                inline-flex
+                items-center
+                justify-center
+                gap-2
+                rounded-lg
+                bg-teal-700
+                px-4
+                py-2.5
+                text-sm
+                font-semibold
+                text-white
+                transition
+                hover:bg-teal-800
+                disabled:cursor-not-allowed
+                disabled:opacity-60
+              "
+            >
+              <Save size={16} />
+
+              {saving
+                ? "Saving..."
+                : "Save Changes"}
+            </button>
+
+          </div>
+
+        </form>
+
       </div>
     </DashboardLayout>
   );

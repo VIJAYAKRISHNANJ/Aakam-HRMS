@@ -15,9 +15,7 @@ import {
   X,
 } from "lucide-react";
 
-import {
-  NavLink,
-} from "react-router-dom";
+import { NavLink } from "react-router-dom";
 
 interface SidebarProps {
   open: boolean;
@@ -28,6 +26,7 @@ interface NavItem {
   label: string;
   icon: React.ElementType;
   path: string;
+  matchPaths?: string[];
 }
 
 const navItems: NavItem[] = [
@@ -36,65 +35,82 @@ const navItems: NavItem[] = [
     icon: LayoutDashboard,
     path: "/dashboard",
   },
+
   {
     label: "Workforce",
     icon: Users,
     path: "/workforce",
   },
+
   {
     label: "Organization",
     icon: Building2,
     path: "/organization/company",
+    matchPaths: [
+      "/organization/company",
+      "/organization/branches",
+      "/organization/departments",
+    ],
   },
+
   {
     label: "Recruitment",
     icon: BriefcaseBusiness,
     path: "/recruitment",
   },
+
   {
     label: "Clients",
     icon: Building2,
     path: "/clients",
   },
+
   {
     label: "Onboarding",
     icon: UserPlus,
     path: "/onboarding",
   },
+
   {
     label: "Payroll",
     icon: WalletCards,
     path: "/payroll",
   },
+
   {
     label: "Performance",
     icon: Sparkles,
     path: "/performance",
   },
+
   {
     label: "Training",
     icon: GraduationCap,
     path: "/training",
   },
+
   {
     label: "Reports",
     icon: BarChart3,
     path: "/reports",
   },
+
   {
     label: "Notifications",
     icon: Bell,
     path: "/notifications",
   },
+
   {
     label: "Settings",
     icon: Settings,
     path: "/settings",
   },
+
   {
     label: "Exit",
     icon: LogOut,
-    path: "/exit",
+    path: "/exits",
   },
 ];
 
@@ -145,34 +161,42 @@ function Sidebar({
           lg:translate-x-0
         `}
       >
-
         {/* ===================================================
             BRAND
         =================================================== */}
 
-        <div className="flex h-[86px] shrink-0 items-center px-5">
-
+        <div className="flex h-[88px] shrink-0 items-center px-5">
           <div className="flex items-center gap-3">
 
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 via-blue-500 to-cyan-400 shadow-lg shadow-blue-950/30">
+            {/* Logo */}
+
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 via-blue-500 to-cyan-400 shadow-lg shadow-blue-950/30">
               <span className="text-xl font-black text-white">
                 A
               </span>
             </div>
 
-            <div>
+            {/* Brand */}
 
+            <div className="min-w-0">
               <p className="text-[17px] font-bold tracking-tight text-white">
                 Aakam HRMS
               </p>
 
-              <p className="mt-0.5 text-[9px] font-medium uppercase tracking-[0.14em] text-slate-500">
-                Human Resource Management
-              </p>
+              <p className="mt-1 text-[8px] font-medium uppercase leading-[1.45] tracking-[0.10em] text-slate-500">
+                <span className="block">
+                  Human Resource
+                </span>
 
+                <span className="block">
+                  Management System
+                </span>
+              </p>
             </div>
 
           </div>
+
+          {/* Mobile close */}
 
           <button
             type="button"
@@ -182,16 +206,18 @@ function Sidebar({
           >
             <X size={18} />
           </button>
-
         </div>
 
         {/* ===================================================
             NAVIGATION
+
+            The navigation fills the remaining sidebar height.
+            Items are distributed evenly so there is no large
+            empty area at the bottom.
         =================================================== */}
 
-        <nav className="min-h-0 flex-1 overflow-hidden px-3 pt-1">
-
-          <div className="flex flex-col gap-[8px]">
+        <nav className="min-h-0 flex-1 px-3 pb-4 pt-1">
+          <div className="flex h-full flex-col justify-between">
 
             {navItems.map(
               (item) => (
@@ -199,81 +225,136 @@ function Sidebar({
                   key={item.label}
                   to={item.path}
                   onClick={onClose}
-                  className={({ isActive }) => `
-                    group
-                    flex
-                    h-[44px]
-                    min-h-[44px]
-                    w-full
-                    shrink-0
-                    items-center
-                    gap-3
-                    rounded-xl
-                    px-3
-                    text-[14px]
-                    font-medium
-                    transition-all
-                    duration-200
-                    ${
-                      isActive
-                        ? `
-                          bg-gradient-to-r
-                          from-blue-600/80
-                          to-violet-600/70
-                          text-white
-                          shadow-lg
-                          shadow-blue-950/30
-                          ring-1
-                          ring-blue-400/20
-                        `
-                        : `
-                          text-slate-300
-                          hover:bg-white/[0.06]
-                          hover:text-white
-                        `
-                    }
-                  `}
-                >
-                  {({ isActive }) => {
+                  className={({ isActive }) => {
+                    const currentPath =
+                      window.location.pathname;
 
+                    const customMatch =
+                      item.matchPaths?.some(
+                        (matchPath) =>
+                          currentPath ===
+                            matchPath ||
+                          currentPath.startsWith(
+                            `${matchPath}/`,
+                          ),
+                      ) ?? false;
+
+                    const active =
+                      item.matchPaths
+                        ? customMatch
+                        : isActive;
+
+                    return `
+                      group
+                      flex
+                      h-[44px]
+                      min-h-[44px]
+                      w-full
+                      shrink-0
+                      items-center
+                      gap-3
+                      rounded-xl
+                      px-3
+                      text-[14px]
+                      font-medium
+                      transition-all
+                      duration-200
+
+                      ${
+                        active
+                          ? `
+                            bg-gradient-to-r
+                            from-blue-600/80
+                            to-violet-600/70
+                            text-white
+                            shadow-lg
+                            shadow-blue-950/30
+                            ring-1
+                            ring-blue-400/20
+                          `
+                          : `
+                            text-slate-300
+                            hover:bg-white/[0.06]
+                            hover:text-white
+                          `
+                      }
+                    `;
+                  }}
+                >
+                  {() => {
                     const Icon =
                       item.icon;
 
+                    const currentPath =
+                      window.location.pathname;
+
+                    const customMatch =
+                      item.matchPaths?.some(
+                        (matchPath) =>
+                          currentPath ===
+                            matchPath ||
+                          currentPath.startsWith(
+                            `${matchPath}/`,
+                          ),
+                      ) ?? false;
+
+                    const active =
+                      item.matchPaths
+                        ? customMatch
+                        : currentPath ===
+                          item.path ||
+                          currentPath.startsWith(
+                            `${item.path}/`,
+                          );
+
                     return (
                       <>
+                        {/* =================================================
+                            ICON
+                        ================================================== */}
+
                         <span
                           className={`
                             flex
-                            h-9
-                            w-9
+                            h-8
+                            w-8
                             shrink-0
                             items-center
                             justify-center
                             rounded-lg
+
                             ${
-                              isActive
+                              active
                                 ? "bg-white/10 text-blue-200"
                                 : "text-slate-400 group-hover:text-blue-300"
                             }
                           `}
                         >
                           <Icon
-                            size={19}
+                            size={18}
                             strokeWidth={
-                              isActive
+                              active
                                 ? 2.2
                                 : 1.9
                             }
                           />
                         </span>
 
+                        {/* =================================================
+                            LABEL
+                        ================================================== */}
+
                         <span className="min-w-0 flex-1 truncate">
                           {item.label}
                         </span>
 
-                        {isActive && (
+                        {/* =================================================
+                            ACTIVE ARROW
+                        ================================================== */}
+
+                        {active && (
                           <ChevronRight
-                            size={15}
+                            size={14}
                             className="shrink-0 text-blue-200"
                           />
                         )}
@@ -285,9 +366,7 @@ function Sidebar({
             )}
 
           </div>
-
         </nav>
-
       </aside>
     </>
   );

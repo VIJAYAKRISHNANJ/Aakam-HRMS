@@ -276,8 +276,6 @@ function CompanyCard({
   return (
     <section className="overflow-hidden rounded-xl border border-slate-300 bg-white">
 
-      {/* Top */}
-
       <div className="border-b border-slate-200 p-6">
 
         <div className="flex items-start justify-between gap-4">
@@ -364,8 +362,6 @@ function CompanyCard({
 
       </div>
 
-      {/* Information */}
-
       <div className="grid grid-cols-1 gap-5 p-6 sm:grid-cols-2">
 
         <InfoItem
@@ -389,8 +385,6 @@ function CompanyCard({
           label="TAN"
           value={company.tan}
         />
-
-        {/* Email */}
 
         <div className="flex items-start gap-3">
 
@@ -417,8 +411,6 @@ function CompanyCard({
 
         </div>
 
-        {/* Phone */}
-
         <div className="flex items-start gap-3">
 
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100">
@@ -443,8 +435,6 @@ function CompanyCard({
           </div>
 
         </div>
-
-        {/* Address */}
 
         <div className="flex items-start gap-3 sm:col-span-2">
 
@@ -472,8 +462,6 @@ function CompanyCard({
         </div>
 
       </div>
-
-      {/* Footer */}
 
       <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
 

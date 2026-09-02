@@ -4,6 +4,7 @@ import {
   Edit,
   Plus,
   Star,
+  Trash2,
   X,
 } from "lucide-react";
 
@@ -12,6 +13,8 @@ import {
   useEffect,
   useState,
 } from "react";
+
+import type { FormEvent } from "react";
 
 import {
   Link,
@@ -27,6 +30,7 @@ import {
 
 import {
   createPerformanceGoal,
+  deletePerformanceGoal,
   getPerformanceErrorMessage,
   getPerformanceGoals,
   getPerformanceReview,
@@ -38,6 +42,10 @@ import {
   type PerformanceReview,
   type PerformanceStatus,
 } from "../services/performanceService";
+
+/* ============================================================
+   REVIEW STATUS
+============================================================ */
 
 const statusLabels: Record<
   PerformanceStatus,
@@ -62,13 +70,57 @@ const statusClasses: Record<
     "bg-emerald-100 text-emerald-700",
 };
 
-const formatDate = (value: string) =>
-  new Date(
-    `${
-      value.length === 10
-        ? `${value}T00:00:00Z`
-        : value
-    }`,
+/* ============================================================
+   GOAL STATUS
+============================================================ */
+
+const goalStatusClasses: Record<
+  GoalStatus,
+  string
+> = {
+  NOT_STARTED:
+    "bg-slate-100 text-slate-700",
+
+  IN_PROGRESS:
+    "bg-amber-100 text-amber-700",
+
+  COMPLETED:
+    "bg-emerald-100 text-emerald-700",
+};
+
+const getGoalStatusClass = (
+  status: string,
+): string => {
+  if (
+    status ===
+      "NOT_STARTED" ||
+    status ===
+      "IN_PROGRESS" ||
+    status ===
+      "COMPLETED"
+  ) {
+    return goalStatusClasses[
+      status as GoalStatus
+    ];
+  }
+
+  return "bg-slate-100 text-slate-700";
+};
+
+/* ============================================================
+   DATE FORMATTER
+============================================================ */
+
+const formatDate = (
+  value: string,
+): string => {
+  const normalized =
+    value.length === 10
+      ? `${value}T00:00:00Z`
+      : value;
+
+  return new Date(
+    normalized,
   ).toLocaleDateString(
     "en-IN",
     {
@@ -78,8 +130,15 @@ const formatDate = (value: string) =>
       timeZone: "UTC",
     },
   );
+};
 
-const label = (value: string) =>
+/* ============================================================
+   LABEL FORMATTER
+============================================================ */
+
+const label = (
+  value: string,
+): string =>
   value
     .toLowerCase()
     .replaceAll("_", " ")
@@ -89,40 +148,68 @@ const label = (value: string) =>
         letter.toUpperCase(),
     );
 
+/* ============================================================
+   PERFORMANCE DETAILS
+============================================================ */
+
 function PerformanceDetails() {
   const { id } =
     useParams();
 
-  const [review, setReview] =
+  const [
+    review,
+    setReview,
+  ] =
     useState<PerformanceReview | null>(
       null,
     );
 
-  const [goals, setGoals] =
-    useState<PerformanceGoal[]>([]);
+  const [
+    goals,
+    setGoals,
+  ] =
+    useState<PerformanceGoal[]>(
+      [],
+    );
 
-  const [loading, setLoading] =
-    useState(true);
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
-  const [error, setError] =
-    useState("");
+  const [
+    error,
+    setError,
+  ] = useState("");
 
-  const [success, setSuccess] =
-    useState("");
+  const [
+    success,
+    setSuccess,
+  ] = useState("");
 
-  const [busy, setBusy] =
-    useState("");
+  const [
+    busy,
+    setBusy,
+  ] = useState("");
 
-  const [goalTitle, setGoalTitle] =
-    useState("");
+  /* ==========================================================
+     ADD GOAL FORM
+  ========================================================== */
+
+  const [
+    goalTitle,
+    setGoalTitle,
+  ] = useState("");
 
   const [
     goalDescription,
     setGoalDescription,
   ] = useState("");
 
-  const [goalTarget, setGoalTarget] =
-    useState("");
+  const [
+    goalTarget,
+    setGoalTarget,
+  ] = useState("");
 
   const [
     goalStatus,
@@ -132,42 +219,116 @@ function PerformanceDetails() {
       "NOT_STARTED",
     );
 
+  /* ==========================================================
+     EDIT GOAL
+  ========================================================== */
+
+  const [
+    editingGoal,
+    setEditingGoal,
+  ] =
+    useState<PerformanceGoal | null>(
+      null,
+    );
+
+  const [
+    editGoalTitle,
+    setEditGoalTitle,
+  ] = useState("");
+
+  const [
+    editGoalDescription,
+    setEditGoalDescription,
+  ] =
+    useState("");
+
+  const [
+    editGoalTarget,
+    setEditGoalTarget,
+  ] = useState("");
+
+  const [
+    editGoalStatus,
+    setEditGoalStatus,
+  ] =
+    useState<GoalStatus>(
+      "NOT_STARTED",
+    );
+
+  /* ==========================================================
+     DELETE GOAL
+  ========================================================== */
+
+  const [
+    deletingGoal,
+    setDeletingGoal,
+  ] =
+    useState<PerformanceGoal | null>(
+      null,
+    );
+
+  const [
+    goalActionBusy,
+    setGoalActionBusy,
+  ] = useState(false);
+
+  /* ==========================================================
+     COMPLETE MODAL
+  ========================================================== */
+
   const [
     completeModal,
     setCompleteModal,
   ] = useState(false);
 
-  const load = useCallback(
-    async () => {
-      if (!id) return;
+  /* ==========================================================
+     LOAD REVIEW + GOALS
+  ========================================================== */
 
-      try {
-        setLoading(true);
-        setError("");
+  const load =
+    useCallback(
+      async () => {
+        if (!id) {
+          return;
+        }
 
-        const [
-          reviewData,
-          goalData,
-        ] = await Promise.all([
-          getPerformanceReview(id),
-          getPerformanceGoals(id),
-        ]);
+        try {
+          setLoading(true);
+          setError("");
 
-        setReview(reviewData);
-        setGoals(goalData);
-      } catch (requestError) {
-        setError(
-          getPerformanceErrorMessage(
-            requestError,
-            "Unable to load this performance review.",
-          ),
-        );
-      } finally {
-        setLoading(false);
-      }
-    },
-    [id],
-  );
+          const [
+            reviewData,
+            goalData,
+          ] =
+            await Promise.all([
+              getPerformanceReview(
+                id,
+              ),
+              getPerformanceGoals(
+                id,
+              ),
+            ]);
+
+          setReview(
+            reviewData,
+          );
+
+          setGoals(
+            goalData,
+          );
+        } catch (requestError) {
+          setError(
+            getPerformanceErrorMessage(
+              requestError,
+              "Unable to load this performance review.",
+            ),
+          );
+        } finally {
+          setLoading(false);
+        }
+      },
+      [id],
+    );
 
   useEffect(() => {
     const timer =
@@ -176,8 +337,14 @@ function PerformanceDetails() {
       }, 0);
 
     return () =>
-      window.clearTimeout(timer);
+      window.clearTimeout(
+        timer,
+      );
   }, [load]);
+
+  /* ==========================================================
+     WORKFLOW ACTION
+  ========================================================== */
 
   const action = async (
     name: string,
@@ -207,8 +374,12 @@ function PerformanceDetails() {
     }
   };
 
+  /* ==========================================================
+     ADD GOAL
+  ========================================================== */
+
   const addGoal = async (
-    event: React.FormEvent<HTMLFormElement>,
+    event: FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault();
 
@@ -222,9 +393,12 @@ function PerformanceDetails() {
       return;
     }
 
-    await action(
-      "goal",
-      async () => {
+    try {
+      setBusy("goal");
+      setError("");
+      setSuccess("");
+
+      const createdGoal =
         await createPerformanceGoal(
           id,
           {
@@ -244,15 +418,209 @@ function PerformanceDetails() {
           },
         );
 
-        setGoalTitle("");
-        setGoalDescription("");
-        setGoalTarget("");
-        setGoalStatus(
-          "NOT_STARTED",
-        );
-      },
-    );
+      setGoals(
+        (currentGoals) => [
+          ...currentGoals,
+          createdGoal,
+        ],
+      );
+
+      setGoalTitle("");
+      setGoalDescription("");
+      setGoalTarget("");
+      setGoalStatus(
+        "NOT_STARTED",
+      );
+
+      setSuccess(
+        "Goal added successfully. You can add another goal.",
+      );
+    } catch (requestError) {
+      setError(
+        getPerformanceErrorMessage(
+          requestError,
+          "Unable to add performance goal.",
+        ),
+      );
+    } finally {
+      setBusy("");
+    }
   };
+
+  /* ==========================================================
+     OPEN EDIT GOAL
+  ========================================================== */
+
+  const openEditGoal = (
+    goal: PerformanceGoal,
+  ) => {
+    setEditingGoal(
+      goal,
+    );
+
+    setEditGoalTitle(
+      goal.title,
+    );
+
+    setEditGoalDescription(
+      goal.description ??
+        "",
+    );
+
+    setEditGoalTarget(
+      goal.target ??
+        "",
+    );
+
+    setEditGoalStatus(
+      goal.status,
+    );
+
+    setError("");
+    setSuccess("");
+  };
+
+  /* ==========================================================
+     SAVE EDITED GOAL
+  ========================================================== */
+
+  const saveEditedGoal =
+    async (
+      event: FormEvent<HTMLFormElement>,
+    ) => {
+      event.preventDefault();
+
+      if (
+        !id ||
+        !editingGoal ||
+        !editGoalTitle.trim()
+      ) {
+        setError(
+          "Goal title is required.",
+        );
+        return;
+      }
+
+      try {
+        setGoalActionBusy(
+          true,
+        );
+
+        setError("");
+        setSuccess("");
+
+        const updatedGoal =
+          await updatePerformanceGoal(
+            id,
+            editingGoal.id,
+            {
+              title:
+                editGoalTitle.trim(),
+
+              description:
+                editGoalDescription.trim() ||
+                null,
+
+              target:
+                editGoalTarget.trim() ||
+                null,
+
+              status:
+                editGoalStatus,
+            },
+          );
+
+        setGoals(
+          (currentGoals) =>
+            currentGoals.map(
+              (goal) =>
+                goal.id ===
+                updatedGoal.id
+                  ? updatedGoal
+                  : goal,
+            ),
+        );
+
+        setEditingGoal(
+          null,
+        );
+
+        setSuccess(
+          "Performance goal updated successfully.",
+        );
+      } catch (requestError) {
+        setError(
+          getPerformanceErrorMessage(
+            requestError,
+            "Unable to update performance goal.",
+          ),
+        );
+      } finally {
+        setGoalActionBusy(
+          false,
+        );
+      }
+    };
+
+  /* ==========================================================
+     DELETE GOAL
+  ========================================================== */
+
+  const confirmDeleteGoal =
+    async () => {
+      if (
+        !id ||
+        !deletingGoal
+      ) {
+        return;
+      }
+
+      try {
+        setGoalActionBusy(
+          true,
+        );
+
+        setError("");
+        setSuccess("");
+
+        await deletePerformanceGoal(
+          id,
+          deletingGoal.id,
+        );
+
+        setGoals(
+          (currentGoals) =>
+            currentGoals.filter(
+              (goal) =>
+                goal.id !==
+                deletingGoal.id,
+            ),
+        );
+
+        setDeletingGoal(
+          null,
+        );
+
+        setSuccess(
+          "Performance goal deleted successfully.",
+        );
+      } catch (requestError) {
+        setError(
+          getPerformanceErrorMessage(
+            requestError,
+            "Unable to delete performance goal.",
+          ),
+        );
+      } finally {
+        setGoalActionBusy(
+          false,
+        );
+      }
+    };
+
+  /* ==========================================================
+     LOADING
+  ========================================================== */
 
   if (loading) {
     return (
@@ -264,7 +632,14 @@ function PerformanceDetails() {
     );
   }
 
-  if (error && !review) {
+  /* ==========================================================
+     ERROR
+  ========================================================== */
+
+  if (
+    error &&
+    !review
+  ) {
     return (
       <DashboardLayout>
         <StateMessage type="error">
@@ -278,179 +653,385 @@ function PerformanceDetails() {
     return null;
   }
 
+  /* ==========================================================
+     STATUS
+  ========================================================== */
+
   const status =
     review.status as PerformanceStatus;
 
   const currentStep =
-    status === "COMPLETED"
+    status ===
+    "COMPLETED"
       ? 2
-      : status === "IN_REVIEW"
+      : status ===
+          "IN_REVIEW"
         ? 1
         : 0;
 
+  /* ==========================================================
+     RENDER
+  ========================================================== */
+
   return (
     <DashboardLayout>
-      <div className="flex min-w-0 flex-col gap-6">
-        <div className="flex items-center justify-between gap-3">
-          <Link
-            to="/performance"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-teal-700"
-          >
-            <ArrowLeft size={16} />
-            Back to performance
-          </Link>
+      <div
+        className="
+          flex
+          min-w-0
+          flex-col
+          gap-6
+        "
+      >
 
-          {/* Edit is available for ALL statuses */}
-          <Link
-            to={`/performance/edit/${id}`}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            <Edit size={16} />
-            Edit
-          </Link>
-        </div>
+        {/* ====================================================
+            BACK BUTTON
+        ==================================================== */}
+
+        <Link
+          to="/performance"
+          className="
+            inline-flex
+            w-fit
+            items-center
+            gap-2
+            rounded-lg
+            border
+            border-slate-300
+            bg-white
+            px-4
+            py-2.5
+            text-sm
+            font-semibold
+            text-slate-700
+            shadow-sm
+            transition
+            hover:bg-slate-50
+            hover:text-slate-900
+          "
+        >
+          <ArrowLeft
+            size={17}
+          />
+
+          Back to Performance
+        </Link>
+
+        {/* ====================================================
+            PAGE HEADER
+        ==================================================== */}
 
         <PageHeader
-          title={review.employeeName}
+          title={
+            review.employeeName
+          }
           subtitle={`${review.department} · Performance review`}
           icon={Star}
+          action={
+            <Link
+              to={`/performance/edit/${id}`}
+              className="
+                inline-flex
+                items-center
+                gap-2
+                rounded-lg
+                border
+                border-slate-300
+                bg-white
+                px-4
+                py-2.5
+                text-sm
+                font-semibold
+                text-slate-700
+                transition
+                hover:bg-slate-50
+              "
+            >
+              <Edit size={16} />
+
+              Edit
+            </Link>
+          }
         />
 
+        {/* ====================================================
+            SUCCESS
+        ==================================================== */}
+
         {success && (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div
+            className="
+              rounded-lg
+              border
+              border-emerald-200
+              bg-emerald-50
+              px-4
+              py-3
+              text-sm
+              text-emerald-700
+            "
+          >
             {success}
           </div>
         )}
 
+        {/* ====================================================
+            ERROR
+        ==================================================== */}
+
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div
+            className="
+              rounded-lg
+              border
+              border-red-200
+              bg-red-50
+              px-4
+              py-3
+              text-sm
+              text-red-700
+            "
+          >
             {error}
           </div>
         )}
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
-          <section className="rounded-xl border border-slate-200 bg-white p-6">
-            <div className="flex items-center justify-between gap-3">
+        {/* ====================================================
+            INFORMATION + WORKFLOW
+        ==================================================== */}
+
+        <div
+          className="
+            grid
+            gap-6
+            lg:grid-cols-[1fr_1.2fr]
+          "
+        >
+
+          {/* REVIEW INFORMATION */}
+
+          <section
+            className="
+              rounded-xl
+              border
+              border-slate-200
+              bg-white
+              p-6
+            "
+          >
+
+            <div
+              className="
+                flex
+                items-center
+                justify-between
+                gap-3
+              "
+            >
+
               <h2 className="font-semibold text-slate-900">
                 Review information
               </h2>
 
               <span
-                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                  statusClasses[
-                    status
-                  ] ??
-                  "bg-slate-100 text-slate-700"
-                }`}
+                className={`
+                  rounded-full
+                  px-2.5
+                  py-1
+                  text-xs
+                  font-semibold
+                  ${
+                    statusClasses[
+                      status
+                    ]
+                  }
+                `}
               >
-                {statusLabels[
-                  status
-                ] ??
-                  label(
-                    review.status,
-                  )}
+                {
+                  statusLabels[
+                    status
+                  ]
+                }
               </span>
+
             </div>
 
-            <dl className="mt-5 space-y-4 border-t border-slate-100 pt-5 text-sm">
-              {[
-                [
-                  "Employee",
-                  review.employeeName,
-                ],
+            <div
+              className="
+                mt-5
+                divide-y
+                divide-slate-100
+              "
+            >
 
-                [
-                  "Employee code",
-                  review.employeeCode ??
-                    "-",
-                ],
+              <div className="flex justify-between gap-4 py-3 first:pt-0">
+                <span className="text-sm text-slate-500">
+                  Employee
+                </span>
 
-                [
-                  "Department",
-                  review.department,
-                ],
+                <span className="text-right text-sm font-semibold text-slate-800">
+                  {
+                    review.employeeName
+                  }
+                </span>
+              </div>
 
-                [
-                  "Reviewer",
-                  review.reviewerName ??
-                    "-",
-                ],
+              <div className="flex justify-between gap-4 py-3">
+                <span className="text-sm text-slate-500">
+                  Employee code
+                </span>
 
-                [
-                  "Review period",
-                  `${formatDate(
+                <span className="text-right text-sm font-semibold text-slate-800">
+                  {
+                    review.employeeCode ??
+                    "-"
+                  }
+                </span>
+              </div>
+
+              <div className="flex justify-between gap-4 py-3">
+                <span className="text-sm text-slate-500">
+                  Department
+                </span>
+
+                <span className="text-right text-sm font-semibold text-slate-800">
+                  {
+                    review.department
+                  }
+                </span>
+              </div>
+
+              <div className="flex justify-between gap-4 py-3">
+                <span className="text-sm text-slate-500">
+                  Reviewer
+                </span>
+
+                <span className="text-right text-sm font-semibold text-slate-800">
+                  {
+                    review.reviewerName ??
+                    "-"
+                  }
+                </span>
+              </div>
+
+              <div className="flex justify-between gap-4 py-3">
+                <span className="text-sm text-slate-500">
+                  Review period
+                </span>
+
+                <span className="text-right text-sm font-semibold text-slate-800">
+                  {formatDate(
                     review.reviewPeriodStart,
-                  )} - ${formatDate(
+                  )}
+
+                  {" - "}
+
+                  {formatDate(
                     review.reviewPeriodEnd,
-                  )}`,
-                ],
+                  )}
+                </span>
+              </div>
 
-                [
-                  "Created",
-                  formatDate(
+              <div className="flex justify-between gap-4 py-3">
+                <span className="text-sm text-slate-500">
+                  Created
+                </span>
+
+                <span className="text-right text-sm font-semibold text-slate-800">
+                  {formatDate(
                     review.createdAt,
-                  ),
-                ],
+                  )}
+                </span>
+              </div>
 
-                [
-                  "Updated",
-                  formatDate(
+              <div className="flex justify-between gap-4 py-3">
+                <span className="text-sm text-slate-500">
+                  Updated
+                </span>
+
+                <span className="text-right text-sm font-semibold text-slate-800">
+                  {formatDate(
                     review.updatedAt,
-                  ),
-                ],
-              ].map(
-                ([term, value]) => (
-                  <div
-                    key={term}
-                    className="flex justify-between gap-4"
-                  >
-                    <dt className="text-slate-500">
-                      {term}
-                    </dt>
+                  )}
+                </span>
+              </div>
 
-                    <dd className="text-right font-medium text-slate-800">
-                      {value}
-                    </dd>
-                  </div>
-                ),
-              )}
-            </dl>
+            </div>
 
-            <div className="mt-5 border-t border-slate-100 pt-5">
+            <div
+              className="
+                mt-4
+                border-t
+                border-slate-100
+                pt-5
+              "
+            >
+
               <p className="text-sm text-slate-500">
                 Rating
               </p>
 
-              <p className="mt-1 text-xl tracking-wide text-amber-500">
-                {Array.from(
-                  { length: 5 },
-                  (_, index) =>
-                    index <
-                    (review.rating ??
-                      0)
-                      ? "★"
-                      : "☆",
-                ).join("")}{" "}
+              <div className="mt-2 flex items-center gap-3">
 
-                <span className="ml-2 text-sm font-semibold text-slate-700">
-                  {review.rating ??
-                    "-"}{" "}
-                  / 5
+                <span className="tracking-wide text-lg text-amber-500">
+                  {Array.from(
+                    {
+                      length: 5,
+                    },
+                    (
+                      _,
+                      index,
+                    ) =>
+                      index <
+                      (review.rating ??
+                        0)
+                        ? "★"
+                        : "☆",
+                  ).join("")}
                 </span>
-              </p>
+
+                <span className="text-sm font-semibold text-slate-700">
+                  {
+                    review.rating ??
+                    "-"
+                  }
+                  /5
+                </span>
+
+              </div>
+
             </div>
+
           </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-6">
+          {/* WORKFLOW */}
+
+          <section
+            className="
+              rounded-xl
+              border
+              border-slate-200
+              bg-white
+              p-6
+            "
+          >
+
             <h2 className="font-semibold text-slate-900">
               Review workflow
             </h2>
 
-            <div className="mt-6 flex items-start">
+            <div
+              className="
+                mt-10
+                flex
+                items-start
+              "
+            >
+
               {[
-                "DRAFT",
-                "IN_REVIEW",
-                "COMPLETED",
+                "Draft",
+                "In Review",
+                "Completed",
               ].map(
                 (
                   step,
@@ -458,63 +1039,97 @@ function PerformanceDetails() {
                 ) => (
                   <div
                     key={step}
-                    className="flex flex-1 items-start"
+                    className="
+                      flex
+                      flex-1
+                      items-start
+                    "
                   >
+
                     <div className="flex flex-col items-center">
+
                       <div
-                        className={`flex h-10 w-10 items-center justify-center rounded-full border-2 text-xs font-bold ${
-                          index <=
-                          currentStep
-                            ? "border-teal-600 bg-teal-600 text-white"
-                            : "border-slate-200 text-slate-400"
-                        }`}
+                        className={`
+                          flex
+                          h-10
+                          w-10
+                          items-center
+                          justify-center
+                          rounded-full
+                          text-sm
+                          font-semibold
+                          ${
+                            index <=
+                            currentStep
+                              ? "bg-teal-600 text-white"
+                              : "bg-slate-100 text-slate-500"
+                          }
+                        `}
                       >
+
                         {index <
                         currentStep ? (
                           <Check
-                            size={
-                              16
-                            }
+                            size={18}
                           />
                         ) : (
                           index +
                           1
                         )}
+
                       </div>
 
                       <span
-                        className={`mt-2 text-center text-xs ${
-                          index ===
-                          currentStep
-                            ? "font-semibold text-teal-700"
-                            : "text-slate-500"
-                        }`}
+                        className={`
+                          mt-3
+                          text-center
+                          text-xs
+                          ${
+                            index ===
+                            currentStep
+                              ? "font-semibold text-teal-700"
+                              : "text-slate-500"
+                          }
+                        `}
                       >
                         {
-                          statusLabels[
-                            step as PerformanceStatus
-                          ]
+                          step
                         }
                       </span>
+
                     </div>
 
                     {index <
                       2 && (
                       <div
-                        className={`mt-5 h-0.5 flex-1 ${
-                          index <
-                          currentStep
-                            ? "bg-teal-500"
-                            : "bg-slate-200"
-                        }`}
+                        className={`
+                          mt-5
+                          h-0.5
+                          flex-1
+                          ${
+                            index <
+                            currentStep
+                              ? "bg-teal-600"
+                              : "bg-slate-200"
+                          }
+                        `}
                       />
                     )}
+
                   </div>
                 ),
               )}
+
             </div>
 
-            <div className="mt-7 flex flex-wrap gap-3">
+            <div
+              className="
+                mt-10
+                flex
+                justify-end
+              "
+            >
+
               {status ===
                 "DRAFT" && (
                 <button
@@ -535,7 +1150,19 @@ function PerformanceDetails() {
                         ),
                     )
                   }
-                  className="rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white"
+                  className="
+                    rounded-lg
+                    bg-teal-700
+                    px-4
+                    py-2.5
+                    text-sm
+                    font-semibold
+                    text-white
+                    transition
+                    hover:bg-teal-800
+                    disabled:cursor-not-allowed
+                    disabled:opacity-60
+                  "
                 >
                   {busy ===
                   "workflow"
@@ -556,194 +1183,678 @@ function PerformanceDetails() {
                       true,
                     )
                   }
-                  className="rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white"
+                  className="
+                    rounded-lg
+                    bg-teal-700
+                    px-4
+                    py-2.5
+                    text-sm
+                    font-semibold
+                    text-white
+                    transition
+                    hover:bg-teal-800
+                    disabled:cursor-not-allowed
+                    disabled:opacity-60
+                  "
                 >
                   Complete Review
                 </button>
               )}
+
+              {status ===
+                "COMPLETED" && (
+                <p className="text-sm font-medium text-emerald-700">
+                  This review is finalized.
+                </p>
+              )}
+
             </div>
+
           </section>
+
         </div>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-6">
-          <div className="flex items-center justify-between gap-3">
+        {/* ====================================================
+            GOALS
+        ==================================================== */}
+
+        <section
+          className="
+            rounded-xl
+            border
+            border-slate-200
+            bg-white
+            p-6
+          "
+        >
+
+          <div
+            className="
+              flex
+              flex-wrap
+              items-start
+              justify-between
+              gap-4
+            "
+          >
+
             <div>
+
               <h2 className="font-semibold text-slate-900">
                 Goals
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
                 {goals.length} goal
-                {goals.length === 1
+                {goals.length ===
+                1
                   ? ""
-                  : "s"} linked to
-                this review.
+                  : "s"} linked
+                to this review.
               </p>
+
             </div>
+
+            <span
+              className="
+                rounded-full
+                bg-teal-50
+                px-3
+                py-1.5
+                text-xs
+                font-semibold
+                text-teal-700
+              "
+            >
+              {goals.length} Total
+            </span>
+
           </div>
+
+          {/* ADD GOAL */}
 
           <form
             onSubmit={addGoal}
-            className="mt-5 grid gap-3 md:grid-cols-2"
+            className="
+              mt-6
+              rounded-xl
+              border
+              border-slate-200
+              bg-slate-50
+              p-5
+            "
           >
-            <input
-              required
-              value={goalTitle}
-              onChange={(event) =>
-                setGoalTitle(
-                  event.target.value,
-                )
-              }
-              placeholder="Goal title"
-              className="h-10 rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-teal-600"
-            />
 
-            <input
-              value={goalTarget}
-              onChange={(event) =>
-                setGoalTarget(
-                  event.target.value,
-                )
-              }
-              placeholder="Target"
-              className="h-10 rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-teal-600"
-            />
+            <div className="mb-5">
 
-            <input
-              value={goalDescription}
-              onChange={(event) =>
-                setGoalDescription(
-                  event.target.value,
-                )
-              }
-              placeholder="Description"
-              className="h-10 rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-teal-600"
-            />
+              <div className="flex items-center gap-2">
 
-            <button
-              disabled={
-                busy === "goal"
-              }
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white"
+                <div
+                  className="
+                    flex
+                    h-8
+                    w-8
+                    items-center
+                    justify-center
+                    rounded-lg
+                    bg-white
+                    text-teal-700
+                    shadow-sm
+                  "
+                >
+                  <Plus
+                    size={16}
+                  />
+                </div>
+
+                <div>
+
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    Add a performance goal
+                  </h3>
+
+                  <p className="text-xs text-slate-500">
+                    You can add multiple goals to this review.
+                  </p>
+
+                </div>
+
+              </div>
+
+            </div>
+
+            <div
+              className="
+                grid
+                gap-4
+                md:grid-cols-2
+              "
             >
-              <Plus size={16} />
 
-              {busy === "goal"
-                ? "Adding..."
-                : "Add Goal"}
-            </button>
+              <label className="text-sm font-medium text-slate-700">
+
+                Goal title
+
+                <input
+                  required
+                  value={
+                    goalTitle
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setGoalTitle(
+                      event.target
+                        .value,
+                    )
+                  }
+                  disabled={
+                    busy ===
+                    "goal"
+                  }
+                  placeholder="e.g. Improve project delivery"
+                  className="
+                    mt-2
+                    h-10
+                    w-full
+                    rounded-lg
+                    border
+                    border-slate-300
+                    bg-white
+                    px-3
+                    text-sm
+                    font-normal
+                    outline-none
+                    transition
+                    focus:border-teal-600
+                    focus:ring-2
+                    focus:ring-teal-600/20
+                  "
+                />
+
+              </label>
+
+              <label className="text-sm font-medium text-slate-700">
+
+                Target
+
+                <input
+                  value={
+                    goalTarget
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setGoalTarget(
+                      event.target
+                        .value,
+                    )
+                  }
+                  disabled={
+                    busy ===
+                    "goal"
+                  }
+                  placeholder="e.g. Complete 95% of tasks on time"
+                  className="
+                    mt-2
+                    h-10
+                    w-full
+                    rounded-lg
+                    border
+                    border-slate-300
+                    bg-white
+                    px-3
+                    text-sm
+                    font-normal
+                    outline-none
+                    transition
+                    focus:border-teal-600
+                    focus:ring-2
+                    focus:ring-teal-600/20
+                  "
+                />
+
+              </label>
+
+              <label className="text-sm font-medium text-slate-700">
+
+                Description
+
+                <input
+                  value={
+                    goalDescription
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setGoalDescription(
+                      event.target
+                        .value,
+                    )
+                  }
+                  disabled={
+                    busy ===
+                    "goal"
+                  }
+                  placeholder="Describe the goal"
+                  className="
+                    mt-2
+                    h-10
+                    w-full
+                    rounded-lg
+                    border
+                    border-slate-300
+                    bg-white
+                    px-3
+                    text-sm
+                    font-normal
+                    outline-none
+                    transition
+                    focus:border-teal-600
+                    focus:ring-2
+                    focus:ring-teal-600/20
+                  "
+                />
+
+              </label>
+
+              <label className="text-sm font-medium text-slate-700">
+
+                Goal status
+
+                <select
+                  value={
+                    goalStatus
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setGoalStatus(
+                      event.target
+                        .value as GoalStatus,
+                    )
+                  }
+                  disabled={
+                    busy ===
+                    "goal"
+                  }
+                  className="
+                    mt-2
+                    h-10
+                    w-full
+                    rounded-lg
+                    border
+                    border-slate-300
+                    bg-white
+                    px-3
+                    text-sm
+                    font-normal
+                    outline-none
+                    transition
+                    focus:border-teal-600
+                    focus:ring-2
+                    focus:ring-teal-600/20
+                  "
+                >
+
+                  {goalStatuses.map(
+                    (
+                      option,
+                    ) => (
+                      <option
+                        key={
+                          option
+                        }
+                        value={
+                          option
+                        }
+                      >
+                        {label(
+                          option,
+                        )}
+                      </option>
+                    ),
+                  )}
+
+                </select>
+
+              </label>
+
+            </div>
+
+            <div className="mt-5 flex justify-end">
+
+              <button
+                type="submit"
+                disabled={
+                  busy ===
+                  "goal"
+                }
+                className="
+                  inline-flex
+                  items-center
+                  gap-2
+                  rounded-lg
+                  bg-teal-700
+                  px-4
+                  py-2.5
+                  text-sm
+                  font-semibold
+                  text-white
+                  transition
+                  hover:bg-teal-800
+                  disabled:cursor-not-allowed
+                  disabled:opacity-60
+                "
+              >
+
+                <Plus
+                  size={16}
+                />
+
+                {busy ===
+                "goal"
+                  ? "Adding..."
+                  : "Add Goal"}
+
+              </button>
+
+            </div>
+
           </form>
+
+          {/* GOAL LIST */}
 
           {goals.length ===
           0 ? (
-            <p className="mt-6 rounded-lg bg-slate-50 px-4 py-5 text-center text-sm text-slate-500">
-              No goals added yet.
-            </p>
+            <div
+              className="
+                mt-6
+                rounded-xl
+                border
+                border-dashed
+                border-slate-300
+                bg-slate-50
+                px-4
+                py-8
+                text-center
+              "
+            >
+
+              <Star
+                size={28}
+                className="mx-auto mb-2 text-slate-400"
+              />
+
+              <p className="text-sm font-medium text-slate-700">
+                No goals added yet.
+              </p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Use the form above to add the first goal.
+              </p>
+
+            </div>
           ) : (
-            <div className="mt-6 divide-y divide-slate-100">
+            <div
+              className="
+                mt-6
+                space-y-3
+              "
+            >
+
               {goals.map(
-                (goal) => (
+                (
+                  goal,
+                  index,
+                ) => (
                   <div
-                    key={goal.id}
-                    className="flex flex-wrap items-start justify-between gap-4 py-4 first:pt-0"
+                    key={
+                      goal.id
+                    }
+                    className="
+                      rounded-xl
+                      border
+                      border-slate-200
+                      bg-white
+                      p-5
+                      transition
+                      hover:border-slate-300
+                    "
                   >
-                    <div className="min-w-0">
-                      <p className="font-semibold text-slate-800">
-                        {goal.title}
-                      </p>
 
-                      <p className="mt-1 text-sm text-slate-600">
-                        {goal.description ??
-                          "No description"}
-                      </p>
+                    <div className="flex items-start gap-4">
 
-                      <p className="mt-1 text-xs text-slate-500">
-                        Target:{" "}
-                        {goal.target ??
-                          "-"}{" "}
-                        · Created{" "}
-                        {formatDate(
-                          goal.createdAt,
-                        )}
-                      </p>
-                    </div>
+                      {/* NUMBER */}
 
-                    <select
-                      value={
-                        goal.status
-                      }
-                      disabled={
-                        busy ===
-                        `goal-${goal.id}`
-                      }
-                      onChange={(
-                        event,
-                      ) =>
-                        void action(
-                          `goal-${goal.id}`,
-                          () =>
-                            updatePerformanceGoal(
-                              id,
-                              goal.id,
+                      <div
+                        className="
+                          flex
+                          h-9
+                          w-9
+                          shrink-0
+                          items-center
+                          justify-center
+                          rounded-lg
+                          bg-teal-50
+                          text-sm
+                          font-semibold
+                          text-teal-700
+                        "
+                      >
+                        {index +
+                          1}
+                      </div>
+
+                      {/* CONTENT */}
+
+                      <div className="min-w-0 flex-1">
+
+                        <div
+                          className="
+                            flex
+                            flex-wrap
+                            items-start
+                            justify-between
+                            gap-3
+                          "
+                        >
+
+                          <div
+                            className="
+                              flex
+                              min-w-0
+                              flex-wrap
+                              items-center
+                              gap-2
+                            "
+                          >
+
+                            <p className="font-semibold text-slate-800">
                               {
-                                status:
-                                  event
-                                    .target
-                                    .value as GoalStatus,
-                              },
-                            ),
-                        )
-                      }
-                      className={`rounded-full border-0 px-2.5 py-1 text-xs font-semibold ${
-                        goal.status ===
-                        "COMPLETED"
-                          ? "bg-emerald-100 text-emerald-700"
-                          : goal.status ===
-                              "IN_PROGRESS"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-slate-100 text-slate-700"
-                      }`}
-                    >
-                      {goalStatuses.map(
-                        (
-                          goalStatus,
-                        ) => (
-                          <option
-                            key={
-                              goalStatus
-                            }
-                            value={
-                              goalStatus
+                                goal.title
+                              }
+                            </p>
+
+                            <span
+                              className={`
+                                rounded-full
+                                px-2.5
+                                py-1
+                                text-xs
+                                font-semibold
+                                ${getGoalStatusClass(
+                                  goal.status,
+                                )}
+                              `}
+                            >
+                              {label(
+                                goal.status,
+                              )}
+                            </span>
+
+                          </div>
+
+                          {/* GOAL ACTIONS */}
+
+                          <div
+                            className="
+                              flex
+                              shrink-0
+                              items-center
+                              gap-2
+                            "
+                            onClick={(
+                              event,
+                            ) =>
+                              event.stopPropagation()
                             }
                           >
-                            {label(
-                              goalStatus,
-                            )}
-                          </option>
-                        ),
-                      )}
-                    </select>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openEditGoal(
+                                  goal,
+                                )
+                              }
+                              className="
+                                inline-flex
+                                items-center
+                                gap-1.5
+                                rounded-lg
+                                border
+                                border-slate-300
+                                bg-white
+                                px-3
+                                py-2
+                                text-xs
+                                font-semibold
+                                text-slate-700
+                                transition
+                                hover:bg-slate-50
+                                hover:text-teal-700
+                              "
+                            >
+
+                              <Edit
+                                size={14}
+                              />
+
+                              Edit
+
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDeletingGoal(
+                                  goal,
+                                )
+                              }
+                              className="
+                                inline-flex
+                                items-center
+                                gap-1.5
+                                rounded-lg
+                                border
+                                border-red-200
+                                bg-white
+                                px-3
+                                py-2
+                                text-xs
+                                font-semibold
+                                text-red-600
+                                transition
+                                hover:bg-red-50
+                              "
+                            >
+
+                              <Trash2
+                                size={14}
+                              />
+
+                              Delete
+
+                            </button>
+
+                          </div>
+
+                        </div>
+
+                        <p className="mt-2 text-sm leading-6 text-slate-600">
+                          {
+                            goal.description ??
+                            "No description"
+                          }
+                        </p>
+
+                        <p className="mt-2 text-xs text-slate-500">
+
+                          <span className="font-semibold text-slate-600">
+                            Target:
+                          </span>{" "}
+
+                          {
+                            goal.target ??
+                            "No target specified"
+                          }
+
+                        </p>
+
+                      </div>
+
+                    </div>
+
                   </div>
                 ),
               )}
+
             </div>
           )}
+
         </section>
+
+        {/* ====================================================
+            COMPLETE REVIEW MODAL
+        ==================================================== */}
 
         {completeModal && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4"
-            role="presentation"
+            className="
+              fixed
+              inset-0
+              z-50
+              flex
+              items-center
+              justify-center
+              bg-slate-950/40
+              px-4
+            "
           >
+
             <div
-              className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl"
-              role="dialog"
-              aria-modal="true"
+              className="
+                w-full
+                max-w-md
+                rounded-2xl
+                bg-white
+                p-6
+                shadow-2xl
+              "
             >
-              <div className="flex items-start justify-between">
+
+              <div
+                className="
+                  flex
+                  items-start
+                  justify-between
+                  gap-4
+                "
+              >
+
                 <h2 className="text-lg font-semibold text-slate-900">
-                  Complete Performance
-                  Review?
+                  Complete Performance Review?
                 </h2>
 
                 <button
@@ -753,20 +1864,34 @@ function PerformanceDetails() {
                       false,
                     )
                   }
+                  className="
+                    rounded-lg
+                    p-2
+                    text-slate-400
+                    transition
+                    hover:bg-slate-100
+                    hover:text-slate-700
+                  "
                   aria-label="Close"
-                  className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"
                 >
                   <X size={18} />
                 </button>
+
               </div>
 
               <p className="mt-4 text-sm leading-6 text-slate-600">
-                Completing this review
-                will finalize the
-                performance evaluation.
+                Completing this review will finalize the performance evaluation.
               </p>
 
-              <div className="mt-6 flex justify-end gap-3">
+              <div
+                className="
+                  mt-6
+                  flex
+                  justify-end
+                  gap-3
+                "
+              >
+
                 <button
                   type="button"
                   onClick={() =>
@@ -774,7 +1899,19 @@ function PerformanceDetails() {
                       false,
                     )
                   }
-                  className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700"
+                  className="
+                    rounded-lg
+                    border
+                    border-slate-300
+                    bg-white
+                    px-4
+                    py-2.5
+                    text-sm
+                    font-semibold
+                    text-slate-700
+                    transition
+                    hover:bg-slate-50
+                  "
                 >
                   Cancel
                 </button>
@@ -801,17 +1938,566 @@ function PerformanceDetails() {
                         ),
                     );
                   }}
-                  className="rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white"
+                  className="
+                    rounded-lg
+                    bg-teal-700
+                    px-4
+                    py-2.5
+                    text-sm
+                    font-semibold
+                    text-white
+                    transition
+                    hover:bg-teal-800
+                    disabled:cursor-not-allowed
+                    disabled:opacity-60
+                  "
                 >
                   {busy ===
                   "workflow"
                     ? "Completing..."
                     : "Complete Review"}
                 </button>
+
               </div>
+
             </div>
+
           </div>
         )}
+
+        {/* ====================================================
+            EDIT GOAL MODAL
+        ==================================================== */}
+
+        {editingGoal && (
+          <div
+            className="
+              fixed
+              inset-0
+              z-50
+              flex
+              items-center
+              justify-center
+              bg-slate-950/40
+              px-4
+            "
+          >
+
+            <div
+              className="
+                w-full
+                max-w-2xl
+                rounded-2xl
+                bg-white
+                p-6
+                shadow-2xl
+              "
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="edit-goal-title"
+            >
+
+              <div
+                className="
+                  flex
+                  items-start
+                  justify-between
+                  gap-4
+                "
+              >
+
+                <div>
+
+                  <h2
+                    id="edit-goal-title"
+                    className="
+                      text-lg
+                      font-semibold
+                      text-slate-900
+                    "
+                  >
+                    Edit Performance Goal
+                  </h2>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    Update the goal details and status.
+                  </p>
+
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEditingGoal(
+                      null,
+                    )
+                  }
+                  className="
+                    rounded-lg
+                    p-2
+                    text-slate-400
+                    transition
+                    hover:bg-slate-100
+                    hover:text-slate-700
+                  "
+                  aria-label="Close"
+                >
+                  <X size={18} />
+                </button>
+
+              </div>
+
+              <form
+                onSubmit={
+                  saveEditedGoal
+                }
+                className="mt-6"
+              >
+
+                <div
+                  className="
+                    grid
+                    gap-4
+                    md:grid-cols-2
+                  "
+                >
+
+                  <label className="text-sm font-medium text-slate-700">
+
+                    Goal title
+
+                    <input
+                      required
+                      value={
+                        editGoalTitle
+                      }
+                      onChange={(
+                        event,
+                      ) =>
+                        setEditGoalTitle(
+                          event.target
+                            .value,
+                        )
+                      }
+                      disabled={
+                        goalActionBusy
+                      }
+                      className="
+                        mt-2
+                        h-11
+                        w-full
+                        rounded-lg
+                        border
+                        border-slate-300
+                        px-3
+                        text-sm
+                        font-normal
+                        outline-none
+                        transition
+                        focus:border-teal-600
+                        focus:ring-2
+                        focus:ring-teal-600/20
+                      "
+                    />
+
+                  </label>
+
+                  <label className="text-sm font-medium text-slate-700">
+
+                    Target
+
+                    <input
+                      value={
+                        editGoalTarget
+                      }
+                      onChange={(
+                        event,
+                      ) =>
+                        setEditGoalTarget(
+                          event.target
+                            .value,
+                        )
+                      }
+                      disabled={
+                        goalActionBusy
+                      }
+                      className="
+                        mt-2
+                        h-11
+                        w-full
+                        rounded-lg
+                        border
+                        border-slate-300
+                        px-3
+                        text-sm
+                        font-normal
+                        outline-none
+                        transition
+                        focus:border-teal-600
+                        focus:ring-2
+                        focus:ring-teal-600/20
+                      "
+                    />
+
+                  </label>
+
+                  <label className="text-sm font-medium text-slate-700">
+
+                    Description
+
+                    <textarea
+                      value={
+                        editGoalDescription
+                      }
+                      onChange={(
+                        event,
+                      ) =>
+                        setEditGoalDescription(
+                          event.target
+                            .value,
+                        )
+                      }
+                      disabled={
+                        goalActionBusy
+                      }
+                      rows={4}
+                      className="
+                        mt-2
+                        w-full
+                        resize-none
+                        rounded-lg
+                        border
+                        border-slate-300
+                        px-3
+                        py-2.5
+                        text-sm
+                        font-normal
+                        outline-none
+                        transition
+                        focus:border-teal-600
+                        focus:ring-2
+                        focus:ring-teal-600/20
+                      "
+                    />
+
+                  </label>
+
+                  <label className="text-sm font-medium text-slate-700">
+
+                    Goal status
+
+                    <select
+                      value={
+                        editGoalStatus
+                      }
+                      onChange={(
+                        event,
+                      ) =>
+                        setEditGoalStatus(
+                          event.target
+                            .value as GoalStatus,
+                        )
+                      }
+                      disabled={
+                        goalActionBusy
+                      }
+                      className="
+                        mt-2
+                        h-11
+                        w-full
+                        rounded-lg
+                        border
+                        border-slate-300
+                        bg-white
+                        px-3
+                        text-sm
+                        font-normal
+                        outline-none
+                        transition
+                        focus:border-teal-600
+                        focus:ring-2
+                        focus:ring-teal-600/20
+                      "
+                    >
+
+                      {goalStatuses.map(
+                        (
+                          option,
+                        ) => (
+                          <option
+                            key={
+                              option
+                            }
+                            value={
+                              option
+                            }
+                          >
+                            {label(
+                              option,
+                            )}
+                          </option>
+                        ),
+                      )}
+
+                    </select>
+
+                  </label>
+
+                </div>
+
+                <div
+                  className="
+                    mt-6
+                    flex
+                    justify-end
+                    gap-3
+                  "
+                >
+
+                  <button
+                    type="button"
+                    disabled={
+                      goalActionBusy
+                    }
+                    onClick={() =>
+                      setEditingGoal(
+                        null,
+                      )
+                    }
+                    className="
+                      rounded-lg
+                      border
+                      border-slate-300
+                      bg-white
+                      px-4
+                      py-2.5
+                      text-sm
+                      font-semibold
+                      text-slate-700
+                      transition
+                      hover:bg-slate-50
+                    "
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={
+                      goalActionBusy
+                    }
+                    className="
+                      inline-flex
+                      items-center
+                      gap-2
+                      rounded-lg
+                      bg-teal-700
+                      px-4
+                      py-2.5
+                      text-sm
+                      font-semibold
+                      text-white
+                      transition
+                      hover:bg-teal-800
+                      disabled:cursor-not-allowed
+                      disabled:opacity-60
+                    "
+                  >
+
+                    <Edit
+                      size={15}
+                    />
+
+                    {goalActionBusy
+                      ? "Saving..."
+                      : "Save Changes"}
+
+                  </button>
+
+                </div>
+
+              </form>
+
+            </div>
+
+          </div>
+        )}
+
+        {/* ====================================================
+            DELETE GOAL MODAL
+        ==================================================== */}
+
+        {deletingGoal && (
+          <div
+            className="
+              fixed
+              inset-0
+              z-50
+              flex
+              items-center
+              justify-center
+              bg-slate-950/40
+              px-4
+            "
+          >
+
+            <div
+              className="
+                w-full
+                max-w-md
+                rounded-2xl
+                bg-white
+                p-6
+                shadow-2xl
+              "
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="delete-goal-title"
+            >
+
+              <div
+                className="
+                  flex
+                  items-start
+                  justify-between
+                  gap-4
+                "
+              >
+
+                <div>
+
+                  <h2
+                    id="delete-goal-title"
+                    className="
+                      text-lg
+                      font-semibold
+                      text-slate-900
+                    "
+                  >
+                    Delete Performance Goal?
+                  </h2>
+
+                  <p className="mt-3 text-sm leading-6 text-slate-600">
+
+                    Are you sure you want to delete{" "}
+
+                    <span className="font-semibold text-slate-900">
+                      {
+                        deletingGoal.title
+                      }
+                    </span>
+
+                    ?
+
+                    <br />
+
+                    This action cannot be undone.
+
+                  </p>
+
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDeletingGoal(
+                      null,
+                    )
+                  }
+                  className="
+                    rounded-lg
+                    p-2
+                    text-slate-400
+                    transition
+                    hover:bg-slate-100
+                    hover:text-slate-700
+                  "
+                  aria-label="Close"
+                >
+                  <X size={18} />
+                </button>
+
+              </div>
+
+              <div
+                className="
+                  mt-6
+                  flex
+                  justify-end
+                  gap-3
+                "
+              >
+
+                <button
+                  type="button"
+                  disabled={
+                    goalActionBusy
+                  }
+                  onClick={() =>
+                    setDeletingGoal(
+                      null,
+                    )
+                  }
+                  className="
+                    rounded-lg
+                    border
+                    border-slate-300
+                    bg-white
+                    px-4
+                    py-2.5
+                    text-sm
+                    font-semibold
+                    text-slate-700
+                    transition
+                    hover:bg-slate-50
+                  "
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  disabled={
+                    goalActionBusy
+                  }
+                  onClick={() =>
+                    void confirmDeleteGoal()
+                  }
+                  className="
+                    inline-flex
+                    items-center
+                    gap-2
+                    rounded-lg
+                    bg-red-600
+                    px-4
+                    py-2.5
+                    text-sm
+                    font-semibold
+                    text-white
+                    transition
+                    hover:bg-red-700
+                    disabled:cursor-not-allowed
+                    disabled:opacity-60
+                  "
+                >
+
+                  <Trash2
+                    size={15}
+                  />
+
+                  {goalActionBusy
+                    ? "Deleting..."
+                    : "Delete Goal"}
+
+                </button>
+
+              </div>
+
+            </div>
+
+          </div>
+        )}
+
       </div>
     </DashboardLayout>
   );

@@ -1,26 +1,37 @@
 import { ArrowLeft, UserRound } from "lucide-react";
+
 import { useEffect, useState } from "react";
+
 import { Link, useNavigate } from "react-router-dom";
+
 import DashboardLayout from "../components/layout/DashboardLayout";
+
 import { PageHeader } from "../components/recruitment/RecruitmentComponents";
+
 import { getCandidates, type Candidate } from "../services/recruitmentService";
+
 import {
   createOnboarding,
   getOnboardingErrorMessage,
 } from "../services/onboardingService";
+
 import { getDepartments, type Department } from "../services/departmentService";
 
 function AddOnboarding() {
   const navigate = useNavigate();
+
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+
   const [candidateId, setCandidateId] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [expectedJoiningDate, setExpectedJoiningDate] = useState("");
   const [onboardingCode, setOnboardingCode] = useState("");
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
   useEffect(() => {
     Promise.all([getCandidates(), getDepartments()])
       .then(([candidateData, departmentData]) => {
@@ -37,23 +48,35 @@ function AddOnboarding() {
       )
       .finally(() => setLoading(false));
   }, []);
+
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!candidateId || !departmentId || !expectedJoiningDate) {
+
+    const trimmedOnboardingCode = onboardingCode.trim();
+
+    if (
+      !candidateId ||
+      !departmentId ||
+      !expectedJoiningDate ||
+      !trimmedOnboardingCode
+    ) {
       setError(
-        "Candidate, department, and expected joining date are required.",
+        "Candidate, department, expected joining date, and onboarding code are required.",
       );
       return;
     }
+
     try {
       setSaving(true);
       setError("");
+
       await createOnboarding({
-        onboardingCode: onboardingCode.trim() || undefined,
+        onboardingCode: trimmedOnboardingCode,
         candidateId: Number(candidateId),
         departmentId: Number(departmentId),
         expectedJoiningDate,
       });
+
       navigate("/onboarding");
     } catch (requestError) {
       setError(
@@ -66,6 +89,7 @@ function AddOnboarding() {
       setSaving(false);
     }
   };
+
   return (
     <DashboardLayout>
       <div className="flex min-w-0 flex-col gap-6">
@@ -74,6 +98,7 @@ function AddOnboarding() {
           subtitle="Start onboarding for a selected recruitment candidate."
           icon={UserRound}
         />
+
         <Link
           to="/onboarding"
           className="inline-flex w-fit items-center gap-2 text-sm font-semibold text-slate-600 hover:text-teal-700"
@@ -81,6 +106,7 @@ function AddOnboarding() {
           <ArrowLeft size={16} />
           Back to onboarding
         </Link>
+
         {loading ? (
           <div className="rounded-xl border border-slate-200 bg-white p-8 text-sm text-slate-500">
             Loading form...
@@ -93,17 +119,21 @@ function AddOnboarding() {
             <h2 className="font-semibold text-slate-900">
               Onboarding information
             </h2>
+
             <p className="mt-1 text-sm text-slate-500">
               Required fields are marked by the form controls.
             </p>
+
             {error && (
               <div className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {error}
               </div>
             )}
+
             <div className="mt-6 grid gap-5 md:grid-cols-2">
               <label className="text-sm font-medium text-slate-700">
                 Candidate
+
                 <select
                   required
                   value={candidateId}
@@ -111,6 +141,7 @@ function AddOnboarding() {
                   className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 font-normal outline-none focus:border-teal-600"
                 >
                   <option value="">Select candidate</option>
+
                   {candidates.map((candidate) => (
                     <option key={candidate.id} value={candidate.id}>
                       {candidate.name} · {candidate.jobPosition}
@@ -118,8 +149,10 @@ function AddOnboarding() {
                   ))}
                 </select>
               </label>
+
               <label className="text-sm font-medium text-slate-700">
                 Department
+
                 <select
                   required
                   value={departmentId}
@@ -127,6 +160,7 @@ function AddOnboarding() {
                   className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 font-normal outline-none focus:border-teal-600"
                 >
                   <option value="">Select department</option>
+
                   {departments.map((department) => (
                     <option key={department.id} value={department.id}>
                       {department.name}
@@ -134,8 +168,10 @@ function AddOnboarding() {
                   ))}
                 </select>
               </label>
+
               <label className="text-sm font-medium text-slate-700">
                 Expected joining date
+
                 <input
                   required
                   type="date"
@@ -146,19 +182,20 @@ function AddOnboarding() {
                   className="mt-2 h-11 w-full rounded-lg border border-slate-300 px-3 font-normal outline-none focus:border-teal-600"
                 />
               </label>
+
               <label className="text-sm font-medium text-slate-700">
-                Onboarding code
-                <span className="mt-2 block text-xs font-normal text-slate-500">
-                  Leave blank to let the backend generate one.
-                </span>
+                Onboarding Code <span className="text-red-500">*</span>
+
                 <input
+                  required
                   value={onboardingCode}
                   onChange={(event) => setOnboardingCode(event.target.value)}
-                  placeholder="Optional"
-                  className="mt-2 h-11 w-full rounded-lg border border-slate-300 px-3 font-normal outline-none focus:border-teal-600"
+                  placeholder="Enter onboarding code"
+                  className="mt-2 h-11 w-full rounded-lg border border-slate-300 px-3 font-normal uppercase outline-none focus:border-teal-600"
                 />
               </label>
             </div>
+
             <div className="mt-7 flex justify-end">
               <button
                 type="submit"
@@ -174,4 +211,5 @@ function AddOnboarding() {
     </DashboardLayout>
   );
 }
+
 export default AddOnboarding;

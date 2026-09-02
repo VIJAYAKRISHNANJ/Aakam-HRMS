@@ -1,6 +1,6 @@
-import { Edit, Eye, Plus, Trash2, UserRound, X } from "lucide-react";
+import { Edit, Plus, Trash2, UserRound, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import {
   PageHeader,
@@ -20,6 +20,7 @@ const label = (value: string) =>
     .toLowerCase()
     .replaceAll("_", " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+
 const date = (value: string | null) =>
   value
     ? new Date(value).toLocaleDateString("en-IN", {
@@ -28,6 +29,7 @@ const date = (value: string | null) =>
         year: "numeric",
       })
     : "-";
+
 const statusClass = (status: string) =>
   status === "COMPLETED"
     ? "bg-emerald-100 text-emerald-700"
@@ -35,8 +37,15 @@ const statusClass = (status: string) =>
       ? "bg-rose-100 text-rose-700"
       : "bg-teal-100 text-teal-700";
 
-function Progress({ completed, total }: { completed: number; total: number }) {
+function Progress({
+  completed,
+  total,
+}: {
+  completed: number;
+  total: number;
+}) {
   const percent = total ? Math.round((completed / total) * 100) : 0;
+
   return (
     <div className="min-w-[120px]">
       <div className="mb-1 flex justify-between text-xs text-slate-500">
@@ -45,6 +54,7 @@ function Progress({ completed, total }: { completed: number; total: number }) {
         </span>
         <span>{percent}%</span>
       </div>
+
       <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
         <div
           className="h-full rounded-full bg-teal-600"
@@ -56,21 +66,25 @@ function Progress({ completed, total }: { completed: number; total: number }) {
 }
 
 function Onboarding() {
+  const navigate = useNavigate();
+
   const [records, setRecords] = useState<OnboardingRecord[]>([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState<OnboardingRecord | null>(
-    null,
-  );
+
+  const [deleteTarget, setDeleteTarget] =
+    useState<OnboardingRecord | null>(null);
+
   const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
+
       setRecords(await getOnboardings({ search, status }));
     } catch (requestError) {
       setError(
@@ -83,6 +97,7 @@ function Onboarding() {
       setLoading(false);
     }
   }, [search, status]);
+
   useEffect(() => {
     const timer = window.setTimeout(
       () => {
@@ -90,17 +105,22 @@ function Onboarding() {
       },
       search ? 300 : 0,
     );
+
     return () => window.clearTimeout(timer);
   }, [load, search]);
 
   const remove = async () => {
     if (!deleteTarget) return;
+
     try {
       setDeleting(true);
+
       await deleteOnboarding(deleteTarget.id);
+
       setRecords((current) =>
         current.filter((item) => item.id !== deleteTarget.id),
       );
+
       setDeleteTarget(null);
       setSuccess("Onboarding record deleted successfully.");
     } catch (requestError) {
@@ -113,6 +133,10 @@ function Onboarding() {
     } finally {
       setDeleting(false);
     }
+  };
+
+  const openProfile = (record: OnboardingRecord) => {
+    navigate(`/onboarding/${record.id}`);
   };
 
   return (
@@ -132,6 +156,7 @@ function Onboarding() {
             </Link>
           }
         />
+
         <section className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
             <SearchInput
@@ -139,12 +164,14 @@ function Onboarding() {
               onChange={setSearch}
               placeholder="Search candidate, code, or job..."
             />
+
             <select
               value={status}
               onChange={(event) => setStatus(event.target.value)}
               className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-teal-600"
             >
               <option value="">All statuses</option>
+
               {onboardingStatuses.map((item) => (
                 <option key={item} value={item}>
                   {label(item)}
@@ -153,11 +180,13 @@ function Onboarding() {
             </select>
           </div>
         </section>
+
         {success && (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
             {success}
           </div>
         )}
+
         {loading ? (
           <StateMessage type="loading">
             Loading onboarding records...
@@ -165,7 +194,9 @@ function Onboarding() {
         ) : error ? (
           <StateMessage type="error">{error}</StateMessage>
         ) : records.length === 0 ? (
-          <StateMessage type="empty">No onboarding records found.</StateMessage>
+          <StateMessage type="empty">
+            No onboarding records found.
+          </StateMessage>
         ) : (
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
             <div className="overflow-x-auto">
@@ -188,59 +219,84 @@ function Onboarding() {
                     ))}
                   </tr>
                 </thead>
+
                 <tbody className="divide-y divide-slate-100">
                   {records.map((record) => (
-                    <tr key={record.id} className="hover:bg-slate-50">
+                    <tr
+                      key={record.id}
+                      onClick={() => openProfile(record)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          openProfile(record);
+                        }
+                      }}
+                      tabIndex={0}
+                      role="link"
+                      aria-label={`Open onboarding profile for ${record.candidateName}`}
+                      className="cursor-pointer hover:bg-slate-50 focus:bg-slate-50 focus:outline-none"
+                    >
                       <td className="px-5 py-4">
                         <p className="font-semibold text-slate-800">
                           {record.candidateName}
                         </p>
+
                         <p className="mt-0.5 text-xs text-slate-500">
                           {record.candidateEmail}
                         </p>
                       </td>
+
                       <td className="px-5 py-4 font-medium text-slate-700">
                         {record.onboardingCode}
                       </td>
+
                       <td className="px-5 py-4 text-slate-600">
                         {record.department}
                       </td>
+
                       <td className="px-5 py-4 text-slate-500">
                         {date(record.expectedJoiningDate)}
                       </td>
+
                       <td className="px-5 py-4">
                         <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass(record.status)}`}
+                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass(
+                            record.status,
+                          )}`}
                         >
                           {label(record.status)}
                         </span>
                       </td>
+
                       <td className="px-5 py-4">
                         <Progress {...record.documentProgress} />
                       </td>
+
                       <td className="px-5 py-4">
                         <Progress {...record.checklistProgress} />
                       </td>
-                      <td className="px-5 py-4">
+
+                      <td
+                        className="px-5 py-4"
+                        onClick={(event) => event.stopPropagation()}
+                      >
                         <div className="flex gap-1">
-                          <Link
-                            title="View"
-                            to={`/onboarding/${record.id}`}
-                            className="rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-teal-700"
-                          >
-                            <Eye size={16} />
-                          </Link>
                           <Link
                             title="Edit"
                             to={`/onboarding/edit/${record.id}`}
+                            onClick={(event) => event.stopPropagation()}
                             className="rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-teal-700"
                           >
                             <Edit size={16} />
                           </Link>
+
                           <button
                             type="button"
                             title="Delete"
-                            onClick={() => setDeleteTarget(record)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setDeleteTarget(record);
+                            }}
                             className="rounded-md p-2 text-slate-500 hover:bg-rose-50 hover:text-rose-700"
                           >
                             <Trash2 size={16} />
@@ -255,6 +311,7 @@ function Onboarding() {
           </div>
         )}
       </div>
+
       {deleteTarget && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4 backdrop-blur-sm"
@@ -270,10 +327,13 @@ function Onboarding() {
                 <h2 className="text-lg font-semibold text-slate-900">
                   Delete onboarding record?
                 </h2>
+
                 <p className="mt-1 text-sm text-slate-500">
-                  {deleteTarget.onboardingCode} for {deleteTarget.candidateName}
+                  {deleteTarget.onboardingCode} for{" "}
+                  {deleteTarget.candidateName}
                 </p>
               </div>
+
               <button
                 type="button"
                 onClick={() => setDeleteTarget(null)}
@@ -284,9 +344,11 @@ function Onboarding() {
                 <X size={18} />
               </button>
             </div>
+
             <p className="mt-5 text-sm text-slate-600">
               This action cannot be undone.
             </p>
+
             <div className="mt-6 flex justify-end gap-3">
               <button
                 type="button"
@@ -296,6 +358,7 @@ function Onboarding() {
               >
                 Cancel
               </button>
+
               <button
                 type="button"
                 onClick={remove}
@@ -318,4 +381,5 @@ function Onboarding() {
     </DashboardLayout>
   );
 }
+
 export default Onboarding;

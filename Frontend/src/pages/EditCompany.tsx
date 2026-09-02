@@ -6,6 +6,7 @@ import {
 
 import {
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -129,6 +130,40 @@ function EditCompany() {
 
   /*
   |--------------------------------------------------------------------------
+  | Financial Year Start Date Input Reference
+  |--------------------------------------------------------------------------
+  */
+
+  const financialYearStartRef =
+    useRef<HTMLInputElement>(null);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Open Native Calendar
+  |--------------------------------------------------------------------------
+  */
+
+  const openFinancialYearCalendar =
+    () => {
+      const input =
+        financialYearStartRef.current;
+
+      if (!input) {
+        return;
+      }
+
+      if (
+        typeof input.showPicker ===
+        "function"
+      ) {
+        input.showPicker();
+      } else {
+        input.focus();
+      }
+    };
+
+  /*
+  |--------------------------------------------------------------------------
   | Convert API date to input date
   |--------------------------------------------------------------------------
   */
@@ -143,7 +178,11 @@ function EditCompany() {
     const date =
       new Date(value);
 
-    if (Number.isNaN(date.getTime())) {
+    if (
+      Number.isNaN(
+        date.getTime(),
+      )
+    ) {
       return value.slice(0, 10);
     }
 
@@ -378,54 +417,66 @@ function EditCompany() {
 
         <section>
 
-          <div className="flex items-center gap-3">
+          {/* =================================================
+              CHANGE 2
+              BACK BUTTON ABOVE EDIT COMPANY TITLE
+          ================================================= */}
+
+          <div className="mb-4">
 
             <Link
               to="/organization/company"
               className="
                 inline-flex
-                h-9
-                w-9
-                shrink-0
                 items-center
-                justify-center
+                gap-2
                 rounded-lg
                 border
                 border-slate-300
                 bg-white
-                text-slate-600
+                px-4
+                py-2.5
+                text-sm
+                font-semibold
+                text-slate-700
                 transition
                 hover:bg-slate-50
                 hover:text-slate-900
+                focus:outline-none
+                focus:ring-2
+                focus:ring-teal-600/20
               "
-              aria-label="Back to companies"
+              aria-label="Back to Company"
             >
-              <ArrowLeft size={17} />
+              <ArrowLeft size={16} />
+              Back to Company
             </Link>
 
-            <div className="flex items-center gap-3">
+          </div>
 
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-50">
+          {/* TITLE */}
 
-                <Building2
-                  size={22}
-                  className="text-teal-700"
-                />
+          <div className="flex items-center gap-3">
 
-              </div>
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-50">
 
-              <div>
+              <Building2
+                size={22}
+                className="text-teal-700"
+              />
 
-                <h1 className="text-[30px] font-semibold leading-9 tracking-tight text-slate-900">
-                  Edit Company
-                </h1>
+            </div>
 
-                <p className="mt-1 text-sm text-slate-600">
-                  Update the company and legal
-                  entity information.
-                </p>
+            <div>
 
-              </div>
+              <h1 className="text-[30px] font-semibold leading-9 tracking-tight text-slate-900">
+                Edit Company
+              </h1>
+
+              <p className="mt-1 text-sm text-slate-600">
+                Update the company and legal
+                entity information.
+              </p>
 
             </div>
 
@@ -493,8 +544,6 @@ function EditCompany() {
 
               <div className="grid grid-cols-1 gap-5 p-6 md:grid-cols-2">
 
-                {/* Company Code */}
-
                 <FormField
                   label="Company Code"
                   required
@@ -514,8 +563,6 @@ function EditCompany() {
                     className={inputClassName}
                   />
                 </FormField>
-
-                {/* Legal Name */}
 
                 <FormField
                   label="Legal Name"
@@ -537,8 +584,6 @@ function EditCompany() {
                   />
                 </FormField>
 
-                {/* Display Name */}
-
                 <FormField
                   label="Display Name"
                   htmlFor="display-name"
@@ -557,8 +602,6 @@ function EditCompany() {
                     className={inputClassName}
                   />
                 </FormField>
-
-                {/* Registration Number */}
 
                 <FormField
                   label="Registration Number"
@@ -812,18 +855,33 @@ function EditCompany() {
                   label="Financial Year Start"
                   htmlFor="financial-year-start"
                 >
-                  <input
-                    id="financial-year-start"
-                    type="date"
-                    value={financialYearStart}
-                    onChange={(event) =>
-                      setFinancialYearStart(
-                        event.target.value,
-                      )
+                  <div
+                    className="relative cursor-pointer"
+                    onClick={
+                      openFinancialYearCalendar
                     }
-                    disabled={saving}
-                    className={inputClassName}
-                  />
+                  >
+                    <input
+                      ref={
+                        financialYearStartRef
+                      }
+                      id="financial-year-start"
+                      type="date"
+                      value={
+                        financialYearStart
+                      }
+                      onChange={(event) =>
+                        setFinancialYearStart(
+                          event.target.value,
+                        )
+                      }
+                      disabled={saving}
+                      className={`
+                        ${inputClassName}
+                        cursor-pointer
+                      `}
+                    />
+                  </div>
                 </FormField>
 
                 <FormField
@@ -832,7 +890,9 @@ function EditCompany() {
                 >
                   <select
                     id="payroll-frequency"
-                    value={payrollFrequency}
+                    value={
+                      payrollFrequency
+                    }
                     onChange={(event) =>
                       setPayrollFrequency(
                         event.target.value,

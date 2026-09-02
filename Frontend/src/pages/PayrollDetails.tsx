@@ -103,16 +103,14 @@ function PayrollDetails() {
   return (
     <DashboardLayout>
       <div className="flex min-w-0 flex-col gap-6">
-        <div className="flex items-center gap-3">
-          <Link
-            to="/payroll"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
-            aria-label="Back to payroll"
-          >
-            <ArrowLeft size={17} />
-          </Link>
-          <span className="text-sm text-slate-500">Payroll details</span>
-        </div>
+        <Link
+          to="/payroll"
+          className="inline-flex w-fit items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+          aria-label="Back to Payroll"
+        >
+          <ArrowLeft size={17} />
+          Back to Payroll
+        </Link>
         {loading ? (
           <section className="rounded-xl border border-slate-300 bg-white px-6 py-16 text-center text-sm text-slate-500">
             Loading payroll run...

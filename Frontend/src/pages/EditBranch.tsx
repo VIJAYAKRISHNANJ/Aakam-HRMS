@@ -100,25 +100,18 @@ function EditBranch() {
           companyId: Number(
             branch.companyId,
           ),
-
           branchCode:
             branch.branchCode ?? "",
-
           branchName:
             branch.branchName ?? "",
-
           location:
             branch.location ?? "",
-
           address:
             branch.address ?? "",
-
           phone:
             branch.phone ?? "",
-
           email:
             branch.email ?? "",
-
           status:
             branch.status || "ACTIVE",
         });
@@ -199,12 +192,6 @@ function EditBranch() {
     setError("");
     setSuccess("");
 
-    /*
-    |--------------------------------------------------------------------------
-    | Validation
-    |--------------------------------------------------------------------------
-    */
-
     if (!form.companyId) {
       setError(
         "Company is required.",
@@ -244,25 +231,18 @@ function EditBranch() {
       await updateBranch(id, {
         companyId:
           Number(form.companyId),
-
         branchCode:
           form.branchCode.trim(),
-
         branchName:
           form.branchName.trim(),
-
         location:
           form.location?.trim() || "",
-
         address:
           form.address?.trim() || "",
-
         phone:
           form.phone?.trim() || "",
-
         email:
           form.email?.trim() || "",
-
         status:
           form.status,
       });
@@ -304,10 +284,8 @@ function EditBranch() {
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="flex min-h-[500px] items-center justify-center">
-
+        <div className="flex min-h-[500px] w-full items-center justify-center">
           <div className="text-center">
-
             <Loader2
               size={30}
               className="mx-auto animate-spin text-teal-700"
@@ -316,9 +294,7 @@ function EditBranch() {
             <p className="mt-3 text-sm text-slate-500">
               Loading branch...
             </p>
-
           </div>
-
         </div>
       </DashboardLayout>
     );
@@ -332,53 +308,69 @@ function EditBranch() {
 
   return (
     <DashboardLayout>
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+      <div className="flex w-full min-w-0 flex-col gap-6">
 
         {/* =================================================
             HEADER
         ================================================= */}
 
-        <section className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <section className="w-full">
 
-          <div className="flex items-start gap-3">
+          {/* =================================================
+              CHANGE 4
+              BACK BUTTON ABOVE EDIT BRANCH TITLE
+          ================================================= */}
+
+          <div className="mb-4">
 
             <Link
               to="/organization/branches"
               className="
-                mt-1
-                flex
-                h-9
-                w-9
-                shrink-0
+                inline-flex
                 items-center
-                justify-center
+                gap-2
                 rounded-lg
                 border
                 border-slate-300
                 bg-white
-                text-slate-600
+                px-4
+                py-2.5
+                text-sm
+                font-semibold
+                text-slate-700
                 transition
                 hover:bg-slate-50
+                hover:text-slate-900
+                focus:outline-none
+                focus:ring-2
+                focus:ring-teal-600/20
               "
-              aria-label="Back to branches"
+              aria-label="Back to Branches"
             >
-              <ArrowLeft size={17} />
+              <ArrowLeft size={16} />
+              Back to Branches
             </Link>
+
+          </div>
+
+          {/* TITLE */}
+
+          <div className="flex items-center gap-3">
+
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-50">
+
+              <Building2
+                size={22}
+                className="text-teal-700"
+              />
+
+            </div>
 
             <div>
 
-              <div className="flex items-center gap-2">
-
-                <Building2
-                  size={20}
-                  className="text-teal-700"
-                />
-
-                <h1 className="text-[30px] font-semibold leading-9 tracking-tight text-slate-900">
-                  Edit Branch
-                </h1>
-
-              </div>
+              <h1 className="text-[30px] font-semibold leading-9 tracking-tight text-slate-900">
+                Edit Branch
+              </h1>
 
               <p className="mt-1 text-sm text-slate-600">
                 Update branch information and
@@ -426,7 +418,7 @@ function EditBranch() {
 
         <form
           onSubmit={handleSubmit}
-          className="overflow-hidden rounded-xl border border-slate-300 bg-white"
+          className="w-full overflow-hidden rounded-xl border border-slate-300 bg-white"
         >
 
           {/* =================================================
@@ -447,9 +439,7 @@ function EditBranch() {
 
             </div>
 
-            <div className="grid grid-cols-1 gap-5 p-6 md:grid-cols-2">
-
-              {/* Company */}
+            <div className="grid w-full grid-cols-1 gap-5 p-6 md:grid-cols-2">
 
               <label className="block">
 
@@ -511,8 +501,6 @@ function EditBranch() {
 
               </label>
 
-              {/* Branch Code */}
-
               <Field
                 label="Branch Code"
                 name="branchCode"
@@ -525,8 +513,6 @@ function EditBranch() {
                 required
                 placeholder="CHN001"
               />
-
-              {/* Branch Name */}
 
               <Field
                 label="Branch Name"
@@ -541,8 +527,6 @@ function EditBranch() {
                 placeholder="Chennai Main Branch"
               />
 
-              {/* Location */}
-
               <Field
                 label="Location"
                 name="location"
@@ -556,10 +540,11 @@ function EditBranch() {
               />
 
             </div>
+
           </section>
 
           {/* =================================================
-              CONTACT & ADDRESS
+              CONTACT
           ================================================= */}
 
           <section className="border-t border-slate-200">
@@ -577,9 +562,7 @@ function EditBranch() {
 
             </div>
 
-            <div className="grid grid-cols-1 gap-5 p-6 md:grid-cols-2">
-
-              {/* Phone */}
+            <div className="grid w-full grid-cols-1 gap-5 p-6 md:grid-cols-2">
 
               <Field
                 label="Phone"
@@ -593,8 +576,6 @@ function EditBranch() {
                 placeholder="+91 9876543210"
               />
 
-              {/* Email */}
-
               <Field
                 label="Email"
                 name="email"
@@ -607,8 +588,6 @@ function EditBranch() {
                 }
                 placeholder="branch@aakam.com"
               />
-
-              {/* Address */}
 
               <div className="md:col-span-2">
 
@@ -653,6 +632,7 @@ function EditBranch() {
               </div>
 
             </div>
+
           </section>
 
           {/* =================================================
@@ -674,7 +654,7 @@ function EditBranch() {
 
             </div>
 
-            <div className="grid grid-cols-1 gap-5 p-6 md:grid-cols-2">
+            <div className="grid w-full grid-cols-1 gap-5 p-6 md:grid-cols-2">
 
               <label className="block">
 
@@ -721,6 +701,7 @@ function EditBranch() {
               </label>
 
             </div>
+
           </section>
 
           {/* =================================================
@@ -789,16 +770,11 @@ function EditBranch() {
           </div>
 
         </form>
+
       </div>
     </DashboardLayout>
   );
 }
-
-/*
-|--------------------------------------------------------------------------
-| Reusable Input Field
-|--------------------------------------------------------------------------
-*/
 
 function Field({
   label,

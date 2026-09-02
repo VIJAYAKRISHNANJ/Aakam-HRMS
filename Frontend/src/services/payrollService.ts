@@ -1,6 +1,9 @@
 import axios from "axios";
 
-export type PayrollStatus = "PENDING" | "PROCESSING" | "COMPLETED";
+export type PayrollStatus =
+  | "PENDING"
+  | "PROCESSING"
+  | "COMPLETED";
 
 export interface PayrollRun {
   id: number;
@@ -16,7 +19,8 @@ export interface CreatePayrollPayload {
   pendingApprovals?: number;
 }
 
-export type UpdatePayrollPayload = Partial<CreatePayrollPayload>;
+export type UpdatePayrollPayload =
+  Partial<CreatePayrollPayload>;
 
 interface ApiResponse<T> {
   success: boolean;
@@ -25,31 +29,52 @@ interface ApiResponse<T> {
   total?: number;
 }
 
-const API_URL = "http://localhost:5000/api/payroll";
+const API_URL =
+  "http://localhost:5000/api/payroll";
 
 const request = async <T>(
-  requestPromise: Promise<{ data: ApiResponse<T> }>,
+  requestPromise: Promise<{
+    data: ApiResponse<T>;
+  }>,
   fallback: string,
 ): Promise<T> => {
   try {
     const response = await requestPromise;
-    if (!response.data.success)
-      throw new Error(response.data.message || fallback);
+
+    if (!response.data.success) {
+      throw new Error(
+        response.data.message || fallback,
+      );
+    }
+
     return response.data.data;
   } catch (error) {
-    throw new Error(getPayrollErrorMessage(error, fallback), { cause: error });
+    throw new Error(
+      getPayrollErrorMessage(error, fallback),
+      {
+        cause: error,
+      },
+    );
   }
 };
 
-export const getPayrollRuns = (): Promise<PayrollRun[]> =>
+export const getPayrollRuns = (): Promise<
+  PayrollRun[]
+> =>
   request(
-    axios.get<ApiResponse<PayrollRun[]>>(API_URL),
+    axios.get<ApiResponse<PayrollRun[]>>(
+      API_URL,
+    ),
     "Unable to load payroll runs.",
   );
 
-export const getPayrollRun = (id: number | string): Promise<PayrollRun> =>
+export const getPayrollRun = (
+  id: number | string,
+): Promise<PayrollRun> =>
   request(
-    axios.get<ApiResponse<PayrollRun>>(`${API_URL}/${id}`),
+    axios.get<ApiResponse<PayrollRun>>(
+      `${API_URL}/${id}`,
+    ),
     "Unable to load payroll run.",
   );
 
@@ -57,7 +82,10 @@ export const createPayrollRun = (
   payload: CreatePayrollPayload,
 ): Promise<PayrollRun> =>
   request(
-    axios.post<ApiResponse<PayrollRun>>(API_URL, payload),
+    axios.post<ApiResponse<PayrollRun>>(
+      API_URL,
+      payload,
+    ),
     "Unable to create payroll run.",
   );
 
@@ -66,25 +94,50 @@ export const updatePayrollRun = (
   payload: UpdatePayrollPayload,
 ): Promise<PayrollRun> =>
   request(
-    axios.put<ApiResponse<PayrollRun>>(`${API_URL}/${id}`, payload),
+    axios.put<ApiResponse<PayrollRun>>(
+      `${API_URL}/${id}`,
+      payload,
+    ),
     "Unable to update payroll run.",
   );
 
-export const processPayroll = (id: number | string): Promise<PayrollRun> =>
+export const deletePayrollRun = (
+  id: number | string,
+): Promise<PayrollRun> =>
   request(
-    axios.post<ApiResponse<PayrollRun>>(`${API_URL}/${id}/process`),
+    axios.delete<ApiResponse<PayrollRun>>(
+      `${API_URL}/${id}`,
+    ),
+    "Unable to delete payroll run.",
+  );
+
+export const processPayroll = (
+  id: number | string,
+): Promise<PayrollRun> =>
+  request(
+    axios.post<ApiResponse<PayrollRun>>(
+      `${API_URL}/${id}/process`,
+    ),
     "Unable to process payroll run.",
   );
 
-export const approvePayroll = (id: number | string): Promise<PayrollRun> =>
+export const approvePayroll = (
+  id: number | string,
+): Promise<PayrollRun> =>
   request(
-    axios.post<ApiResponse<PayrollRun>>(`${API_URL}/${id}/approve`),
+    axios.post<ApiResponse<PayrollRun>>(
+      `${API_URL}/${id}/approve`,
+    ),
     "Unable to approve payroll run.",
   );
 
-export const completePayroll = (id: number | string): Promise<PayrollRun> =>
+export const completePayroll = (
+  id: number | string,
+): Promise<PayrollRun> =>
   request(
-    axios.post<ApiResponse<PayrollRun>>(`${API_URL}/${id}/complete`),
+    axios.post<ApiResponse<PayrollRun>>(
+      `${API_URL}/${id}/complete`,
+    ),
     "Unable to complete payroll run.",
   );
 
@@ -93,13 +146,27 @@ export const getPayrollErrorMessage = (
   fallback: string,
 ): string => {
   if (axios.isAxiosError(error)) {
-    const message = error.response?.data?.message;
-    if (typeof message === "string" && message.trim()) return message;
-    if (error.response?.status === 404) return "Payroll run not found.";
-    if (error.response?.status === 409)
+    const message =
+      error.response?.data?.message;
+
+    if (
+      typeof message === "string" &&
+      message.trim()
+    ) {
+      return message;
+    }
+
+    if (error.response?.status === 404) {
+      return "Payroll run not found.";
+    }
+
+    if (error.response?.status === 409) {
       return "This payroll action conflicts with the current run state.";
+    }
   }
-  return error instanceof Error && error.message.trim()
+
+  return error instanceof Error &&
+    error.message.trim()
     ? error.message
     : fallback;
 };

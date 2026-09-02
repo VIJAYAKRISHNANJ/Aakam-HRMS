@@ -1,13 +1,18 @@
 import { ArrowLeft, Edit, Users, XCircle } from "lucide-react";
+
 import { useEffect, useState } from "react";
+
 import { Link, useParams } from "react-router-dom";
+
 import DashboardLayout from "../components/layout/DashboardLayout";
+
 import {
   PageHeader,
   StageBadge,
   StateMessage,
   StatusBadge,
 } from "../components/recruitment/RecruitmentComponents";
+
 import {
   getCandidates,
   getJobPositionById,
@@ -19,6 +24,7 @@ import {
 
 function JobPositionDetails() {
   const { id } = useParams();
+
   const [job, setJob] = useState<JobPosition | null>(null);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,12 +32,15 @@ function JobPositionDetails() {
 
   useEffect(() => {
     if (!id) return;
+
     Promise.all([getJobPositionById(id), getCandidates()])
       .then(([jobData, candidateData]) => {
         setJob(jobData);
+
         setCandidates(
           candidateData.filter(
-            (candidate: Candidate) => candidate.jobPositionId === Number(id),
+            (candidate: Candidate) =>
+              candidate.jobPositionId === Number(id),
           ),
         );
       })
@@ -48,6 +57,7 @@ function JobPositionDetails() {
 
   const closeJob = async () => {
     if (!job) return;
+
     try {
       await updateJobPosition(job.id, {
         title: job.title,
@@ -55,7 +65,11 @@ function JobPositionDetails() {
         openings: job.openings,
         status: "CLOSED",
       });
-      setJob({ ...job, status: "CLOSED" });
+
+      setJob({
+        ...job,
+        status: "CLOSED",
+      });
     } catch (requestError: unknown) {
       setError(
         getRecruitmentErrorMessage(
@@ -69,18 +83,22 @@ function JobPositionDetails() {
   return (
     <DashboardLayout>
       <div className="flex min-w-0 flex-col gap-6">
-        <div className="flex items-center gap-3">
+        {/* Back to Job Positions */}
+        <div className="flex items-center">
           <Link
             to="/recruitment/jobs"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
-            aria-label="Back to jobs"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+            aria-label="Back to Job Positions"
           >
             <ArrowLeft size={17} />
+            Back to Job Positions
           </Link>
-          <span className="text-sm text-slate-500">Job position details</span>
         </div>
+
         {loading ? (
-          <StateMessage type="loading">Loading job position...</StateMessage>
+          <StateMessage type="loading">
+            Loading job position...
+          </StateMessage>
         ) : error || !job ? (
           <StateMessage type="error">
             {error || "Job position not found."}
@@ -99,6 +117,7 @@ function JobPositionDetails() {
                     <Edit size={16} />
                     Edit Job
                   </Link>
+
                   {job.status === "OPEN" && (
                     <button
                       onClick={closeJob}
@@ -111,38 +130,60 @@ function JobPositionDetails() {
                 </div>
               }
             />
+
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs text-slate-500">Department</p>
+                <p className="text-xs text-slate-500">
+                  Department
+                </p>
+
                 <p className="mt-2 font-semibold text-slate-900">
                   {job.department}
                 </p>
               </div>
+
               <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs text-slate-500">Openings</p>
+                <p className="text-xs text-slate-500">
+                  Openings
+                </p>
+
                 <p className="mt-2 font-semibold text-slate-900">
                   {job.openings}
                 </p>
               </div>
+
               <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs text-slate-500">Status</p>
+                <p className="text-xs text-slate-500">
+                  Status
+                </p>
+
                 <div className="mt-2">
                   <StatusBadge status={job.status} />
                 </div>
               </div>
+
               <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs text-slate-500">Candidates</p>
+                <p className="text-xs text-slate-500">
+                  Candidates
+                </p>
+
                 <p className="mt-2 font-semibold text-slate-900">
                   {candidates.length}
                 </p>
               </div>
             </div>
+
             <section className="rounded-xl border border-slate-200 bg-white">
               <div className="flex items-center gap-2 border-b border-slate-200 px-5 py-4">
-                <Users size={18} className="text-teal-700" />
+                <Users
+                  size={18}
+                  className="text-teal-700"
+                />
+
                 <h2 className="font-semibold text-slate-900">
                   Associated candidates
                 </h2>
+
                 <Link
                   to="/recruitment/candidates"
                   className="ml-auto text-xs font-semibold text-teal-700 hover:text-teal-800"
@@ -150,6 +191,7 @@ function JobPositionDetails() {
                   View Candidates
                 </Link>
               </div>
+
               {candidates.length === 0 ? (
                 <div className="p-8 text-center text-sm text-slate-500">
                   No candidates have applied for this position.
@@ -166,10 +208,12 @@ function JobPositionDetails() {
                         <p className="font-semibold text-slate-800">
                           {candidate.name}
                         </p>
+
                         <p className="mt-1 text-xs text-slate-500">
                           {candidate.email}
                         </p>
                       </div>
+
                       <StageBadge stage={candidate.stage} />
                     </Link>
                   ))}

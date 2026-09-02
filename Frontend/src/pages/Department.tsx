@@ -10,6 +10,7 @@ import {
 
 import {
   Link,
+  useNavigate,
 } from "react-router-dom";
 
 import DashboardLayout from "../components/layout/DashboardLayout";
@@ -25,6 +26,8 @@ import type {
 } from "../services/departmentService";
 
 function Department() {
+  const navigate = useNavigate();
+
   const [
     departments,
     setDepartments,
@@ -73,6 +76,20 @@ function Department() {
 
     loadDepartments();
   }, []);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Open Department Profile
+  |--------------------------------------------------------------------------
+  */
+
+  const openDepartmentProfile = (
+    departmentId: number,
+  ) => {
+    navigate(
+      `/organization/departments/${departmentId}`,
+    );
+  };
 
   return (
     <DashboardLayout>
@@ -295,7 +312,29 @@ function Department() {
                     (department) => (
                       <tr
                         key={department.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() =>
+                          openDepartmentProfile(
+                            department.id,
+                          )
+                        }
+                        onKeyDown={(event) => {
+                          if (
+                            event.key ===
+                              "Enter" ||
+                            event.key ===
+                              " "
+                          ) {
+                            event.preventDefault();
+
+                            openDepartmentProfile(
+                              department.id,
+                            );
+                          }
+                        }}
                         className="
+                          cursor-pointer
                           border-b
                           border-slate-100
                           last:border-0
@@ -357,7 +396,15 @@ function Department() {
 
                         {/* Action */}
 
-                        <td className="px-6 py-4 text-right">
+                        <td
+                          className="px-6 py-4 text-right"
+                          onClick={(event) =>
+                            event.stopPropagation()
+                          }
+                          onKeyDown={(event) =>
+                            event.stopPropagation()
+                          }
+                        >
 
                           <Link
                             to={`/organization/departments/edit/${department.id}`}

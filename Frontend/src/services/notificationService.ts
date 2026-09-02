@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:5000/api";
+const API_URL =
+  "http://localhost:5000/api/notifications";
 
 /*
 |--------------------------------------------------------------------------
@@ -19,7 +20,7 @@ export interface Notification {
 
 /*
 |--------------------------------------------------------------------------
-| Create Notification Payload
+| Notification Payload
 |--------------------------------------------------------------------------
 */
 
@@ -38,7 +39,7 @@ export interface NotificationPayload {
 interface NotificationsResponse {
   success: boolean;
   data: Notification[];
-  total: number;
+  total?: number;
   message?: string;
 }
 
@@ -66,7 +67,7 @@ interface ReadAllResponse {
 
 /*
 |--------------------------------------------------------------------------
-| Get Notifications
+| GET NOTIFICATIONS
 |--------------------------------------------------------------------------
 */
 
@@ -74,15 +75,22 @@ export const getNotifications =
   async (): Promise<Notification[]> => {
     const response =
       await axios.get<NotificationsResponse>(
-        `${API_URL}/notifications`,
+        API_URL,
       );
+
+    if (!response.data.success) {
+      throw new Error(
+        response.data.message ||
+          "Unable to load notifications.",
+      );
+    }
 
     return response.data.data;
   };
 
 /*
 |--------------------------------------------------------------------------
-| Get Unread Notification Count
+| GET UNREAD COUNT
 |--------------------------------------------------------------------------
 */
 
@@ -90,15 +98,22 @@ export const getUnreadNotificationCount =
   async (): Promise<number> => {
     const response =
       await axios.get<UnreadCountResponse>(
-        `${API_URL}/notifications/unread-count`,
+        `${API_URL}/unread-count`,
       );
+
+    if (!response.data.success) {
+      throw new Error(
+        response.data.message ||
+          "Unable to load unread notification count.",
+      );
+    }
 
     return response.data.data.count;
   };
 
 /*
 |--------------------------------------------------------------------------
-| Get Notification By ID
+| GET NOTIFICATION BY ID
 |--------------------------------------------------------------------------
 */
 
@@ -108,15 +123,22 @@ export const getNotificationById =
   ): Promise<Notification> => {
     const response =
       await axios.get<NotificationResponse>(
-        `${API_URL}/notifications/${notificationId}`,
+        `${API_URL}/${notificationId}`,
       );
+
+    if (!response.data.success) {
+      throw new Error(
+        response.data.message ||
+          "Unable to load notification.",
+      );
+    }
 
     return response.data.data;
   };
 
 /*
 |--------------------------------------------------------------------------
-| Create / Send Notification
+| CREATE NOTIFICATION
 |--------------------------------------------------------------------------
 */
 
@@ -126,16 +148,23 @@ export const createNotification =
   ): Promise<Notification> => {
     const response =
       await axios.post<NotificationResponse>(
-        `${API_URL}/notifications`,
+        API_URL,
         payload,
       );
+
+    if (!response.data.success) {
+      throw new Error(
+        response.data.message ||
+          "Unable to send notification.",
+      );
+    }
 
     return response.data.data;
   };
 
 /*
 |--------------------------------------------------------------------------
-| Mark Notification As Read
+| MARK AS READ
 |--------------------------------------------------------------------------
 */
 
@@ -145,15 +174,22 @@ export const markNotificationAsRead =
   ): Promise<Notification> => {
     const response =
       await axios.put<NotificationResponse>(
-        `${API_URL}/notifications/${notificationId}/read`,
+        `${API_URL}/${notificationId}/read`,
       );
+
+    if (!response.data.success) {
+      throw new Error(
+        response.data.message ||
+          "Unable to mark notification as read.",
+      );
+    }
 
     return response.data.data;
   };
 
 /*
 |--------------------------------------------------------------------------
-| Mark All Notifications As Read
+| MARK ALL AS READ
 |--------------------------------------------------------------------------
 */
 
@@ -161,15 +197,22 @@ export const markAllNotificationsAsRead =
   async (): Promise<number> => {
     const response =
       await axios.put<ReadAllResponse>(
-        `${API_URL}/notifications/read-all`,
+        `${API_URL}/read-all`,
       );
+
+    if (!response.data.success) {
+      throw new Error(
+        response.data.message ||
+          "Unable to mark notifications as read.",
+      );
+    }
 
     return response.data.data.updatedCount;
   };
 
 /*
 |--------------------------------------------------------------------------
-| Delete Notification
+| DELETE NOTIFICATION
 |--------------------------------------------------------------------------
 */
 
@@ -177,7 +220,18 @@ export const deleteNotification =
   async (
     notificationId: number | string,
   ): Promise<void> => {
-    await axios.delete(
-      `${API_URL}/notifications/${notificationId}`,
-    );
+    const response =
+      await axios.delete<{
+        success: boolean;
+        message?: string;
+      }>(
+        `${API_URL}/${notificationId}`,
+      );
+
+    if (!response.data.success) {
+      throw new Error(
+        response.data.message ||
+          "Unable to delete notification.",
+      );
+    }
   };

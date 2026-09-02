@@ -23,16 +23,38 @@ router.get("/:id", async (req, res) => {
           e.first_name,
           e.last_name,
           e.email,
+          e.designation,
           e.department_id,
           d.name AS department_name,
           e.joining_date,
           e.employment_status,
           e.employment_type,
-          e.created_at
+          e.created_at,
+
+          COALESCE(
+            (
+              SELECT STRING_AGG(
+                r.name,
+                ', '
+                ORDER BY r.name
+              )
+              FROM users u
+              INNER JOIN user_roles ur
+                ON ur.user_id = u.id
+              INNER JOIN roles r
+                ON r.id = ur.role_id
+              WHERE u.employee_id = e.id
+            ),
+            'Not Assigned'
+          ) AS system_role
+
         FROM employees e
+
         LEFT JOIN departments d
           ON d.id = e.department_id
+
         WHERE e.id = $1
+
         LIMIT 1;
       `,
       [id],
@@ -47,26 +69,56 @@ router.get("/:id", async (req, res) => {
 
     const employee = result.rows[0];
 
-    res.json({
+    return res.json({
       success: true,
+
       data: {
         id: Number(employee.id),
-        employeeCode: employee.employee_code,
-        firstName: employee.first_name,
-        lastName: employee.last_name,
-        fullName: `${employee.first_name} ${
-          employee.last_name ?? ""
-        }`.trim(),
-        email: employee.email,
-        departmentId: employee.department_id
-          ? Number(employee.department_id)
-          : null,
+
+        employeeCode:
+          employee.employee_code,
+
+        firstName:
+          employee.first_name,
+
+        lastName:
+          employee.last_name,
+
+        fullName:
+          `${employee.first_name} ${
+            employee.last_name ?? ""
+          }`.trim(),
+
+        email:
+          employee.email,
+
+        designation:
+          employee.designation ?? "",
+
+        departmentId:
+          employee.department_id
+            ? Number(employee.department_id)
+            : null,
+
         department:
-          employee.department_name ?? "Unassigned",
-        joiningDate: employee.joining_date,
-        status: employee.employment_status,
-        employmentType: employee.employment_type,
-        createdAt: employee.created_at,
+          employee.department_name ??
+          "Unassigned",
+
+        systemRole:
+          employee.system_role ??
+          "Not Assigned",
+
+        joiningDate:
+          employee.joining_date,
+
+        status:
+          employee.employment_status,
+
+        employmentType:
+          employee.employment_type,
+
+        createdAt:
+          employee.created_at,
       },
     });
   } catch (error) {
@@ -75,9 +127,10 @@ router.get("/:id", async (req, res) => {
       error,
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to load employee profile",
+      message:
+        "Failed to load employee profile",
     });
   }
 });
@@ -108,7 +161,9 @@ router.get("/", async (req, res) => {
     */
 
     if (search.trim()) {
-      values.push(`%${search.trim()}%`);
+      values.push(
+        `%${search.trim()}%`,
+      );
 
       conditions.push(`
         (
@@ -121,6 +176,11 @@ router.get("/", async (req, res) => {
           OR e.employee_code ILIKE $${values.length}
 
           OR e.email ILIKE $${values.length}
+
+          OR COALESCE(
+            e.designation,
+            ''
+          ) ILIKE $${values.length}
         )
       `);
     }
@@ -132,7 +192,9 @@ router.get("/", async (req, res) => {
     */
 
     if (departmentId) {
-      values.push(Number(departmentId));
+      values.push(
+        Number(departmentId),
+      );
 
       conditions.push(
         `e.department_id = $${values.length}`,
@@ -146,7 +208,9 @@ router.get("/", async (req, res) => {
     */
 
     if (status) {
-      values.push(status.toUpperCase());
+      values.push(
+        status.toUpperCase(),
+      );
 
       conditions.push(
         `e.employment_status = $${values.length}`,
@@ -161,7 +225,9 @@ router.get("/", async (req, res) => {
 
     const whereClause =
       conditions.length > 0
-        ? `WHERE ${conditions.join(" AND ")}`
+        ? `WHERE ${conditions.join(
+            " AND ",
+          )}`
         : "";
 
     /*
@@ -177,12 +243,30 @@ router.get("/", async (req, res) => {
         e.first_name,
         e.last_name,
         e.email,
+        e.designation,
         e.department_id,
         d.name AS department_name,
         e.joining_date,
         e.employment_status,
         e.employment_type,
-        e.created_at
+        e.created_at,
+
+        COALESCE(
+          (
+            SELECT STRING_AGG(
+              r.name,
+              ', '
+              ORDER BY r.name
+            )
+            FROM users u
+            INNER JOIN user_roles ur
+              ON ur.user_id = u.id
+            INNER JOIN roles r
+              ON r.id = ur.role_id
+            WHERE u.employee_id = e.id
+          ),
+          'Not Assigned'
+        ) AS system_role
 
       FROM employees e
 
@@ -194,10 +278,11 @@ router.get("/", async (req, res) => {
       ORDER BY e.id ASC;
     `;
 
-    const employeeResult = await pool.query(
-      employeeQuery,
-      values,
-    );
+    const employeeResult =
+      await pool.query(
+        employeeQuery,
+        values,
+      );
 
     /*
     |--------------------------------------------------------------------------
@@ -205,14 +290,15 @@ router.get("/", async (req, res) => {
     |--------------------------------------------------------------------------
     */
 
-    const departmentResult = await pool.query(`
-      SELECT
-        id,
-        name,
-        code
-      FROM departments
-      ORDER BY name ASC;
-    `);
+    const departmentResult =
+      await pool.query(`
+        SELECT
+          id,
+          name,
+          code
+        FROM departments
+        ORDER BY name ASC;
+      `);
 
     /*
     |--------------------------------------------------------------------------
@@ -220,54 +306,66 @@ router.get("/", async (req, res) => {
     |--------------------------------------------------------------------------
     */
 
-    res.json({
+    return res.json({
       success: true,
+
       data: {
-        employees: employeeResult.rows.map(
-          (employee) => ({
-            id: Number(employee.id),
+        employees:
+          employeeResult.rows.map(
+            (employee) => ({
+              id: Number(
+                employee.id,
+              ),
 
-            employeeCode:
-              employee.employee_code,
+              employeeCode:
+                employee.employee_code,
 
-            firstName:
-              employee.first_name,
+              firstName:
+                employee.first_name,
 
-            lastName:
-              employee.last_name,
+              lastName:
+                employee.last_name,
 
-            fullName:
-              `${employee.first_name} ${
-                employee.last_name ?? ""
-              }`.trim(),
+              fullName:
+                `${employee.first_name} ${
+                  employee.last_name ?? ""
+                }`.trim(),
 
-            email:
-              employee.email,
+              email:
+                employee.email,
 
-            departmentId:
-              employee.department_id
-                ? Number(
-                    employee.department_id,
-                  )
-                : null,
+              designation:
+                employee.designation ??
+                "",
 
-            department:
-              employee.department_name ??
-              "Unassigned",
+              departmentId:
+                employee.department_id
+                  ? Number(
+                      employee.department_id,
+                    )
+                  : null,
 
-            joiningDate:
-              employee.joining_date,
+              department:
+                employee.department_name ??
+                "Unassigned",
 
-            status:
-              employee.employment_status,
+              systemRole:
+                employee.system_role ??
+                "Not Assigned",
 
-            employmentType:
-              employee.employment_type,
+              joiningDate:
+                employee.joining_date,
 
-            createdAt:
-              employee.created_at,
-          }),
-        ),
+              status:
+                employee.employment_status,
+
+              employmentType:
+                employee.employment_type,
+
+              createdAt:
+                employee.created_at,
+            }),
+          ),
 
         total:
           employeeResult.rows.length,
@@ -294,7 +392,7 @@ router.get("/", async (req, res) => {
       error,
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message:
         "Failed to load employee directory",
@@ -317,6 +415,7 @@ router.post("/", async (req, res) => {
       firstName,
       lastName,
       email,
+      designation,
       departmentId,
       joiningDate,
       employmentStatus,
@@ -333,6 +432,7 @@ router.post("/", async (req, res) => {
       !employeeCode ||
       !firstName ||
       !email ||
+      !designation ||
       !departmentId ||
       !joiningDate ||
       !employmentStatus ||
@@ -352,53 +452,59 @@ router.post("/", async (req, res) => {
     */
 
     try {
-      const result = await pool.query(
-        `
-          INSERT INTO employees (
-            employee_code,
-            first_name,
-            last_name,
-            email,
-            department_id,
-            joining_date,
-            employment_status,
-            employment_type
-          )
-          VALUES (
-            $1,
-            $2,
-            $3,
-            $4,
-            $5,
-            $6,
-            $7,
-            $8
-          )
-          RETURNING
-            id,
-            employee_code,
-            first_name,
-            last_name,
-            email,
-            department_id,
-            joining_date,
-            employment_status,
-            employment_type,
-            created_at;
-        `,
-        [
-          employeeCode.trim(),
-          firstName.trim(),
-          lastName?.trim() || null,
-          email.trim(),
-          Number(departmentId),
-          joiningDate,
-          employmentStatus,
-          employmentType,
-        ],
-      );
+      const result =
+        await pool.query(
+          `
+            INSERT INTO employees (
+              employee_code,
+              first_name,
+              last_name,
+              email,
+              designation,
+              department_id,
+              joining_date,
+              employment_status,
+              employment_type
+            )
+            VALUES (
+              $1,
+              $2,
+              $3,
+              $4,
+              $5,
+              $6,
+              $7,
+              $8,
+              $9
+            )
+            RETURNING
+              id,
+              employee_code,
+              first_name,
+              last_name,
+              email,
+              designation,
+              department_id,
+              joining_date,
+              employment_status,
+              employment_type,
+              created_at;
+          `,
+          [
+            employeeCode.trim(),
+            firstName.trim(),
+            lastName?.trim() || null,
+            email.trim(),
+            designation.trim(),
+            Number(departmentId),
+            joiningDate,
+            employmentStatus,
+            employmentType,
+          ],
+        );
 
-      const employee = result.rows[0];
+      const employee =
+        result.rows[0];
 
       /*
       |--------------------------------------------------------------------------
@@ -423,8 +529,9 @@ router.post("/", async (req, res) => {
       |--------------------------------------------------------------------------
       */
 
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
+
         message:
           "Employee created successfully",
 
@@ -450,6 +557,10 @@ router.post("/", async (req, res) => {
           email:
             employee.email,
 
+          designation:
+            employee.designation ??
+            "",
+
           departmentId:
             employee.department_id
               ? Number(
@@ -461,6 +572,9 @@ router.post("/", async (req, res) => {
             departmentResult.rows[0]
               ?.name ??
             "Unassigned",
+
+          systemRole:
+            "Not Assigned",
 
           joiningDate:
             employee.joining_date,
@@ -522,7 +636,7 @@ router.post("/", async (req, res) => {
       error,
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message:
         "Failed to create employee",
@@ -547,6 +661,7 @@ router.put("/:id", async (req, res) => {
       firstName,
       lastName,
       email,
+      designation,
       departmentId,
       joiningDate,
       employmentStatus,
@@ -583,6 +698,28 @@ router.put("/:id", async (req, res) => {
 
     /*
     |--------------------------------------------------------------------------
+    | Validate required fields
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+      !employeeCode ||
+      !firstName ||
+      !email ||
+      !designation ||
+      !joiningDate ||
+      !employmentStatus ||
+      !employmentType
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Required employee fields are missing.",
+      });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
     | Update employee
     |--------------------------------------------------------------------------
     */
@@ -596,18 +733,22 @@ router.put("/:id", async (req, res) => {
             first_name = $2,
             last_name = $3,
             email = $4,
-            department_id = $5,
-            joining_date = $6,
-            employment_status = $7,
-            employment_type = $8
-          WHERE id = $9;
+            designation = $5,
+            department_id = $6,
+            joining_date = $7,
+            employment_status = $8,
+            employment_type = $9
+          WHERE id = $10;
         `,
         [
-          employeeCode,
-          firstName,
-          lastName || null,
-          email,
-          departmentId || null,
+          employeeCode.trim(),
+          firstName.trim(),
+          lastName?.trim() || null,
+          email.trim(),
+          designation.trim(),
+          departmentId
+            ? Number(departmentId)
+            : null,
           joiningDate,
           employmentStatus,
           employmentType,
@@ -671,16 +812,38 @@ router.put("/:id", async (req, res) => {
             e.first_name,
             e.last_name,
             e.email,
+            e.designation,
             e.department_id,
             d.name AS department_name,
             e.joining_date,
             e.employment_status,
             e.employment_type,
-            e.created_at
+            e.created_at,
+
+            COALESCE(
+              (
+                SELECT STRING_AGG(
+                  r.name,
+                  ', '
+                  ORDER BY r.name
+                )
+                FROM users u
+                INNER JOIN user_roles ur
+                  ON ur.user_id = u.id
+                INNER JOIN roles r
+                  ON r.id = ur.role_id
+                WHERE u.employee_id = e.id
+              ),
+              'Not Assigned'
+            ) AS system_role
+
           FROM employees e
+
           LEFT JOIN departments d
             ON d.id = e.department_id
+
           WHERE e.id = $1
+
           LIMIT 1;
         `,
         [id],
@@ -695,7 +858,7 @@ router.put("/:id", async (req, res) => {
     |--------------------------------------------------------------------------
     */
 
-    res.json({
+    return res.json({
       success: true,
 
       data: {
@@ -720,6 +883,10 @@ router.put("/:id", async (req, res) => {
         email:
           employee.email,
 
+        designation:
+          employee.designation ??
+          "",
+
         departmentId:
           employee.department_id
             ? Number(
@@ -730,6 +897,10 @@ router.put("/:id", async (req, res) => {
         department:
           employee.department_name ??
           "Unassigned",
+
+        systemRole:
+          employee.system_role ??
+          "Not Assigned",
 
         joiningDate:
           employee.joining_date,
@@ -750,10 +921,123 @@ router.put("/:id", async (req, res) => {
       error,
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message:
         "Failed to update employee",
+    });
+  }
+});
+
+/*
+|--------------------------------------------------------------------------
+| DELETE /api/employees/:id
+|--------------------------------------------------------------------------
+| Permanently delete an employee
+|--------------------------------------------------------------------------
+*/
+
+router.delete("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Confirm employee exists
+    |--------------------------------------------------------------------------
+    */
+
+    const existingResult =
+      await pool.query(
+        `
+          SELECT
+            id,
+            first_name,
+            last_name
+          FROM employees
+          WHERE id = $1
+          LIMIT 1;
+        `,
+        [id],
+      );
+
+    if (
+      existingResult.rows.length ===
+      0
+    ) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Employee not found",
+      });
+    }
+
+    const employee =
+      existingResult.rows[0];
+
+    /*
+    |--------------------------------------------------------------------------
+    | Permanent deletion
+    |--------------------------------------------------------------------------
+    */
+
+    try {
+      await pool.query(
+        `
+          DELETE FROM employees
+          WHERE id = $1;
+        `,
+        [id],
+      );
+    } catch (deleteError) {
+      /*
+      |--------------------------------------------------------------------------
+      | Foreign-key dependency
+      |--------------------------------------------------------------------------
+      */
+
+      if (
+        deleteError.code ===
+        "23503"
+      ) {
+        return res.status(409).json({
+          success: false,
+          message:
+            "This employee cannot be permanently deleted because related HR records exist. Deactivate the employee instead.",
+        });
+      }
+
+      throw deleteError;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Success response
+    |--------------------------------------------------------------------------
+    */
+
+    const employeeName =
+      `${employee.first_name} ${
+        employee.last_name ?? ""
+      }`.trim();
+
+    return res.status(200).json({
+      success: true,
+      message:
+        employeeName
+          ? `${employeeName} was permanently deleted successfully.`
+          : "Employee was permanently deleted successfully.",
+    });
+  } catch (error) {
+    console.error(
+      "Employee deletion error:",
+      error,
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to delete employee",
     });
   }
 });

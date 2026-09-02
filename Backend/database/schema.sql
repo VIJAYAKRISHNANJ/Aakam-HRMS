@@ -743,3 +743,338 @@ CREATE INDEX IF NOT EXISTS idx_training_enrollments_status
 
 CREATE INDEX IF NOT EXISTS idx_employee_skills_employee_id
     ON employee_skills(employee_id);
+
+
+-- ============================================
+-- MODULE 6 - EXIT MANAGEMENT
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS exit_records (
+    id SERIAL PRIMARY KEY,
+
+    employee_id INTEGER NOT NULL
+        REFERENCES employees(id),
+
+    resignation_date DATE NOT NULL,
+
+    exit_reason VARCHAR(100) NOT NULL,
+
+    notice_period INTEGER NOT NULL
+        CHECK (notice_period >= 0),
+
+    last_working_date DATE NOT NULL,
+
+    approval_status VARCHAR(30) NOT NULL DEFAULT 'PENDING'
+        CHECK (approval_status IN ('PENDING', 'APPROVED', 'REJECTED')),
+
+    exit_status VARCHAR(40) NOT NULL DEFAULT 'RESIGNATION_SUBMITTED'
+        CHECK (exit_status IN (
+            'RESIGNATION_SUBMITTED',
+            'PENDING_APPROVAL',
+            'APPROVED',
+            'NOTICE_PERIOD',
+            'CLEARANCE',
+            'SETTLEMENT',
+            'DOCUMENTS',
+            'COMPLETED',
+            'CANCELLED'
+        )),
+
+    remarks TEXT,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CHECK (last_working_date >= resignation_date)
+);
+
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_exit_records_active_employee
+    ON exit_records(employee_id)
+    WHERE exit_status NOT IN ('COMPLETED', 'CANCELLED');
+
+CREATE INDEX IF NOT EXISTS idx_exit_records_status
+    ON exit_records(exit_status);
+
+CREATE INDEX IF NOT EXISTS idx_exit_records_approval_status
+    ON exit_records(approval_status);
+
+CREATE INDEX IF NOT EXISTS idx_exit_records_employee_id
+    ON exit_records(employee_id);
+
+
+-- ============================================
+-- MODULE 7 - AUTHENTICATION & SECURITY
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+
+    username VARCHAR(50) NOT NULL UNIQUE,
+
+    email VARCHAR(150) NOT NULL UNIQUE,
+
+    password_hash VARCHAR(255) NOT NULL,
+
+    first_name VARCHAR(100) NOT NULL,
+
+    last_name VARCHAR(100),
+
+    employee_id INTEGER UNIQUE
+        REFERENCES employees(id)
+        ON DELETE SET NULL,
+
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+
+    failed_login_attempts INTEGER NOT NULL DEFAULT 0
+        CHECK (failed_login_attempts >= 0),
+
+    locked_until TIMESTAMP,
+
+    last_login_at TIMESTAMP,
+
+    password_changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    password_reset_token_hash VARCHAR(255),
+
+    password_reset_expires_at TIMESTAMP,
+
+    password_expires_at TIMESTAMP,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+CREATE TABLE IF NOT EXISTS roles (
+    id SERIAL PRIMARY KEY,
+
+    name VARCHAR(100) NOT NULL UNIQUE,
+
+    description TEXT,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+CREATE TABLE IF NOT EXISTS permissions (
+    id SERIAL PRIMARY KEY,
+
+    name VARCHAR(150) NOT NULL UNIQUE,
+
+    description TEXT,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+CREATE TABLE IF NOT EXISTS user_roles (
+    user_id INTEGER NOT NULL
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    role_id INTEGER NOT NULL
+        REFERENCES roles(id)
+        ON DELETE CASCADE,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (user_id, role_id)
+);
+
+
+CREATE TABLE IF NOT EXISTS role_permissions (
+    role_id INTEGER NOT NULL
+        REFERENCES roles(id)
+        ON DELETE CASCADE,
+
+    permission_id INTEGER NOT NULL
+        REFERENCES permissions(id)
+        ON DELETE CASCADE,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (role_id, permission_id)
+);
+
+
+CREATE TABLE IF NOT EXISTS login_history (
+    id SERIAL PRIMARY KEY,
+
+    user_id INTEGER
+        REFERENCES users(id)
+        ON DELETE SET NULL,
+
+    login_status VARCHAR(30) NOT NULL
+        CHECK (login_status IN ('SUCCESS', 'FAILED', 'LOCKED_OUT', 'LOGOUT', 'TOKEN_REJECTED')),
+
+    ip_address INET,
+
+    user_agent TEXT,
+
+    attempted_identifier VARCHAR(150),
+
+    failure_reason VARCHAR(255),
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id SERIAL PRIMARY KEY,
+
+    user_id INTEGER
+        REFERENCES users(id)
+        ON DELETE SET NULL,
+
+    action VARCHAR(100) NOT NULL,
+
+    entity_type VARCHAR(100) NOT NULL,
+
+    entity_id INTEGER,
+
+    details JSONB,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+CREATE INDEX IF NOT EXISTS idx_users_employee_id
+    ON users(employee_id);
+
+CREATE INDEX IF NOT EXISTS idx_users_email
+    ON users(email);
+
+CREATE INDEX IF NOT EXISTS idx_users_username
+    ON users(username);
+
+CREATE INDEX IF NOT EXISTS idx_users_is_active
+    ON users(is_active);
+
+CREATE INDEX IF NOT EXISTS idx_users_locked_until
+    ON users(locked_until);
+
+CREATE INDEX IF NOT EXISTS idx_user_roles_role_id
+    ON user_roles(role_id);
+
+CREATE INDEX IF NOT EXISTS idx_role_permissions_permission_id
+    ON role_permissions(permission_id);
+
+CREATE INDEX IF NOT EXISTS idx_login_history_user_id
+    ON login_history(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_login_history_status
+    ON login_history(login_status);
+
+CREATE INDEX IF NOT EXISTS idx_login_history_created_at
+    ON login_history(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id
+    ON audit_logs(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity
+    ON audit_logs(entity_type, entity_id);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at
+    ON audit_logs(created_at DESC);
+
+
+CREATE TABLE IF NOT EXISTS exit_checklist_items (
+    id SERIAL PRIMARY KEY,
+
+    exit_id INTEGER NOT NULL
+        REFERENCES exit_records(id) ON DELETE CASCADE,
+
+    item_type VARCHAR(50) NOT NULL
+        CHECK (item_type IN (
+            'KNOWLEDGE_TRANSFER',
+            'ASSET_CLEARANCE',
+            'ATTENDANCE_CLEARANCE',
+            'LEAVE_CLEARANCE',
+            'PAYROLL_CLEARANCE',
+            'FULL_AND_FINAL_SETTLEMENT',
+            'EXPERIENCE_LETTER',
+            'RELIEVING_LETTER'
+        )),
+
+    status VARCHAR(30) NOT NULL DEFAULT 'PENDING'
+        CHECK (status IN ('PENDING', 'IN_PROGRESS', 'COMPLETED', 'NOT_APPLICABLE')),
+
+    owner VARCHAR(150),
+
+    completed_date DATE,
+
+    remarks TEXT,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE(exit_id, item_type)
+);
+
+
+CREATE INDEX IF NOT EXISTS idx_exit_checklist_exit_id
+    ON exit_checklist_items(exit_id);
+
+
+CREATE TABLE IF NOT EXISTS exit_settlements (
+    id SERIAL PRIMARY KEY,
+
+    exit_id INTEGER NOT NULL UNIQUE
+        REFERENCES exit_records(id) ON DELETE CASCADE,
+
+    status VARCHAR(30) NOT NULL DEFAULT 'PENDING'
+        CHECK (status IN ('PENDING', 'PROCESSING', 'COMPLETED')),
+
+    settlement_date DATE,
+
+    payable_amount NUMERIC(12,2) NOT NULL DEFAULT 0
+        CHECK (payable_amount >= 0),
+
+    deductions NUMERIC(12,2) NOT NULL DEFAULT 0
+        CHECK (deductions >= 0),
+
+    net_settlement NUMERIC(12,2) NOT NULL DEFAULT 0
+        CHECK (net_settlement >= 0),
+
+    remarks TEXT,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CHECK (net_settlement <= payable_amount)
+);
+
+
+CREATE TABLE IF NOT EXISTS exit_documents (
+    id SERIAL PRIMARY KEY,
+
+    exit_id INTEGER NOT NULL
+        REFERENCES exit_records(id) ON DELETE CASCADE,
+
+    document_type VARCHAR(30) NOT NULL
+        CHECK (document_type IN ('EXPERIENCE_LETTER', 'RELIEVING_LETTER')),
+
+    status VARCHAR(30) NOT NULL DEFAULT 'PENDING'
+        CHECK (status IN ('PENDING', 'ISSUED')),
+
+    document_date DATE,
+
+    reference VARCHAR(150),
+
+    remarks TEXT,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE(exit_id, document_type)
+);
+
+
+CREATE INDEX IF NOT EXISTS idx_exit_documents_exit_id
+    ON exit_documents(exit_id);
