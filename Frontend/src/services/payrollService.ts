@@ -30,6 +30,7 @@ interface ApiResponse<T> {
 }
 
 const API_URL =
+  import.meta.env.VITE_API_BASE_URL ||
   "http://localhost:5000/api/payroll";
 
 const request = async <T>(
@@ -50,7 +51,10 @@ const request = async <T>(
     return response.data.data;
   } catch (error) {
     throw new Error(
-      getPayrollErrorMessage(error, fallback),
+      getPayrollErrorMessage(
+        error,
+        fallback,
+      ),
       {
         cause: error,
       },

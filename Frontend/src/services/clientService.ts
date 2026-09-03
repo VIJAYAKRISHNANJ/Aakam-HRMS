@@ -31,7 +31,8 @@ export interface CreateClientPayload {
   status: ClientStatus;
 }
 
-export type UpdateClientPayload = CreateClientPayload;
+export type UpdateClientPayload =
+  CreateClientPayload;
 
 interface ApiResponse<T> {
   success: boolean;
@@ -40,13 +41,23 @@ interface ApiResponse<T> {
   total?: number;
 }
 
-const API_URL = "http://localhost:5000/api/clients";
+const API_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://localhost:5000/api";
 
-export const getClients = async (): Promise<Client[]> => {
-  const response = await axios.get<ApiResponse<Client[]>>(API_URL);
+export const getClients = async (): Promise<
+  Client[]
+> => {
+  const response =
+    await axios.get<
+      ApiResponse<Client[]>
+    >(`${API_URL}/clients`);
 
   if (!response.data.success) {
-    throw new Error(response.data.message || "Unable to load clients.");
+    throw new Error(
+      response.data.message ||
+        "Unable to load clients.",
+    );
   }
 
   return response.data.data;
@@ -55,12 +66,16 @@ export const getClients = async (): Promise<Client[]> => {
 export const getClient = async (
   id: number | string,
 ): Promise<Client> => {
-  const response = await axios.get<ApiResponse<Client>>(
-    `${API_URL}/${id}`,
-  );
+  const response =
+    await axios.get<ApiResponse<Client>>(
+      `${API_URL}/clients/${id}`,
+    );
 
   if (!response.data.success) {
-    throw new Error(response.data.message || "Unable to load client.");
+    throw new Error(
+      response.data.message ||
+        "Unable to load client.",
+    );
   }
 
   return response.data.data;
@@ -69,13 +84,17 @@ export const getClient = async (
 export const createClient = async (
   payload: CreateClientPayload,
 ): Promise<Client> => {
-  const response = await axios.post<ApiResponse<Client>>(
-    API_URL,
-    payload,
-  );
+  const response =
+    await axios.post<ApiResponse<Client>>(
+      `${API_URL}/clients`,
+      payload,
+    );
 
   if (!response.data.success) {
-    throw new Error(response.data.message || "Unable to create client.");
+    throw new Error(
+      response.data.message ||
+        "Unable to create client.",
+    );
   }
 
   return response.data.data;
@@ -85,13 +104,17 @@ export const updateClient = async (
   id: number | string,
   payload: UpdateClientPayload,
 ): Promise<Client> => {
-  const response = await axios.put<ApiResponse<Client>>(
-    `${API_URL}/${id}`,
-    payload,
-  );
+  const response =
+    await axios.put<ApiResponse<Client>>(
+      `${API_URL}/clients/${id}`,
+      payload,
+    );
 
   if (!response.data.success) {
-    throw new Error(response.data.message || "Unable to update client.");
+    throw new Error(
+      response.data.message ||
+        "Unable to update client.",
+    );
   }
 
   return response.data.data;
@@ -100,12 +123,16 @@ export const updateClient = async (
 export const deleteClient = async (
   id: number | string,
 ): Promise<void> => {
-  const response = await axios.delete<ApiResponse<null>>(
-    `${API_URL}/${id}`,
-  );
+  const response =
+    await axios.delete<ApiResponse<null>>(
+      `${API_URL}/clients/${id}`,
+    );
 
   if (!response.data.success) {
-    throw new Error(response.data.message || "Unable to delete client.");
+    throw new Error(
+      response.data.message ||
+        "Unable to delete client.",
+    );
   }
 };
 
@@ -114,9 +141,13 @@ export const getClientErrorMessage = (
   fallback: string,
 ): string => {
   if (axios.isAxiosError(error)) {
-    const message = error.response?.data?.message;
+    const message =
+      error.response?.data?.message;
 
-    if (typeof message === "string" && message.trim()) {
+    if (
+      typeof message === "string" &&
+      message.trim()
+    ) {
       return message;
     }
 
@@ -129,7 +160,10 @@ export const getClientErrorMessage = (
     }
   }
 
-  if (error instanceof Error && error.message.trim()) {
+  if (
+    error instanceof Error &&
+    error.message.trim()
+  ) {
     return error.message;
   }
 

@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:5000/api";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
 
 export interface AuthUser {
   id: number;
@@ -9,25 +10,18 @@ export interface AuthUser {
   firstName: string;
   lastName: string | null;
   fullName: string;
-
   employeeId: number | null;
   employeeCode: string | null;
   employeeStatus: string | null;
-
   designation: string | null;
-
   departmentId: number | null;
   department: string | null;
-
   isActive: boolean;
-
   failedLoginAttempts: number;
   lockedUntil: string | null;
   lastLoginAt: string | null;
-
   passwordChangedAt: string | null;
   passwordExpiresAt: string | null;
-
   createdAt: string;
   updatedAt: string;
 }
@@ -109,10 +103,7 @@ export const logout = async (): Promise<void> => {
         },
       );
     } catch (error) {
-      console.error(
-        "Logout API request failed:",
-        error,
-      );
+      console.error("Logout API request failed:", error);
     }
   }
 
@@ -151,83 +142,56 @@ export const saveAuthData = (
 };
 
 export const clearAuthStorage = (): void => {
-  localStorage.removeItem(
-    AUTH_TOKEN_KEY,
-  );
-
-  localStorage.removeItem(
-    AUTH_USER_KEY,
-  );
-
-  localStorage.removeItem(
-    AUTH_ROLES_KEY,
-  );
-
-  localStorage.removeItem(
-    AUTH_PERMISSIONS_KEY,
-  );
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+  localStorage.removeItem(AUTH_USER_KEY);
+  localStorage.removeItem(AUTH_ROLES_KEY);
+  localStorage.removeItem(AUTH_PERMISSIONS_KEY);
 };
 
 export const getStoredToken = (): string | null => {
-  return localStorage.getItem(
-    AUTH_TOKEN_KEY,
-  );
+  return localStorage.getItem(AUTH_TOKEN_KEY);
 };
 
 export const getStoredUser = (): AuthUser | null => {
-  const storedUser =
-    localStorage.getItem(
-      AUTH_USER_KEY,
-    );
+  const storedUser = localStorage.getItem(AUTH_USER_KEY);
 
   if (!storedUser) {
     return null;
   }
 
   try {
-    return JSON.parse(
-      storedUser,
-    ) as AuthUser;
+    return JSON.parse(storedUser) as AuthUser;
   } catch {
     clearAuthStorage();
-
     return null;
   }
 };
 
 export const getStoredRoles = (): string[] => {
-  const storedRoles =
-    localStorage.getItem(
-      AUTH_ROLES_KEY,
-    );
+  const storedRoles = localStorage.getItem(AUTH_ROLES_KEY);
 
   if (!storedRoles) {
     return [];
   }
 
   try {
-    return JSON.parse(
-      storedRoles,
-    ) as string[];
+    return JSON.parse(storedRoles) as string[];
   } catch {
     return [];
   }
 };
 
 export const getStoredPermissions = (): string[] => {
-  const storedPermissions =
-    localStorage.getItem(
-      AUTH_PERMISSIONS_KEY,
-    );
+  const storedPermissions = localStorage.getItem(
+    AUTH_PERMISSIONS_KEY,
+  );
 
   if (!storedPermissions) {
     return [];
   }
 
   try {
-    return JSON.parse(
-      storedPermissions,
-    ) as string[];
+    return JSON.parse(storedPermissions) as string[];
   } catch {
     return [];
   }

@@ -1,6 +1,14 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:5000/api/training";
+const API_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://localhost:5000/api";
+
+/*
+|--------------------------------------------------------------------------
+| Training Modes
+|--------------------------------------------------------------------------
+*/
 
 export const trainingModes = [
   "ONLINE",
@@ -34,11 +42,26 @@ export const skillLevels = [
   "EXPERT",
 ] as const;
 
-export type TrainingMode = (typeof trainingModes)[number];
-export type TrainingStatus = (typeof trainingStatuses)[number];
-export type EnrollmentStatus = (typeof enrollmentStatuses)[number];
-export type AssessmentResult = (typeof assessmentResults)[number];
-export type SkillLevel = (typeof skillLevels)[number];
+export type TrainingMode =
+  (typeof trainingModes)[number];
+
+export type TrainingStatus =
+  (typeof trainingStatuses)[number];
+
+export type EnrollmentStatus =
+  (typeof enrollmentStatuses)[number];
+
+export type AssessmentResult =
+  (typeof assessmentResults)[number];
+
+export type SkillLevel =
+  (typeof skillLevels)[number];
+
+/*
+|--------------------------------------------------------------------------
+| Training Program
+|--------------------------------------------------------------------------
+*/
 
 export interface TrainingProgram {
   id: number;
@@ -55,6 +78,12 @@ export interface TrainingProgram {
   updatedAt: string;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Training Enrollment
+|--------------------------------------------------------------------------
+*/
+
 export interface TrainingEnrollment {
   id: number;
   trainingProgramId: number;
@@ -68,7 +97,10 @@ export interface TrainingEnrollment {
   attendedDate: string | null;
   completedDate: string | null;
   assessmentScore: number | null;
-  assessmentResult: AssessmentResult | string | null;
+  assessmentResult:
+    | AssessmentResult
+    | string
+    | null;
   certificateName: string | null;
   certificateUrl: string | null;
   certificateDate: string | null;
@@ -76,6 +108,12 @@ export interface TrainingEnrollment {
   createdAt: string;
   updatedAt: string;
 }
+
+/*
+|--------------------------------------------------------------------------
+| Employee Skill
+|--------------------------------------------------------------------------
+*/
 
 export interface EmployeeSkill {
   id: number;
@@ -91,16 +129,35 @@ export interface EmployeeSkill {
   updatedAt: string;
 }
 
-export interface TrainingProgramDetail extends TrainingProgram {
+/*
+|--------------------------------------------------------------------------
+| Training Program Detail
+|--------------------------------------------------------------------------
+*/
+
+export interface TrainingProgramDetail
+  extends TrainingProgram {
   enrollments: TrainingEnrollment[];
   skills: EmployeeSkill[];
 }
+
+/*
+|--------------------------------------------------------------------------
+| Filters
+|--------------------------------------------------------------------------
+*/
 
 export interface TrainingFilters {
   search?: string;
   category?: string;
   status?: string;
 }
+
+/*
+|--------------------------------------------------------------------------
+| Training Program Payloads
+|--------------------------------------------------------------------------
+*/
 
 export interface CreateTrainingProgramPayload {
   courseName: string;
@@ -126,6 +183,12 @@ export interface UpdateTrainingProgramPayload {
   status: TrainingStatus;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Training Enrollment Payloads
+|--------------------------------------------------------------------------
+*/
+
 export interface CreateTrainingEnrollmentPayload {
   employeeId: number;
   assignedDate: string | null;
@@ -145,6 +208,12 @@ export interface UpdateTrainingEnrollmentPayload {
   remarks: string | null;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Training Skill Payloads
+|--------------------------------------------------------------------------
+*/
+
 export interface CreateTrainingSkillPayload {
   employeeId: number;
   skillName: string;
@@ -162,6 +231,12 @@ export interface UpdateTrainingSkillPayload {
   remarks: string | null;
   trainingEnrollmentId?: number | null;
 }
+
+/*
+|--------------------------------------------------------------------------
+| API Responses
+|--------------------------------------------------------------------------
+*/
 
 interface TrainingListResponse {
   success: boolean;
@@ -188,18 +263,30 @@ interface TrainingSkillResponse {
 
 /* =========================================================
    TRAINING PROGRAMS
-   ========================================================= */
+========================================================= */
 
 export const getTrainingPrograms = async (
   filters: TrainingFilters = {},
 ): Promise<TrainingProgram[]> => {
-  const response = await axios.get<TrainingListResponse>(API_URL, {
-    params: {
-      search: filters.search || undefined,
-      category: filters.category || undefined,
-      status: filters.status || undefined,
-    },
-  });
+  const response =
+    await axios.get<TrainingListResponse>(
+      `${API_URL}/training`,
+      {
+        params: {
+          search:
+            filters.search ||
+            undefined,
+
+          category:
+            filters.category ||
+            undefined,
+
+          status:
+            filters.status ||
+            undefined,
+        },
+      },
+    );
 
   return response.data.data;
 };
@@ -207,9 +294,10 @@ export const getTrainingPrograms = async (
 export const getTrainingProgram = async (
   id: string | number,
 ): Promise<TrainingProgramDetail> => {
-  const response = await axios.get<TrainingProgramResponse>(
-    `${API_URL}/${id}`,
-  );
+  const response =
+    await axios.get<TrainingProgramResponse>(
+      `${API_URL}/training/${id}`,
+    );
 
   return response.data.data;
 };
@@ -217,10 +305,14 @@ export const getTrainingProgram = async (
 export const createTrainingProgram = async (
   payload: CreateTrainingProgramPayload,
 ): Promise<TrainingProgram> => {
-  const response = await axios.post<{
-    success: boolean;
-    data: TrainingProgram;
-  }>(API_URL, payload);
+  const response =
+    await axios.post<{
+      success: boolean;
+      data: TrainingProgram;
+    }>(
+      `${API_URL}/training`,
+      payload,
+    );
 
   return response.data.data;
 };
@@ -229,10 +321,14 @@ export const updateTrainingProgram = async (
   id: string | number,
   payload: UpdateTrainingProgramPayload,
 ): Promise<TrainingProgram> => {
-  const response = await axios.put<{
-    success: boolean;
-    data: TrainingProgram;
-  }>(`${API_URL}/${id}`, payload);
+  const response =
+    await axios.put<{
+      success: boolean;
+      data: TrainingProgram;
+    }>(
+      `${API_URL}/training/${id}`,
+      payload,
+    );
 
   return response.data.data;
 };
@@ -240,70 +336,82 @@ export const updateTrainingProgram = async (
 export const deleteTrainingProgram = async (
   id: string | number,
 ): Promise<void> => {
-  await axios.delete(`${API_URL}/${id}`);
+  await axios.delete(
+    `${API_URL}/training/${id}`,
+  );
 };
 
 /* =========================================================
    TRAINING ENROLLMENTS
-   ========================================================= */
+========================================================= */
 
 export const getTrainingEnrollments = async (
   programId: string | number,
 ): Promise<TrainingEnrollment[]> => {
-  const response = await axios.get<TrainingEnrollmentResponse>(
-    `${API_URL}/${programId}/enrollments`,
-  );
+  const response =
+    await axios.get<TrainingEnrollmentResponse>(
+      `${API_URL}/training/${programId}/enrollments`,
+    );
 
   return response.data.data;
 };
 
-export const createTrainingEnrollment = async (
-  programId: string | number,
-  payload: CreateTrainingEnrollmentPayload,
-): Promise<TrainingEnrollment> => {
-  const response = await axios.post<{
-    success: boolean;
-    data: TrainingEnrollment;
-  }>(`${API_URL}/${programId}/enrollments`, payload);
+export const createTrainingEnrollment =
+  async (
+    programId: string | number,
+    payload: CreateTrainingEnrollmentPayload,
+  ): Promise<TrainingEnrollment> => {
+    const response =
+      await axios.post<{
+        success: boolean;
+        data: TrainingEnrollment;
+      }>(
+        `${API_URL}/training/${programId}/enrollments`,
+        payload,
+      );
 
-  return response.data.data;
-};
+    return response.data.data;
+  };
 
-export const updateTrainingEnrollment = async (
-  programId: string | number,
-  enrollmentId: string | number,
-  payload: UpdateTrainingEnrollmentPayload,
-): Promise<TrainingEnrollment> => {
-  const response = await axios.put<{
-    success: boolean;
-    data: TrainingEnrollment;
-  }>(
-    `${API_URL}/${programId}/enrollments/${enrollmentId}`,
-    payload,
-  );
+export const updateTrainingEnrollment =
+  async (
+    programId: string | number,
+    enrollmentId: string | number,
+    payload: UpdateTrainingEnrollmentPayload,
+  ): Promise<TrainingEnrollment> => {
+    const response =
+      await axios.put<{
+        success: boolean;
+        data: TrainingEnrollment;
+      }>(
+        `${API_URL}/training/${programId}/enrollments/${enrollmentId}`,
+        payload,
+      );
 
-  return response.data.data;
-};
+    return response.data.data;
+  };
 
-export const deleteTrainingEnrollment = async (
-  programId: string | number,
-  enrollmentId: string | number,
-): Promise<void> => {
-  await axios.delete(
-    `${API_URL}/${programId}/enrollments/${enrollmentId}`,
-  );
-};
+export const deleteTrainingEnrollment =
+  async (
+    programId: string | number,
+    enrollmentId: string | number,
+  ): Promise<void> => {
+    await axios.delete(
+      `${API_URL}/training/${programId}/enrollments/${enrollmentId}`,
+    );
+  };
 
 /* =========================================================
    EMPLOYEE SKILLS
-   ========================================================= */
+========================================================= */
 
 export const getTrainingSkills = async (
   programId: string | number,
 ): Promise<EmployeeSkill[]> => {
-  const response = await axios.get<TrainingSkillResponse>(
-    `${API_URL}/${programId}/skills`,
-  );
+  const response =
+    await axios.get<TrainingSkillResponse>(
+      `${API_URL}/training/${programId}/skills`,
+    );
 
   return response.data.data;
 };
@@ -312,10 +420,14 @@ export const createTrainingSkill = async (
   programId: string | number,
   payload: CreateTrainingSkillPayload,
 ): Promise<EmployeeSkill> => {
-  const response = await axios.post<{
-    success: boolean;
-    data: EmployeeSkill;
-  }>(`${API_URL}/${programId}/skills`, payload);
+  const response =
+    await axios.post<{
+      success: boolean;
+      data: EmployeeSkill;
+    }>(
+      `${API_URL}/training/${programId}/skills`,
+      payload,
+    );
 
   return response.data.data;
 };
@@ -325,13 +437,14 @@ export const updateTrainingSkill = async (
   skillId: string | number,
   payload: UpdateTrainingSkillPayload,
 ): Promise<EmployeeSkill> => {
-  const response = await axios.put<{
-    success: boolean;
-    data: EmployeeSkill;
-  }>(
-    `${API_URL}/${programId}/skills/${skillId}`,
-    payload,
-  );
+  const response =
+    await axios.put<{
+      success: boolean;
+      data: EmployeeSkill;
+    }>(
+      `${API_URL}/training/${programId}/skills/${skillId}`,
+      payload,
+    );
 
   return response.data.data;
 };
@@ -341,22 +454,26 @@ export const deleteTrainingSkill = async (
   skillId: string | number,
 ): Promise<void> => {
   await axios.delete(
-    `${API_URL}/${programId}/skills/${skillId}`,
+    `${API_URL}/training/${programId}/skills/${skillId}`,
   );
 };
 
 /* =========================================================
    ERROR HANDLING
-   ========================================================= */
+========================================================= */
 
 export const getTrainingErrorMessage = (
   error: unknown,
   fallback: string,
 ): string => {
   if (axios.isAxiosError(error)) {
-    const message = error.response?.data?.message;
+    const message =
+      error.response?.data?.message;
 
-    if (typeof message === "string" && message.trim()) {
+    if (
+      typeof message === "string" &&
+      message.trim()
+    ) {
       return message;
     }
 
@@ -365,7 +482,10 @@ export const getTrainingErrorMessage = (
     }
   }
 
-  if (error instanceof Error && error.message) {
+  if (
+    error instanceof Error &&
+    error.message
+  ) {
     return error.message;
   }
 

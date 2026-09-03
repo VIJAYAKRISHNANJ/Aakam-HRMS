@@ -1,6 +1,14 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:5000/api/onboarding";
+const API_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://localhost:5000/api";
+
+/*
+|--------------------------------------------------------------------------
+| Onboarding Statuses
+|--------------------------------------------------------------------------
+*/
 
 export const onboardingStatuses = [
   "INITIATED",
@@ -14,7 +22,8 @@ export const onboardingStatuses = [
   "CANCELLED",
 ] as const;
 
-export type OnboardingStatus = (typeof onboardingStatuses)[number];
+export type OnboardingStatus =
+  (typeof onboardingStatuses)[number];
 
 export type TaskStatus =
   | "PENDING"
@@ -36,10 +45,22 @@ export type DocumentType =
   | "OFFER_DOCUMENTATION"
   | "OTHER";
 
+/*
+|--------------------------------------------------------------------------
+| Progress
+|--------------------------------------------------------------------------
+*/
+
 export interface Progress {
   total: number;
   completed: number;
 }
+
+/*
+|--------------------------------------------------------------------------
+| Onboarding Record
+|--------------------------------------------------------------------------
+*/
 
 export interface OnboardingRecord {
   id: number;
@@ -66,6 +87,12 @@ export interface OnboardingRecord {
   updatedAt: string;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Onboarding Task
+|--------------------------------------------------------------------------
+*/
+
 export interface OnboardingTask {
   id: number;
   onboardingId: number;
@@ -78,6 +105,12 @@ export interface OnboardingTask {
   createdAt: string;
   updatedAt: string;
 }
+
+/*
+|--------------------------------------------------------------------------
+| Onboarding Document
+|--------------------------------------------------------------------------
+*/
 
 export interface OnboardingDocument {
   id: number;
@@ -92,10 +125,23 @@ export interface OnboardingDocument {
   updatedAt: string;
 }
 
-export interface OnboardingDetail extends OnboardingRecord {
+/*
+|--------------------------------------------------------------------------
+| Onboarding Detail
+|--------------------------------------------------------------------------
+*/
+
+export interface OnboardingDetail
+  extends OnboardingRecord {
   tasks: OnboardingTask[];
   documents: OnboardingDocument[];
 }
+
+/*
+|--------------------------------------------------------------------------
+| Payloads
+|--------------------------------------------------------------------------
+*/
 
 export interface OnboardingPayload {
   onboardingCode?: string;
@@ -135,6 +181,12 @@ export interface EmployeePayload {
   joiningDate?: string;
 }
 
+/*
+|--------------------------------------------------------------------------
+| API Response
+|--------------------------------------------------------------------------
+*/
+
 interface ApiResponse<T> {
   success: boolean;
   data: T;
@@ -145,107 +197,167 @@ interface ApiResponse<T> {
    ONBOARDING
 ========================================================= */
 
+/*
+| GET /api/onboarding
+*/
+
 export const getOnboardings = async (
   filters: {
     search?: string;
     status?: string;
   } = {},
 ): Promise<OnboardingRecord[]> => {
-  const response = await axios.get<
-    ApiResponse<OnboardingRecord[]>
-  >(API_URL, {
-    params: {
-      search: filters.search || undefined,
-      status: filters.status || undefined,
-    },
-  });
+  const response =
+    await axios.get<
+      ApiResponse<OnboardingRecord[]>
+    >(API_URL + "/onboarding", {
+      params: {
+        search:
+          filters.search ||
+          undefined,
+
+        status:
+          filters.status ||
+          undefined,
+      },
+    });
 
   return response.data.data;
 };
+
+/*
+| GET /api/onboarding/:id
+*/
 
 export const getOnboarding = async (
   id: number | string,
 ): Promise<OnboardingDetail> => {
-  const response = await axios.get<
-    ApiResponse<OnboardingDetail>
-  >(`${API_URL}/${id}`);
+  const response =
+    await axios.get<
+      ApiResponse<OnboardingDetail>
+    >(`${API_URL}/onboarding/${id}`);
 
   return response.data.data;
 };
+
+/*
+| POST /api/onboarding
+*/
 
 export const createOnboarding = async (
   payload: OnboardingPayload,
 ): Promise<OnboardingRecord> => {
-  const response = await axios.post<
-    ApiResponse<OnboardingRecord>
-  >(API_URL, payload);
+  const response =
+    await axios.post<
+      ApiResponse<OnboardingRecord>
+    >(`${API_URL}/onboarding`, payload);
 
   return response.data.data;
 };
+
+/*
+| PUT /api/onboarding/:id
+*/
 
 export const updateOnboarding = async (
   id: number | string,
   payload: OnboardingPayload,
 ): Promise<OnboardingRecord> => {
-  const response = await axios.put<
-    ApiResponse<OnboardingRecord>
-  >(`${API_URL}/${id}`, payload);
+  const response =
+    await axios.put<
+      ApiResponse<OnboardingRecord>
+    >(
+      `${API_URL}/onboarding/${id}`,
+      payload,
+    );
 
   return response.data.data;
 };
 
+/*
+| DELETE /api/onboarding/:id
+*/
+
 export const deleteOnboarding = async (
   id: number | string,
 ): Promise<void> => {
-  await axios.delete(`${API_URL}/${id}`);
+  await axios.delete(
+    `${API_URL}/onboarding/${id}`,
+  );
 };
 
 /* =========================================================
    TASKS
 ========================================================= */
 
+/*
+| GET /api/onboarding/:id/tasks
+*/
+
 export const getOnboardingTasks = async (
   id: number | string,
 ): Promise<OnboardingTask[]> => {
-  const response = await axios.get<
-    ApiResponse<OnboardingTask[]>
-  >(`${API_URL}/${id}/tasks`);
+  const response =
+    await axios.get<
+      ApiResponse<OnboardingTask[]>
+    >(
+      `${API_URL}/onboarding/${id}/tasks`,
+    );
 
   return response.data.data;
 };
+
+/*
+| POST /api/onboarding/:id/tasks
+*/
 
 export const createOnboardingTask = async (
   id: number | string,
   payload: TaskPayload,
 ): Promise<OnboardingTask> => {
-  const response = await axios.post<
-    ApiResponse<OnboardingTask>
-  >(`${API_URL}/${id}/tasks`, payload);
+  const response =
+    await axios.post<
+      ApiResponse<OnboardingTask>
+    >(
+      `${API_URL}/onboarding/${id}/tasks`,
+      payload,
+    );
 
   return response.data.data;
 };
+
+/*
+| PUT /api/onboarding/:id/tasks/:taskId
+*/
 
 export const updateOnboardingTask = async (
   id: number | string,
   taskId: number,
   payload: TaskPayload,
 ): Promise<OnboardingTask> => {
-  const response = await axios.put<
-    ApiResponse<OnboardingTask>
-  >(`${API_URL}/${id}/tasks/${taskId}`, payload);
+  const response =
+    await axios.put<
+      ApiResponse<OnboardingTask>
+    >(
+      `${API_URL}/onboarding/${id}/tasks/${taskId}`,
+      payload,
+    );
 
   return response.data.data;
 };
 
-/**
- * Delete an onboarding checklist/task.
- */
+/*
+|--------------------------------------------------------------------------
+| Delete an onboarding checklist/task.
+|--------------------------------------------------------------------------
+*/
+
 export const deleteOnboardingTask = async (
   id: number | string,
   taskId: number,
 ): Promise<void> => {
   await axios.delete(
-    `${API_URL}/${id}/tasks/${taskId}`,
+    `${API_URL}/onboarding/${id}/tasks/${taskId}`,
   );
 };
 
@@ -253,91 +365,142 @@ export const deleteOnboardingTask = async (
    DOCUMENTS
 ========================================================= */
 
-export const getOnboardingDocuments = async (
-  id: number | string,
-): Promise<OnboardingDocument[]> => {
-  const response = await axios.get<
-    ApiResponse<OnboardingDocument[]>
-  >(`${API_URL}/${id}/documents`);
+/*
+| GET /api/onboarding/:id/documents
+*/
 
-  return response.data.data;
-};
+export const getOnboardingDocuments =
+  async (
+    id: number | string,
+  ): Promise<OnboardingDocument[]> => {
+    const response =
+      await axios.get<
+        ApiResponse<OnboardingDocument[]>
+      >(
+        `${API_URL}/onboarding/${id}/documents`,
+      );
 
-export const createOnboardingDocument = async (
-  id: number | string,
-  payload: DocumentPayload,
-): Promise<OnboardingDocument> => {
-  const response = await axios.post<
-    ApiResponse<OnboardingDocument>
-  >(`${API_URL}/${id}/documents`, payload);
+    return response.data.data;
+  };
 
-  return response.data.data;
-};
+/*
+| POST /api/onboarding/:id/documents
+*/
 
-export const updateOnboardingDocument = async (
-  id: number | string,
-  documentId: number,
-  payload: DocumentPayload,
-): Promise<OnboardingDocument> => {
-  const response = await axios.put<
-    ApiResponse<OnboardingDocument>
-  >(
-    `${API_URL}/${id}/documents/${documentId}`,
-    payload,
-  );
+export const createOnboardingDocument =
+  async (
+    id: number | string,
+    payload: DocumentPayload,
+  ): Promise<OnboardingDocument> => {
+    const response =
+      await axios.post<
+        ApiResponse<OnboardingDocument>
+      >(
+        `${API_URL}/onboarding/${id}/documents`,
+        payload,
+      );
 
-  return response.data.data;
-};
+    return response.data.data;
+  };
 
-/**
- * Delete an onboarding document.
- */
-export const deleteOnboardingDocument = async (
-  id: number | string,
-  documentId: number,
-): Promise<void> => {
-  await axios.delete(
-    `${API_URL}/${id}/documents/${documentId}`,
-  );
-};
+/*
+| PUT /api/onboarding/:id/documents/:documentId
+*/
+
+export const updateOnboardingDocument =
+  async (
+    id: number | string,
+    documentId: number,
+    payload: DocumentPayload,
+  ): Promise<OnboardingDocument> => {
+    const response =
+      await axios.put<
+        ApiResponse<OnboardingDocument>
+      >(
+        `${API_URL}/onboarding/${id}/documents/${documentId}`,
+        payload,
+      );
+
+    return response.data.data;
+  };
+
+/*
+|--------------------------------------------------------------------------
+| Delete an onboarding document.
+|--------------------------------------------------------------------------
+*/
+
+export const deleteOnboardingDocument =
+  async (
+    id: number | string,
+    documentId: number,
+  ): Promise<void> => {
+    await axios.delete(
+      `${API_URL}/onboarding/${id}/documents/${documentId}`,
+    );
+  };
 
 /* =========================================================
    JOIN / EMPLOYEE / COMPLETE
 ========================================================= */
 
+/*
+| POST /api/onboarding/:id/join
+*/
+
 export const joinOnboarding = async (
   id: number | string,
   actualJoiningDate?: string,
 ): Promise<OnboardingRecord> => {
-  const response = await axios.post<
-    ApiResponse<OnboardingRecord>
-  >(`${API_URL}/${id}/join`, {
-    actualJoiningDate,
-  });
+  const response =
+    await axios.post<
+      ApiResponse<OnboardingRecord>
+    >(
+      `${API_URL}/onboarding/${id}/join`,
+      {
+        actualJoiningDate,
+      },
+    );
 
   return response.data.data;
 };
 
-export const createOnboardingEmployee = async (
-  id: number | string,
-  payload: EmployeePayload,
-) => {
-  const response = await axios.post<
-    ApiResponse<{
-      employee: unknown;
-      onboarding: OnboardingRecord;
-    }>
-  >(`${API_URL}/${id}/create-employee`, payload);
+/*
+| POST /api/onboarding/:id/create-employee
+*/
 
-  return response.data.data;
-};
+export const createOnboardingEmployee =
+  async (
+    id: number | string,
+    payload: EmployeePayload,
+  ) => {
+    const response =
+      await axios.post<
+        ApiResponse<{
+          employee: unknown;
+          onboarding: OnboardingRecord;
+        }>
+      >(
+        `${API_URL}/onboarding/${id}/create-employee`,
+        payload,
+      );
+
+    return response.data.data;
+  };
+
+/*
+| POST /api/onboarding/:id/complete
+*/
 
 export const completeOnboarding = async (
   id: number | string,
 ): Promise<OnboardingRecord> => {
-  const response = await axios.post<
-    ApiResponse<OnboardingRecord>
-  >(`${API_URL}/${id}/complete`);
+  const response =
+    await axios.post<
+      ApiResponse<OnboardingRecord>
+    >(
+      `${API_URL}/onboarding/${id}/complete`,
+    );
 
   return response.data.data;
 };
@@ -351,7 +514,8 @@ export const getOnboardingErrorMessage = (
   fallback: string,
 ): string => {
   if (axios.isAxiosError(error)) {
-    const message = error.response?.data?.message;
+    const message =
+      error.response?.data?.message;
 
     if (
       typeof message === "string" &&
@@ -365,7 +529,10 @@ export const getOnboardingErrorMessage = (
     }
   }
 
-  if (error instanceof Error && error.message.trim()) {
+  if (
+    error instanceof Error &&
+    error.message.trim()
+  ) {
     return error.message;
   }
 

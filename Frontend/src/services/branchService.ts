@@ -7,7 +7,7 @@ import axios from "axios";
 */
 
 const API_URL =
-  "http://localhost:5000/api";
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
 
 /*
 |--------------------------------------------------------------------------
@@ -17,29 +17,17 @@ const API_URL =
 
 export interface Branch {
   id: number;
-
   companyId: number;
-
   companyCode: string;
-
   companyName: string;
-
   branchCode: string;
-
   branchName: string;
-
   location: string | null;
-
   address: string | null;
-
   phone: string | null;
-
   email: string | null;
-
   status: string;
-
   createdAt: string;
-
   updatedAt: string;
 }
 
@@ -47,17 +35,15 @@ export interface Branch {
 |--------------------------------------------------------------------------
 | Company
 |--------------------------------------------------------------------------
+|
 | Companies available for branch selection.
 |--------------------------------------------------------------------------
 */
 
 export interface BranchCompany {
   id: number;
-
   companyCode: string;
-
   displayName: string;
-
   legalName: string;
 }
 
@@ -69,9 +55,7 @@ export interface BranchCompany {
 
 export interface BranchDirectoryData {
   branches: Branch[];
-
   total: number;
-
   companies: BranchCompany[];
 }
 
@@ -83,17 +67,13 @@ export interface BranchDirectoryData {
 
 interface BranchDirectoryResponse {
   success: boolean;
-
   data: BranchDirectoryData;
-
   message?: string;
 }
 
 interface BranchResponse {
   success: boolean;
-
   data: Branch;
-
   message?: string;
 }
 
@@ -105,9 +85,7 @@ interface BranchResponse {
 
 export interface BranchFilters {
   search?: string;
-
   companyId?: string;
-
   status?: string;
 }
 
@@ -119,19 +97,12 @@ export interface BranchFilters {
 
 export interface CreateBranchPayload {
   companyId: number;
-
   branchCode: string;
-
   branchName: string;
-
   location?: string;
-
   address?: string;
-
   phone?: string;
-
   email?: string;
-
   status: string;
 }
 
@@ -143,19 +114,12 @@ export interface CreateBranchPayload {
 
 export interface UpdateBranchPayload {
   companyId: number;
-
   branchCode: string;
-
   branchName: string;
-
   location?: string;
-
   address?: string;
-
   phone?: string;
-
   email?: string;
-
   status: string;
 }
 
@@ -167,32 +131,31 @@ export interface UpdateBranchPayload {
 |--------------------------------------------------------------------------
 */
 
-export const getBranches =
-  async (
-    filters: BranchFilters = {},
-  ): Promise<BranchDirectoryData> => {
-    const response =
-      await axios.get<BranchDirectoryResponse>(
-        `${API_URL}/branches`,
-        {
-          params: {
-            search:
-              filters.search ||
-              undefined,
+export const getBranches = async (
+  filters: BranchFilters = {},
+): Promise<BranchDirectoryData> => {
+  const response =
+    await axios.get<BranchDirectoryResponse>(
+      `${API_URL}/branches`,
+      {
+        params: {
+          search:
+            filters.search ||
+            undefined,
 
-            companyId:
-              filters.companyId ||
-              undefined,
+          companyId:
+            filters.companyId ||
+            undefined,
 
-            status:
-              filters.status ||
-              undefined,
-          },
+          status:
+            filters.status ||
+            undefined,
         },
-      );
+      },
+    );
 
-    return response.data.data;
-  };
+  return response.data.data;
+};
 
 /*
 |--------------------------------------------------------------------------
@@ -202,17 +165,16 @@ export const getBranches =
 |--------------------------------------------------------------------------
 */
 
-export const getBranchById =
-  async (
-    branchId: number | string,
-  ): Promise<Branch> => {
-    const response =
-      await axios.get<BranchResponse>(
-        `${API_URL}/branches/${branchId}`,
-      );
+export const getBranchById = async (
+  branchId: number | string,
+): Promise<Branch> => {
+  const response =
+    await axios.get<BranchResponse>(
+      `${API_URL}/branches/${branchId}`,
+    );
 
-    return response.data.data;
-  };
+  return response.data.data;
+};
 
 /*
 |--------------------------------------------------------------------------
@@ -222,18 +184,17 @@ export const getBranchById =
 |--------------------------------------------------------------------------
 */
 
-export const createBranch =
-  async (
-    payload: CreateBranchPayload,
-  ): Promise<Branch> => {
-    const response =
-      await axios.post<BranchResponse>(
-        `${API_URL}/branches`,
-        payload,
-      );
+export const createBranch = async (
+  payload: CreateBranchPayload,
+): Promise<Branch> => {
+  const response =
+    await axios.post<BranchResponse>(
+      `${API_URL}/branches`,
+      payload,
+    );
 
-    return response.data.data;
-  };
+  return response.data.data;
+};
 
 /*
 |--------------------------------------------------------------------------
@@ -243,17 +204,15 @@ export const createBranch =
 |--------------------------------------------------------------------------
 */
 
-export const updateBranch =
-  async (
-    branchId: number | string,
+export const updateBranch = async (
+  branchId: number | string,
+  payload: UpdateBranchPayload,
+): Promise<Branch> => {
+  const response =
+    await axios.put<BranchResponse>(
+      `${API_URL}/branches/${branchId}`,
+      payload,
+    );
 
-    payload: UpdateBranchPayload,
-  ): Promise<Branch> => {
-    const response =
-      await axios.put<BranchResponse>(
-        `${API_URL}/branches/${branchId}`,
-        payload,
-      );
-
-    return response.data.data;
-  };
+  return response.data.data;
+};
