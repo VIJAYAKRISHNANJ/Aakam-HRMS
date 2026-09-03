@@ -2,9 +2,12 @@ import {
   Bell,
   Check,
   CheckCheck,
+  ChevronDown,
   Loader2,
+  LogOut,
   Menu,
   Search,
+  UserRound,
   X,
 } from "lucide-react";
 
@@ -19,6 +22,10 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom";
+
+import {
+  useAuth,
+} from "../../context/AuthContext";
 
 import {
   getNotifications,
@@ -44,7 +51,17 @@ function Header({
   const navigate =
     useNavigate();
 
+  const {
+    user,
+    logout,
+  } = useAuth();
+
   const notificationRef =
+    useRef<HTMLDivElement | null>(
+      null,
+    );
+
+  const profileRef =
     useRef<HTMLDivElement | null>(
       null,
     );
@@ -56,27 +73,63 @@ function Header({
 
   /*
   |--------------------------------------------------------------------------
+  | Profile State
+  |--------------------------------------------------------------------------
+  */
+
+  const [
+    profileOpen,
+    setProfileOpen,
+  ] = useState<boolean>(false);
+
+  const [
+    loggingOut,
+    setLoggingOut,
+  ] = useState<boolean>(false);
+
+  /*
+  |--------------------------------------------------------------------------
   | Notification State
   |--------------------------------------------------------------------------
   */
 
-  const [notifications, setNotifications] =
-    useState<Notification[]>([]);
+  const [
+    notifications,
+    setNotifications,
+  ] = useState<Notification[]>(
+    [],
+  );
 
-  const [unreadCount, setUnreadCount] =
-    useState<number>(0);
+  const [
+    unreadCount,
+    setUnreadCount,
+  ] = useState<number>(0);
 
-  const [notificationOpen, setNotificationOpen] =
-    useState<boolean>(false);
+  const [
+    notificationOpen,
+    setNotificationOpen,
+  ] = useState<boolean>(
+    false,
+  );
 
-  const [notificationLoading, setNotificationLoading] =
-    useState<boolean>(false);
+  const [
+    notificationLoading,
+    setNotificationLoading,
+  ] = useState<boolean>(
+    false,
+  );
 
-  const [notificationError, setNotificationError] =
-    useState<string>("");
+  const [
+    notificationError,
+    setNotificationError,
+  ] = useState<string>("");
 
-  const [markingAllRead, setMarkingAllRead] =
-    useState<boolean>(false);
+  const [
+    markingAllRead,
+    setMarkingAllRead,
+  ] = useState<boolean>(
+    false,
+  );
 
   /*
   |--------------------------------------------------------------------------
@@ -129,7 +182,9 @@ function Header({
                 !notification.isRead,
             ).length;
 
-          setUnreadCount(unread);
+          setUnreadCount(
+            unread,
+          );
         } catch (error) {
           console.error(
             "Failed to load notifications:",
@@ -161,9 +216,6 @@ function Header({
   /*
   |--------------------------------------------------------------------------
   | Refresh Unread Count
-  |
-  | Checks periodically so a newly-created notification
-  | can appear in the header without refreshing the page.
   |--------------------------------------------------------------------------
   */
 
@@ -200,20 +252,34 @@ function Header({
 
   /*
   |--------------------------------------------------------------------------
-  | Close Dropdown When Clicking Outside
+  | Close Notification/Profile Dropdowns
   |--------------------------------------------------------------------------
   */
 
   useEffect(() => {
     const handleClickOutside =
       (event: MouseEvent) => {
+        const target =
+          event.target as Node;
+
         if (
           notificationRef.current &&
           !notificationRef.current.contains(
-            event.target as Node,
+            target,
           )
         ) {
           setNotificationOpen(
+            false,
+          );
+        }
+
+        if (
+          profileRef.current &&
+          !profileRef.current.contains(
+            target,
+          )
+        ) {
+          setProfileOpen(
             false,
           );
         }
@@ -243,6 +309,72 @@ function Header({
       setNotificationOpen(
         (current) => !current,
       );
+
+      setProfileOpen(false);
+    };
+
+  /*
+  |--------------------------------------------------------------------------
+  | Toggle Profile Dropdown
+  |--------------------------------------------------------------------------
+  */
+
+  const handleProfileToggle =
+    () => {
+      setProfileOpen(
+        (current) => !current,
+      );
+
+      setNotificationOpen(
+        false,
+      );
+    };
+
+  /*
+  |--------------------------------------------------------------------------
+  | Logout
+  |--------------------------------------------------------------------------
+  */
+
+  const handleLogout =
+    async () => {
+      if (loggingOut) {
+        return;
+      }
+
+      try {
+        setLoggingOut(true);
+
+        await logout();
+
+        navigate(
+          "/login",
+          {
+            replace: true,
+          },
+        );
+      } catch (error) {
+        console.error(
+          "Logout failed:",
+          error,
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | AuthContext logout clears local auth storage
+        | even when the API request fails.
+        |--------------------------------------------------------------------------
+        */
+
+        navigate(
+          "/login",
+          {
+            replace: true,
+          },
+        );
+      } finally {
+        setLoggingOut(false);
+      }
     };
 
   /*
@@ -262,9 +394,13 @@ function Header({
           );
 
         setNotifications(
-          (currentNotifications) =>
+          (
+            currentNotifications,
+          ) =>
             currentNotifications.map(
-              (notification) =>
+              (
+                notification,
+              ) =>
                 notification.id ===
                 updated.id
                   ? updated
@@ -310,9 +446,13 @@ function Header({
         await markAllNotificationsAsRead();
 
         setNotifications(
-          (currentNotifications) =>
+          (
+            currentNotifications,
+          ) =>
             currentNotifications.map(
-              (notification) => ({
+              (
+                notification,
+              ) => ({
                 ...notification,
                 isRead: true,
               }),
@@ -383,9 +523,74 @@ function Header({
 
   /*
   |--------------------------------------------------------------------------
+  | User Display Data
+  |--------------------------------------------------------------------------
+  */
+
+  const getInitials =
+    (
+      firstName?: string | null,
+      lastName?: string | null,
+      fullName?: string,
+    ) => {
+      const first =
+        firstName?.trim() || "";
+
+      const last =
+        lastName?.trim() || "";
+
+      if (
+        first &&
+        last
+      ) {
+        return `${first[0]}${last[0]}`.toUpperCase();
+      }
+
+      if (first) {
+        return first
+          .slice(0, 2)
+          .toUpperCase();
+      }
+
+      if (fullName) {
+        const parts =
+          fullName
+            .trim()
+            .split(/\s+/);
+
+        if (
+          parts.length >= 2
+        ) {
+          return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+        }
+
+        return fullName
+          .slice(0, 2)
+          .toUpperCase();
+      }
+
+      return "HR";
+    };
+
+  const userInitials =
+    getInitials(
+      user?.firstName,
+      user?.lastName,
+      user?.fullName,
+    );
+
+  const userName =
+    user?.fullName ||
+    user?.username ||
+    "User";
+
+  const userDesignation =
+    user?.designation ||
+    "Employee";
+
+  /*
+  |--------------------------------------------------------------------------
   | Latest Notifications
-  |
-  | Header only displays a small number.
   |--------------------------------------------------------------------------
   */
 
@@ -418,7 +623,9 @@ function Header({
       <div className="flex min-w-0 items-center gap-3">
         <button
           type="button"
-          onClick={onOpenSidebar}
+          onClick={
+            onOpenSidebar
+          }
           className="
             inline-flex
             h-11
@@ -531,7 +738,7 @@ function Header({
         <div className="flex items-center gap-2 sm:gap-3">
 
           {/* =================================================
-              NOTIFICATION BUTTON + DROPDOWN
+              NOTIFICATIONS
           ================================================= */}
 
           <div
@@ -567,9 +774,8 @@ function Header({
             >
               <Bell className="h-5 w-5" />
 
-              {/* Unread Badge */}
-
-              {unreadCount > 0 && (
+              {unreadCount >
+                0 && (
                 <span
                   className="
                     absolute
@@ -591,16 +797,13 @@ function Header({
                     ring-white
                   "
                 >
-                  {unreadCount > 99
+                  {unreadCount >
+                  99
                     ? "99+"
                     : unreadCount}
                 </span>
               )}
             </button>
-
-            {/* =================================================
-                DROPDOWN
-            ================================================= */}
 
             {notificationOpen && (
               <div
@@ -638,7 +841,8 @@ function Header({
                     </h2>
 
                     <p className="mt-0.5 text-xs text-slate-500">
-                      {unreadCount > 0
+                      {unreadCount >
+                      0
                         ? `${unreadCount} unread`
                         : "You're all caught up"}
                     </p>
@@ -661,15 +865,14 @@ function Header({
                     "
                     aria-label="Close notifications"
                   >
-                    <X
-                      size={16}
-                    />
+                    <X size={16} />
                   </button>
                 </div>
 
                 {/* Mark All */}
 
-                {unreadCount > 0 && (
+                {unreadCount >
+                  0 && (
                   <div className="border-b border-slate-100 px-4 py-2">
                     <button
                       type="button"
@@ -787,15 +990,11 @@ function Header({
                           `}
                         >
                           <div className="flex gap-3">
-                            {/* Avatar */}
-
                             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-violet-600 text-white">
                               <Bell
                                 size={15}
                               />
                             </div>
-
-                            {/* Content */}
 
                             <div className="min-w-0 flex-1">
                               <div className="flex items-start justify-between gap-2">
@@ -903,55 +1102,251 @@ function Header({
               USER PROFILE
           ================================================= */}
 
-          <button
-            type="button"
-            className="
-              flex
-              items-center
-              gap-3
-              rounded-2xl
-              border
-              border-slate-200
-              bg-white
-              px-3
-              py-2
-              text-left
-              transition
-              hover:border-slate-300
-              hover:bg-slate-50
-            "
-            aria-label="Open user menu"
+          <div
+            ref={profileRef}
+            className="relative"
           >
-            <div
+            <button
+              type="button"
+              onClick={
+                handleProfileToggle
+              }
               className="
                 flex
-                h-11
-                w-11
-                shrink-0
                 items-center
-                justify-center
+                gap-3
                 rounded-2xl
-                bg-gradient-to-br
-                from-blue-600
-                to-cyan-400
-                text-sm
-                font-semibold
-                text-white
+                border
+                border-slate-200
+                bg-white
+                px-3
+                py-2
+                text-left
+                transition
+                hover:border-slate-300
+                hover:bg-slate-50
               "
+              aria-label="Open user menu"
+              aria-expanded={
+                profileOpen
+              }
             >
-              AK
-            </div>
+              <div
+                className="
+                  flex
+                  h-11
+                  w-11
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-2xl
+                  bg-gradient-to-br
+                  from-blue-600
+                  to-cyan-400
+                  text-sm
+                  font-semibold
+                  text-white
+                "
+              >
+                {userInitials}
+              </div>
 
-            <div className="hidden sm:block">
-              <p className="text-sm font-semibold text-slate-900">
-                Anita Kumar
-              </p>
+              <div className="hidden min-w-0 sm:block">
+                <p className="max-w-[160px] truncate text-sm font-semibold text-slate-900">
+                  {userName}
+                </p>
 
-              <p className="text-xs text-slate-500">
-                HR Manager
-              </p>
-            </div>
-          </button>
+                <p className="max-w-[160px] truncate text-xs text-slate-500">
+                  {userDesignation}
+                </p>
+              </div>
+
+              <ChevronDown
+                className={`
+                  hidden
+                  h-4
+                  w-4
+                  shrink-0
+                  text-slate-400
+                  transition
+                  sm:block
+                  ${
+                    profileOpen
+                      ? "rotate-180"
+                      : ""
+                  }
+                `}
+              />
+            </button>
+
+            {/* =================================================
+                PROFILE DROPDOWN
+            ================================================= */}
+
+            {profileOpen && (
+              <div
+                className="
+                  absolute
+                  right-0
+                  z-50
+                  mt-3
+                  w-[280px]
+                  overflow-hidden
+                  rounded-2xl
+                  border
+                  border-slate-200
+                  bg-white
+                  shadow-xl
+                "
+              >
+                {/* User Information */}
+
+                <div className="border-b border-slate-200 px-4 py-4">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="
+                        flex
+                        h-12
+                        w-12
+                        shrink-0
+                        items-center
+                        justify-center
+                        rounded-xl
+                        bg-gradient-to-br
+                        from-blue-600
+                        to-violet-600
+                        text-sm
+                        font-bold
+                        text-white
+                      "
+                    >
+                      {userInitials}
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-slate-900">
+                        {userName}
+                      </p>
+
+                      <p className="mt-0.5 truncate text-xs text-slate-500">
+                        {userDesignation}
+                      </p>
+
+                      {user?.department && (
+                        <p className="mt-0.5 truncate text-[11px] text-slate-400">
+                          {
+                            user.department
+                          }
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Account Details */}
+
+                <div className="border-b border-slate-100 px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs text-slate-500">
+                      Username
+                    </span>
+
+                    <span className="max-w-[150px] truncate text-xs font-medium text-slate-700">
+                      {user?.username ||
+                        "-"}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <span className="text-xs text-slate-500">
+                      System Role
+                    </span>
+
+                    <span className="max-w-[150px] truncate text-xs font-medium text-slate-700">
+                      {user
+                        ? "Assigned"
+                        : "-"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Profile/Settings */}
+
+                <div className="p-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileOpen(
+                        false,
+                      );
+
+                      navigate(
+                        "/settings",
+                      );
+                    }}
+                    className="
+                      flex
+                      w-full
+                      items-center
+                      gap-3
+                      rounded-xl
+                      px-3
+                      py-2.5
+                      text-left
+                      text-sm
+                      font-medium
+                      text-slate-700
+                      transition
+                      hover:bg-slate-50
+                    "
+                  >
+                    <UserRound className="h-4 w-4 text-slate-400" />
+
+                    Account Settings
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={
+                      handleLogout
+                    }
+                    disabled={
+                      loggingOut
+                    }
+                    className="
+                      flex
+                      w-full
+                      items-center
+                      gap-3
+                      rounded-xl
+                      px-3
+                      py-2.5
+                      text-left
+                      text-sm
+                      font-semibold
+                      text-red-600
+                      transition
+                      hover:bg-red-50
+                      disabled:cursor-not-allowed
+                      disabled:opacity-60
+                    "
+                  >
+                    {loggingOut ? (
+                      <Loader2
+                        className="h-4 w-4 animate-spin"
+                      />
+                    ) : (
+                      <LogOut className="h-4 w-4" />
+                    )}
+
+                    {loggingOut
+                      ? "Signing out..."
+                      : "Sign out"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </header>

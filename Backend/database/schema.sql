@@ -2,6 +2,8 @@
 -- AAKAM HRMS - DATABASE SCHEMA
 -- MODULE 1 + MODULE 2 + MODULE 3 + MODULE 4
 -- MODULE 5 - TRAINING
+-- MODULE 6 - EXIT MANAGEMENT
+-- MODULE 7 - AUTHENTICATION & SECURITY
 -- ============================================
 
 
@@ -23,17 +25,28 @@ CREATE TABLE IF NOT EXISTS departments (
 
 CREATE TABLE IF NOT EXISTS employees (
     id SERIAL PRIMARY KEY,
+
     employee_code VARCHAR(30) NOT NULL UNIQUE,
+
     first_name VARCHAR(100) NOT NULL,
+
     last_name VARCHAR(100),
+
     email VARCHAR(150) NOT NULL UNIQUE,
+
+    designation VARCHAR(150),
+
     department_id INTEGER
         REFERENCES departments(id),
+
     joining_date DATE NOT NULL,
+
     employment_status VARCHAR(30)
         NOT NULL DEFAULT 'ACTIVE',
+
     employment_type VARCHAR(30)
         NOT NULL DEFAULT 'FULL_TIME',
+
     created_at TIMESTAMP
         DEFAULT CURRENT_TIMESTAMP
 );
@@ -764,35 +777,52 @@ CREATE TABLE IF NOT EXISTS exit_records (
 
     last_working_date DATE NOT NULL,
 
-    approval_status VARCHAR(30) NOT NULL DEFAULT 'PENDING'
-        CHECK (approval_status IN ('PENDING', 'APPROVED', 'REJECTED')),
+    approval_status VARCHAR(30)
+        NOT NULL DEFAULT 'PENDING'
+        CHECK (
+            approval_status IN (
+                'PENDING',
+                'APPROVED',
+                'REJECTED'
+            )
+        ),
 
-    exit_status VARCHAR(40) NOT NULL DEFAULT 'RESIGNATION_SUBMITTED'
-        CHECK (exit_status IN (
-            'RESIGNATION_SUBMITTED',
-            'PENDING_APPROVAL',
-            'APPROVED',
-            'NOTICE_PERIOD',
-            'CLEARANCE',
-            'SETTLEMENT',
-            'DOCUMENTS',
-            'COMPLETED',
-            'CANCELLED'
-        )),
+    exit_status VARCHAR(40)
+        NOT NULL DEFAULT 'RESIGNATION_SUBMITTED'
+        CHECK (
+            exit_status IN (
+                'RESIGNATION_SUBMITTED',
+                'PENDING_APPROVAL',
+                'APPROVED',
+                'NOTICE_PERIOD',
+                'CLEARANCE',
+                'SETTLEMENT',
+                'DOCUMENTS',
+                'COMPLETED',
+                'CANCELLED'
+            )
+        ),
 
     remarks TEXT,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
 
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
 
-    CHECK (last_working_date >= resignation_date)
+    CHECK (
+        last_working_date >= resignation_date
+    )
 );
 
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_exit_records_active_employee
     ON exit_records(employee_id)
-    WHERE exit_status NOT IN ('COMPLETED', 'CANCELLED');
+    WHERE exit_status NOT IN (
+        'COMPLETED',
+        'CANCELLED'
+    );
 
 CREATE INDEX IF NOT EXISTS idx_exit_records_status
     ON exit_records(exit_status);
@@ -825,16 +855,19 @@ CREATE TABLE IF NOT EXISTS users (
         REFERENCES employees(id)
         ON DELETE SET NULL,
 
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    is_active BOOLEAN
+        NOT NULL DEFAULT TRUE,
 
-    failed_login_attempts INTEGER NOT NULL DEFAULT 0
+    failed_login_attempts INTEGER
+        NOT NULL DEFAULT 0
         CHECK (failed_login_attempts >= 0),
 
     locked_until TIMESTAMP,
 
     last_login_at TIMESTAMP,
 
-    password_changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    password_changed_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
 
     password_reset_token_hash VARCHAR(255),
 
@@ -842,9 +875,11 @@ CREATE TABLE IF NOT EXISTS users (
 
     password_expires_at TIMESTAMP,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
 
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP
 );
 
 
@@ -855,7 +890,8 @@ CREATE TABLE IF NOT EXISTS roles (
 
     description TEXT,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP
 );
 
 
@@ -866,7 +902,8 @@ CREATE TABLE IF NOT EXISTS permissions (
 
     description TEXT,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP
 );
 
 
@@ -879,9 +916,13 @@ CREATE TABLE IF NOT EXISTS user_roles (
         REFERENCES roles(id)
         ON DELETE CASCADE,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
 
-    PRIMARY KEY (user_id, role_id)
+    PRIMARY KEY (
+        user_id,
+        role_id
+    )
 );
 
 
@@ -894,9 +935,13 @@ CREATE TABLE IF NOT EXISTS role_permissions (
         REFERENCES permissions(id)
         ON DELETE CASCADE,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
 
-    PRIMARY KEY (role_id, permission_id)
+    PRIMARY KEY (
+        role_id,
+        permission_id
+    )
 );
 
 
@@ -908,7 +953,15 @@ CREATE TABLE IF NOT EXISTS login_history (
         ON DELETE SET NULL,
 
     login_status VARCHAR(30) NOT NULL
-        CHECK (login_status IN ('SUCCESS', 'FAILED', 'LOCKED_OUT', 'LOGOUT', 'TOKEN_REJECTED')),
+        CHECK (
+            login_status IN (
+                'SUCCESS',
+                'FAILED',
+                'LOCKED_OUT',
+                'LOGOUT',
+                'TOKEN_REJECTED'
+            )
+        ),
 
     ip_address INET,
 
@@ -918,7 +971,8 @@ CREATE TABLE IF NOT EXISTS login_history (
 
     failure_reason VARCHAR(255),
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP
 );
 
 
@@ -937,7 +991,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
     details JSONB,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP
 );
 
 
@@ -981,26 +1036,41 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at
     ON audit_logs(created_at DESC);
 
 
+-- ============================================
+-- EXIT CHECKLIST ITEMS
+-- ============================================
+
 CREATE TABLE IF NOT EXISTS exit_checklist_items (
     id SERIAL PRIMARY KEY,
 
     exit_id INTEGER NOT NULL
-        REFERENCES exit_records(id) ON DELETE CASCADE,
+        REFERENCES exit_records(id)
+        ON DELETE CASCADE,
 
     item_type VARCHAR(50) NOT NULL
-        CHECK (item_type IN (
-            'KNOWLEDGE_TRANSFER',
-            'ASSET_CLEARANCE',
-            'ATTENDANCE_CLEARANCE',
-            'LEAVE_CLEARANCE',
-            'PAYROLL_CLEARANCE',
-            'FULL_AND_FINAL_SETTLEMENT',
-            'EXPERIENCE_LETTER',
-            'RELIEVING_LETTER'
-        )),
+        CHECK (
+            item_type IN (
+                'KNOWLEDGE_TRANSFER',
+                'ASSET_CLEARANCE',
+                'ATTENDANCE_CLEARANCE',
+                'LEAVE_CLEARANCE',
+                'PAYROLL_CLEARANCE',
+                'FULL_AND_FINAL_SETTLEMENT',
+                'EXPERIENCE_LETTER',
+                'RELIEVING_LETTER'
+            )
+        ),
 
-    status VARCHAR(30) NOT NULL DEFAULT 'PENDING'
-        CHECK (status IN ('PENDING', 'IN_PROGRESS', 'COMPLETED', 'NOT_APPLICABLE')),
+    status VARCHAR(30)
+        NOT NULL DEFAULT 'PENDING'
+        CHECK (
+            status IN (
+                'PENDING',
+                'IN_PROGRESS',
+                'COMPLETED',
+                'NOT_APPLICABLE'
+            )
+        ),
 
     owner VARCHAR(150),
 
@@ -1008,11 +1078,16 @@ CREATE TABLE IF NOT EXISTS exit_checklist_items (
 
     remarks TEXT,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
 
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
 
-    UNIQUE(exit_id, item_type)
+    UNIQUE(
+        exit_id,
+        item_type
+    )
 );
 
 
@@ -1020,47 +1095,82 @@ CREATE INDEX IF NOT EXISTS idx_exit_checklist_exit_id
     ON exit_checklist_items(exit_id);
 
 
+-- ============================================
+-- EXIT SETTLEMENTS
+-- ============================================
+
 CREATE TABLE IF NOT EXISTS exit_settlements (
     id SERIAL PRIMARY KEY,
 
     exit_id INTEGER NOT NULL UNIQUE
-        REFERENCES exit_records(id) ON DELETE CASCADE,
+        REFERENCES exit_records(id)
+        ON DELETE CASCADE,
 
-    status VARCHAR(30) NOT NULL DEFAULT 'PENDING'
-        CHECK (status IN ('PENDING', 'PROCESSING', 'COMPLETED')),
+    status VARCHAR(30)
+        NOT NULL DEFAULT 'PENDING'
+        CHECK (
+            status IN (
+                'PENDING',
+                'PROCESSING',
+                'COMPLETED'
+            )
+        ),
 
     settlement_date DATE,
 
-    payable_amount NUMERIC(12,2) NOT NULL DEFAULT 0
+    payable_amount NUMERIC(12,2)
+        NOT NULL DEFAULT 0
         CHECK (payable_amount >= 0),
 
-    deductions NUMERIC(12,2) NOT NULL DEFAULT 0
+    deductions NUMERIC(12,2)
+        NOT NULL DEFAULT 0
         CHECK (deductions >= 0),
 
-    net_settlement NUMERIC(12,2) NOT NULL DEFAULT 0
+    net_settlement NUMERIC(12,2)
+        NOT NULL DEFAULT 0
         CHECK (net_settlement >= 0),
 
     remarks TEXT,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
 
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
 
-    CHECK (net_settlement <= payable_amount)
+    CHECK (
+        net_settlement <= payable_amount
+    )
 );
 
+
+-- ============================================
+-- EXIT DOCUMENTS
+-- ============================================
 
 CREATE TABLE IF NOT EXISTS exit_documents (
     id SERIAL PRIMARY KEY,
 
     exit_id INTEGER NOT NULL
-        REFERENCES exit_records(id) ON DELETE CASCADE,
+        REFERENCES exit_records(id)
+        ON DELETE CASCADE,
 
     document_type VARCHAR(30) NOT NULL
-        CHECK (document_type IN ('EXPERIENCE_LETTER', 'RELIEVING_LETTER')),
+        CHECK (
+            document_type IN (
+                'EXPERIENCE_LETTER',
+                'RELIEVING_LETTER'
+            )
+        ),
 
-    status VARCHAR(30) NOT NULL DEFAULT 'PENDING'
-        CHECK (status IN ('PENDING', 'ISSUED')),
+    status VARCHAR(30)
+        NOT NULL DEFAULT 'PENDING'
+        CHECK (
+            status IN (
+                'PENDING',
+                'ISSUED'
+            )
+        ),
 
     document_date DATE,
 
@@ -1068,11 +1178,16 @@ CREATE TABLE IF NOT EXISTS exit_documents (
 
     remarks TEXT,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
 
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP
+        DEFAULT CURRENT_TIMESTAMP,
 
-    UNIQUE(exit_id, document_type)
+    UNIQUE(
+        exit_id,
+        document_type
+    )
 );
 
 

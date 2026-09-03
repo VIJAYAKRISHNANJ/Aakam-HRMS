@@ -782,10 +782,15 @@ function EmployeeProfile() {
                 )}
               />
 
+              {/* IMPORTANT:
+                  employee.id = database Employee ID
+                  employee.employeeCode = employee code
+              */}
+
               <InfoItem
                 label="Employee ID"
                 value={
-                  employee.employeeCode
+                  employee.id.toString()
                 }
                 mono
               />
