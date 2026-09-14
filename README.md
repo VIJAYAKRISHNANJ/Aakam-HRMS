@@ -1,272 +1,172 @@
-# 🚀 Aakam-HRMS
-
-A modern AI-powered startup valuation web application that helps founders estimate their startup's worth in minutes...
-
-The README should NOT copy the VijayX content. Instead, create completely original content specifically for Aakam HRMS based on the actual project files I provide.
-
-I have provided:
-- Frontend project
-- Backend project
-- Project screenshots
-
-IMPORTANT:
-- Analyze the actual source code, package.json files, routes, services, components, database files, authentication implementation, and configuration before writing the README.
-- Do NOT invent technologies, features, APIs, libraries, database functionality, authentication methods, or deployment platforms that are not actually present.
-- Use the actual technologies found in the project.
-- Do not mention technologies simply because they are common for this type of application.
-- Do not claim a feature is implemented unless the source code supports it.
-- Do not expose passwords, API keys, database credentials, JWT secrets, or other sensitive information.
-- Do not include the contents of .env files.
-- The README should describe the current working project, not planned/future functionality.
-
-PROJECT NAME:
-Aakam HRMS
-
-PROJECT DESCRIPTION:
-A modern full-stack Human Resource Management System designed to centralize and simplify HR operations including workforce management, organization management, recruitment, onboarding, payroll, performance, training, reporting, notifications, and administrative settings.
-
-==================================================
-README STRUCTURE
-==================================================
-
-Create the README with the following sections.
-
 # 🚀 Aakam HRMS
 
-Write a polished 2–3 paragraph introduction explaining what Aakam HRMS is, what problem it solves, and what HR operations it centralizes.
+A modern full-stack Human Resource Management System designed to simplify and centralize HR operations. Aakam HRMS helps organizations manage employees, recruitment, onboarding, payroll, performance, training, organization structure, reports, notifications, and other day-to-day HR activities through a single platform.
 
 ## 🚀 Live Demo
 
-Include the deployed application URL if it is available from the project/configuration information I provide.
+🔗 [**https://aakam-hrms.vercel.app/login**](https://aakam-hrms.vercel.app/login)
 
-Use:
-
-🔗 [**Aakam HRMS**](DEPLOYED_URL)
-
-If the deployment URL cannot be reliably determined, use a placeholder rather than inventing one.
+---
 
 ## 📸 Screenshots
 
-Use the screenshots located in:
+### 🔐 Login Page
 
-ScreenShots/
-
-The current screenshots are:
-
-- Login.png
-- Dashboard.png
-- Dashboard2.png / Recruitment.png depending on the final filename
-- Organization.png
-- Reports.png
-- Settings.png
-
-Create professional screenshot sections similar to:
-
-### 🔐 Login
-
-![Aakam HRMS Login](ScreenShots/Login.png)
+![Login Page](ScreenShots/Login.png)
 
 ### 📊 HR Dashboard
 
-![Aakam HRMS Dashboard](ScreenShots/Dashboard.png)
+![HR Dashboard](ScreenShots/Dashboard.png)
 
 ### 🎯 Recruitment Management
 
-![Aakam HRMS Recruitment](ScreenShots/Recruitment.png)
+![Recruitment Management](ScreenShots/Dashboard2.png)
 
 ### 🏢 Organization Management
 
-![Aakam HRMS Organization](ScreenShots/Organization.png)
+![Organization Management](ScreenShots/Organization.png)
 
-### 📑 Reports
+### 📑 HR Reports
 
-![Aakam HRMS Reports](ScreenShots/Reports.png)
+![HR Reports](ScreenShots/Reports.png)
 
 ### ⚙️ Settings
 
-![Aakam HRMS Settings](ScreenShots/Settings.png)
+![Settings](ScreenShots/Settings.png)
 
-Do not add screenshots that do not exist.
+---
 
 ## ✨ Features
 
-Create a comprehensive feature list based ONLY on the actual implementation.
+- 👥 Employee and workforce management
+- 🏢 Company management
+- 🌿 Branch management
+- 🏷️ Department management
+- 🎯 Recruitment management
+- 💼 Job position management
+- 👤 Candidate management
+- 🔄 Recruitment pipeline management
+- 📋 Employee onboarding
+- 💰 Payroll management
+- 📊 Performance management
+- 🎓 Training management
+- 👥 Client management
+- 🚪 Employee exit management
+- 🔔 Notifications
+- 📑 HR reports
+- 📈 Dashboard analytics
+- 👤 User management
+- 🔐 Secure authentication
+- 🛡️ Role-based access control
+- 🔑 Permission-based authorization
+- 🏢 Multi-company / tenant isolation
+- 📝 Audit logging
+- 🔎 Search and filtering
+- 📱 Responsive user interface
 
-Potential areas to verify from the code include:
-
-- Employee/workforce management
-- Organization management
-- Company management
-- Branch management
-- Department management
-- Recruitment
-- Job positions
-- Candidate management
-- Recruitment pipeline
-- Employee onboarding
-- Payroll
-- Performance management
-- Training management
-- Client management
-- Exit management
-- Notifications
-- Reports
-- Dashboard analytics
-- Settings
-- Authentication
-- Authorization
-- Role-based permissions
-- Audit logging
-- Tenant/company isolation
-- CRUD operations
-- Search/filter functionality
-- Profile/details pages
-
-Only include features that are actually implemented.
-
-## 🏢 HR Modules
-
-Explain the major modules individually.
-
-### 👥 Workforce Management
-
-Explain employee management based on the actual implementation.
-
-### 🏢 Organization Management
-
-Explain:
-- Companies
-- Branches
-- Departments
-- Organization structure
-
-Only include the parts actually implemented.
-
-### 🎯 Recruitment Management
-
-Explain:
-- Job positions
-- Candidates
-- Candidate profiles
-- Recruitment pipeline
-- Hiring stages
-
-Only include implemented functionality.
-
-### 📋 Onboarding
-
-Explain the actual employee onboarding workflow.
-
-### 💰 Payroll
-
-Explain the implemented payroll functionality.
-
-### 📊 Performance
-
-Explain the implemented performance review/management functionality.
-
-### 🎓 Training
-
-Explain training programs, enrollments, assessments, completion tracking, etc., ONLY if implemented.
-
-### 👥 Clients
-
-Explain client management functionality if implemented.
-
-### 🚪 Exit Management
-
-Explain employee exit/exit-record functionality if implemented.
-
-### 📑 Reports
-
-Explain the reporting functionality and the types of HR information available.
-
-### 🔔 Notifications
-
-Explain the implemented notification system.
-
-## 📊 Dashboard & Analytics
-
-Describe the HR dashboard based on the actual implementation.
-
-The dashboard may include information such as:
-
-- Total employees
-- New joiners
-- Open positions
-- Pending leave
-- Employee headcount growth
-- Department distribution
-- Attendance
-- Recruitment pipeline
-- Payroll readiness
-- Upcoming actions
-- Recent HR activity
-
-Verify these against the actual code before including them.
+---
 
 ## 🔐 Authentication & Authorization
 
-Explain the actual authentication implementation.
+Aakam HRMS uses secure authentication and authorization mechanisms to control access to HR operations.
 
-Inspect:
-- Login
-- Protected routes
-- Authentication context
-- JWT implementation
-- Password hashing
-- Authorization middleware
-- Roles and permissions
+The system includes:
 
-Only describe what is actually implemented.
+- 🔐 User login and authentication
+- 🎫 JWT-based authentication
+- 🔒 Password hashing
+- 🛡️ Protected routes
+- 👮 Role-based access control
+- 🔑 Permission-based authorization
+- 📝 Login history
+- 📋 Audit logging
+- 🏢 Company/tenant-based access control
 
-## 🛡️ Security
+---
 
-Describe actual security-related implementation, such as:
+## 🏢 HR Management Modules
 
-- Password hashing
-- JWT authentication
-- Protected routes
-- Authorization middleware
-- Role-based access
-- Tenant isolation
-- CORS
-- Environment variables
-- Audit logging
+Aakam HRMS provides multiple modules for managing different areas of human resources.
 
-Do not claim security mechanisms that are not present.
+### 👥 Workforce Management
 
-## 🏗️ System Architecture
+Manage employee information, employment details, departments, positions, and workforce records.
 
-Create a clear explanation of the architecture.
+### 🏢 Organization Management
 
-Use a structure similar to:
+Manage companies, branches, departments, and organizational structure.
 
-Frontend
-↓
-REST API
-↓
-Backend
-↓
-PostgreSQL Database
+### 🎯 Recruitment Management
 
-Explain how the frontend communicates with the backend and how the backend interacts with the database.
+Manage job positions, candidates, recruitment activities, and the hiring pipeline.
 
-Do not claim an ORM if the project does not actually use one.
+### 📋 Employee Onboarding
+
+Manage employee onboarding activities and track the onboarding process.
+
+### 💰 Payroll Management
+
+Manage payroll-related records and payroll operations.
+
+### 📊 Performance Management
+
+Manage employee performance-related information and performance activities.
+
+### 🎓 Training Management
+
+Manage training programs and employee training activities.
+
+### 👥 Client Management
+
+Manage client-related information within the HR management system.
+
+### 🚪 Exit Management
+
+Manage employee exit records and related exit activities.
+
+### 🔔 Notifications
+
+Provide users with notifications and important HR updates.
+
+### 📑 Reports
+
+View HR-related reports and organizational information through the reporting module.
+
+---
+
+## 📊 Dashboard & Analytics
+
+The Aakam HRMS dashboard provides an overview of important HR activities and workforce information.
+
+The dashboard includes information such as:
+
+- 👥 Employee statistics
+- 🆕 New joiners
+- 💼 Recruitment information
+- 📋 Pending HR activities
+- 📈 Workforce analytics
+- 🏢 Department information
+- 💰 Payroll information
+- 🎯 Recruitment pipeline
+- 📌 Upcoming activities
+- 📰 Recent HR activity
+
+---
+
+## 🛡️ Multi-Company & Role Management
+
+Aakam HRMS supports company-based data separation and role-based access.
+
+The system provides different levels of access for different users and allows permissions to be associated with roles.
+
+This helps ensure that users can access the HR functionality relevant to their responsibilities and organization.
+
+---
 
 ## 🛠️ Tech Stack
 
-This section is VERY IMPORTANT.
-
-Determine the actual technology stack by inspecting package.json and source code.
-
-Separate it into categories:
-
 ### Frontend
 
-List all significant technologies actually used.
-
-For example, verify:
 - React
 - TypeScript
 - Vite
@@ -274,93 +174,233 @@ For example, verify:
 - React Router
 - Axios
 - Lucide React
-- ESLint
-
-Do not add libraries such as Framer Motion, Recharts, Redux, Zustand, etc. unless they are actually present in the project.
 
 ### Backend
-
-Inspect Backend/package.json and source code.
-
-The current backend should be checked for technologies such as:
 
 - Node.js
 - Express.js
 - JavaScript
-- PostgreSQL driver
-- bcryptjs
+- PostgreSQL
+- pg
 - JSON Web Token
+- bcryptjs
 - dotenv
 - CORS
 
-Use the exact technologies actually found.
-
 ### Database
 
-Inspect the database folder and schema.
-
-Determine:
-- Database technology
-- Tables/entities
-- Relationships
-- Migrations
+- PostgreSQL
+- SQL
+- Database migrations
 - Seed data
-- Tenant isolation
-- Roles/permissions
-
-Do NOT claim Prisma or another ORM unless it actually exists.
+- Role and permission management
 
 ### Development Tools
 
-Include actual tools used, such as:
 - Git
 - GitHub
-- VS Code
+- npm
 - ESLint
-
-Only include relevant technologies.
+- VS Code
 
 ### Deployment
 
-Determine deployment platforms from actual project configuration and provided deployment information.
+- Vercel
 
-For example, check:
-- Vercel configuration
-- Render configuration
-- vercel.json
-- Backend deployment information
-
-Do not invent deployment services.
+---
 
 ## 📦 Installation
 
-Create accurate installation instructions for BOTH frontend and backend.
+```bash
+git clone YOUR_GITHUB_REPOSITORY_URL
+cd Aakam-HRMS
+````
 
-Explain:
+### Frontend
 
-1. Clone repository
-2. Navigate into frontend
-3. Install frontend dependencies
-4. Navigate into backend
-5. Install backend dependencies
-6. Configure environment variables
-7. Configure PostgreSQL
-8. Run the backend
-9. Run the frontend
+```bash
+cd Frontend
+npm install
+npm run dev
+```
 
-Use the actual npm scripts found in package.json.
+### Backend
 
-Do not invent npm scripts.
+```bash
+cd Backend
+npm install
+npm run dev
+```
+
+---
 
 ## 🔑 Environment Variables
 
-Inspect the source code for environment variable usage.
+Create the required `.env` files for the frontend and backend.
 
-Create a safe example showing variable NAMES only.
-
-Example:
+### Backend
 
 ```env
 DATABASE_URL=your_database_url
 JWT_SECRET=your_jwt_secret
-PORT=your_port
+JWT_EXPIRES_IN=8h
+PORT=5000
+```
+
+### Frontend
+
+```env
+VITE_API_BASE_URL=your_backend_api_url
+```
+
+> ⚠️ Never commit your actual `.env` files, database credentials, JWT secrets, passwords, or other sensitive information to GitHub.
+
+---
+
+## 🗄️ Database
+
+Aakam HRMS uses PostgreSQL as its relational database.
+
+The database contains data related to:
+
+* Users
+* Roles
+* Permissions
+* Employees
+* Companies
+* Branches
+* Departments
+* Job positions
+* Candidates
+* Leave requests
+* Attendance
+* Payroll
+* Performance
+* Training
+* Onboarding
+* Employee exits
+* Clients
+* Notifications
+* Login history
+* Audit logs
+
+Database schema, migrations, and seed files are maintained within the backend project.
+
+---
+
+## 📁 Project Structure
+
+```text
+Aakam-HRMS/
+├── Frontend/
+│   ├── public/
+│   ├── src/
+│   │   ├── components/
+│   │   ├── context/
+│   │   ├── pages/
+│   │   ├── services/
+│   │   ├── assets/
+│   │   └── ...
+│   ├── package.json
+│   ├── vite.config.ts
+│   └── eslint.config.js
+│
+├── Backend/
+│   ├── database/
+│   ├── middleware/
+│   ├── routes/
+│   ├── utils/
+│   ├── db.js
+│   ├── server.js
+│   └── package.json
+│
+├── ScreenShots/
+│   ├── Login.png
+│   ├── Dashboard.png
+│   ├── Dashboard2.png
+│   ├── Organization.png
+│   ├── Reports.png
+│   └── Settings.png
+│
+├── .gitignore
+└── README.md
+```
+
+---
+
+## ⚙️ Development
+
+Run the frontend:
+
+```bash
+cd Frontend
+npm run dev
+```
+
+Run the backend:
+
+```bash
+cd Backend
+npm run dev
+```
+
+For the backend production/start command:
+
+```bash
+npm start
+```
+
+---
+
+## 🌐 Deployment
+
+The Aakam HRMS frontend is deployed using Vercel.
+
+🔗 [**Aakam HRMS Live Application**](https://aakam-hrms.vercel.app/login)
+
+The deployed application communicates with the backend API using the configured API base URL.
+
+Environment variables must be configured correctly in the deployment environment.
+
+---
+
+## 📊 How It Works
+
+1. 🔐 User logs into Aakam HRMS
+2. 🛡️ Authentication and permissions are verified
+3. 📊 User accesses the HR dashboard
+4. 👥 Workforce information is managed
+5. 🏢 Companies, branches, and departments are managed
+6. 🎯 Recruitment activities are managed
+7. 📋 Employee onboarding is tracked
+8. 💰 Payroll information is managed
+9. 📊 Performance and training activities are managed
+10. 🚪 Employee exit activities are managed
+11. 📑 HR reports provide organizational information
+12. 🔔 Notifications provide important updates
+13. 📝 Audit and login history support administrative tracking
+
+---
+
+## 🎯 Project Purpose
+
+Aakam HRMS is designed to provide organizations with a centralized platform for managing their human resource operations.
+
+The project aims to reduce manual HR processes, improve workforce visibility, centralize employee information, streamline recruitment and onboarding, manage payroll and performance activities, and provide useful HR reports and analytics through a modern web application.
+
+---
+
+## 👨‍💻 Author
+
+**Vijaya Krishnan J**
+
+* GitHub: [https://github.com/VIJAYAKRISHNANJ](https://github.com/VIJAYAKRISHNANJ)
+
+---
+
+⭐ If you found this project useful, consider giving it a star!
+
+```
+
+This is the **style you were asking for**: same kind of flow as VijayX — **title → description → live demo → screenshots → features → modules → tech stack → installation → environment → structure → development → deployment → how it works → purpose → author** — without making the README unnecessarily complicated.
+```
