@@ -1,10 +1,4 @@
-I have a full-stack project called "Aakam HRMS" (Aakam Human Resource Management System).
-
-I want you to create a COMPLETE, PROFESSIONAL GitHub README.md for this project.
-
-Use the same overall style, structure, formatting, emoji usage, and professional presentation as this example README:
-
-# 🚀 VijayX StartupWin
+# 🚀 Aakam-HRMS
 
 A modern AI-powered startup valuation web application that helps founders estimate their startup's worth in minutes...
 
