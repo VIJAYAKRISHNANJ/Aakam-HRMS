@@ -21,6 +21,7 @@ import {
 } from "react-router-dom";
 
 import DashboardLayout from "../components/layout/DashboardLayout";
+import { useAuth } from "../context/AuthContext";
 
 import {
   deleteEmployee,
@@ -100,6 +101,16 @@ const getStatusClasses = (
 
 function Workforce() {
   const navigate = useNavigate();
+  const { user, hasPermission } = useAuth();
+
+  const canViewEmployees = hasPermission("employees.view");
+  const canViewOwnEmployee =
+    hasPermission("employees.view.own") &&
+    Boolean(user?.employeeId);
+  const canCreateEmployees = hasPermission("employees.create");
+  const canUpdateEmployees = hasPermission("employees.update");
+  const canDeleteEmployees = hasPermission("employees.delete");
+  const canExportEmployees = canViewEmployees;
 
   const [
     employees,
@@ -173,6 +184,14 @@ function Workforce() {
   */
 
   useEffect(() => {
+    if (!canViewEmployees) {
+      setEmployees([]);
+      setDepartments([]);
+      setError("");
+      setLoading(false);
+      return undefined;
+    }
+
     const timer =
       window.setTimeout(
         async () => {
@@ -214,6 +233,7 @@ function Workforce() {
     return () =>
       window.clearTimeout(timer);
   }, [
+    canViewEmployees,
     search,
     departmentId,
     status,
@@ -248,6 +268,7 @@ function Workforce() {
   const handleDeleteEmployee =
     async () => {
       if (
+        !canDeleteEmployees ||
         !employeeToDelete ||
         deleting
       ) {
@@ -413,6 +434,36 @@ function Workforce() {
   |--------------------------------------------------------------------------
   */
 
+  if (!canViewEmployees) {
+    return (
+      <DashboardLayout>
+        <div className="flex w-full min-w-0 flex-col gap-6">
+          <section className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
+            <div className="mx-auto max-w-xl text-center">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
+                <Users size={22} className="text-slate-500" />
+              </div>
+              <h1 className="text-xl font-semibold text-slate-900">
+                Employee directory access is restricted
+              </h1>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                You do not have permission to view the company employee directory.
+              </p>
+              {canViewOwnEmployee && user?.employeeId ? (
+                <Link
+                  to={`/workforce/employees/${user.employeeId}`}
+                  className="mt-5 inline-flex items-center rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800"
+                >
+                  View My Employee Profile
+                </Link>
+              ) : null}
+            </div>
+          </section>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div className="flex w-full min-w-0 flex-col gap-6">
@@ -450,19 +501,21 @@ function Workforce() {
 
           <div className="flex flex-wrap items-center gap-3">
 
-            <button
-              type="button"
-              onClick={handleExport}
-              disabled={
-                employees.length ===
-                0
-              }
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold tracking-wide text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Download size={15} />
+            {canExportEmployees && (
+              <button
+                type="button"
+                onClick={handleExport}
+                disabled={
+                  employees.length ===
+                  0
+                }
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold tracking-wide text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Download size={15} />
 
-              Export
-            </button>
+                Export
+              </button>
+            )}
 
             <button
               type="button"
@@ -474,14 +527,16 @@ function Workforce() {
               Import
             </button>
 
-            <Link
-              to="/workforce/employees/new"
-              className="inline-flex items-center gap-2 rounded-lg bg-teal-700 px-4 py-2 text-xs font-semibold tracking-wide text-white transition hover:bg-teal-800"
-            >
-              <Plus size={16} />
+            {canCreateEmployees && (
+              <Link
+                to="/workforce/employees/new"
+                className="inline-flex items-center gap-2 rounded-lg bg-teal-700 px-4 py-2 text-xs font-semibold tracking-wide text-white transition hover:bg-teal-800"
+              >
+                <Plus size={16} />
 
-              Add Employee
-            </Link>
+                Add Employee
+              </Link>
+            )}
 
           </div>
         </section>
@@ -884,54 +939,45 @@ function Workforce() {
 
                             {/* EDIT */}
 
-                            <Link
-                              to={`/workforce/employees/${employee.id}/edit`}
-                              title="Edit Employee"
-                              aria-label={`Edit ${employee.fullName}`}
-                              onClick={(event) =>
-                                event.stopPropagation()
-                              }
-                              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
-                            >
-                              <Pencil
-                                size={17}
-                                strokeWidth={1.8}
-                              />
-                            </Link>
+                            {canUpdateEmployees && (
+                              <Link
+                                to={`/workforce/employees/${employee.id}/edit`}
+                                title="Edit Employee"
+                                aria-label={`Edit ${employee.fullName}`}
+                                onClick={(event) =>
+                                  event.stopPropagation()
+                                }
+                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                              >
+                                <Pencil
+                                  size={17}
+                                  strokeWidth={1.8}
+                                />
+                              </Link>
+                            )}
 
                             {/* DELETE */}
 
-                            <button
-                              type="button"
-                              title="Delete Employee"
-                              aria-label={`Delete ${employee.fullName}`}
-                              onClick={(
-                                event,
-                              ) => {
-                                event.stopPropagation();
-
-                                setSuccessMessage(
-                                  "",
-                                );
-
-                                setDeleteError(
-                                  "",
-                                );
-
-                                setEmployeeToDelete(
-                                  employee,
-                                );
-                              }}
-                              disabled={
-                                deleting
-                              }
-                              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              <Trash2
-                                size={17}
-                                strokeWidth={1.8}
-                              />
-                            </button>
+                            {canDeleteEmployees && (
+                              <button
+                                type="button"
+                                title="Delete Employee"
+                                aria-label={`Delete ${employee.fullName}`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setSuccessMessage("");
+                                  setDeleteError("");
+                                  setEmployeeToDelete(employee);
+                                }}
+                                disabled={deleting}
+                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                <Trash2
+                                  size={17}
+                                  strokeWidth={1.8}
+                                />
+                              </button>
+                            )}
 
                           </div>
 
@@ -951,7 +997,7 @@ function Workforce() {
 
         {/* DELETE MODAL */}
 
-        {employeeToDelete && (
+        {canDeleteEmployees && employeeToDelete && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 p-4">
 
             <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">

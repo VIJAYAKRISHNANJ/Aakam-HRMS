@@ -1,3 +1,4 @@
+import api from "./api";
 import axios from "axios";
 
 /* ============================================================
@@ -80,14 +81,6 @@ interface ApiResponse<T> {
 }
 
 /* ============================================================
-   API URL
-============================================================ */
-
-const API_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:5000/api";
-
-/* ============================================================
    REQUEST HELPER
 ============================================================ */
 
@@ -128,9 +121,9 @@ const request = async <T>(
 export const getPerformanceReviews =
   (): Promise<PerformanceReview[]> =>
     request(
-      axios.get<
+      api.get<
         ApiResponse<PerformanceReview[]>
-      >(API_URL + "/performance"),
+      >("/performance"),
       "Unable to load performance reviews.",
     );
 
@@ -138,10 +131,10 @@ export const getPerformanceReview = (
   id: number | string,
 ): Promise<PerformanceReview> =>
   request(
-    axios.get<
+    api.get<
       ApiResponse<PerformanceReview>
     >(
-      `${API_URL}/performance/${id}`,
+      `/performance/${id}`,
     ),
     "Unable to load performance review.",
   );
@@ -150,10 +143,10 @@ export const createPerformanceReview = (
   payload: CreatePerformanceReviewPayload,
 ): Promise<PerformanceReview> =>
   request(
-    axios.post<
+    api.post<
       ApiResponse<PerformanceReview>
     >(
-      `${API_URL}/performance`,
+      "/performance",
       payload,
     ),
     "Unable to create performance review.",
@@ -164,10 +157,10 @@ export const updatePerformanceReview = (
   payload: UpdatePerformanceReviewPayload,
 ): Promise<PerformanceReview> =>
   request(
-    axios.put<
+    api.put<
       ApiResponse<PerformanceReview>
     >(
-      `${API_URL}/performance/${id}`,
+      `/performance/${id}`,
       payload,
     ),
     "Unable to update performance review.",
@@ -181,10 +174,10 @@ export const deletePerformanceReview = (
   id: number | string,
 ): Promise<PerformanceReview> =>
   request(
-    axios.delete<
+    api.delete<
       ApiResponse<PerformanceReview>
     >(
-      `${API_URL}/performance/${id}`,
+      `/performance/${id}`,
     ),
     "Unable to delete performance review.",
   );
@@ -197,10 +190,10 @@ export const getPerformanceGoals = (
   reviewId: number | string,
 ): Promise<PerformanceGoal[]> =>
   request(
-    axios.get<
+    api.get<
       ApiResponse<PerformanceGoal[]>
     >(
-      `${API_URL}/performance/${reviewId}/goals`,
+      `/performance/${reviewId}/goals`,
     ),
     "Unable to load performance goals.",
   );
@@ -214,10 +207,10 @@ export const createPerformanceGoal = (
   payload: CreatePerformanceGoalPayload,
 ): Promise<PerformanceGoal> =>
   request(
-    axios.post<
+    api.post<
       ApiResponse<PerformanceGoal>
     >(
-      `${API_URL}/performance/${reviewId}/goals`,
+      `/performance/${reviewId}/goals`,
       payload,
     ),
     "Unable to create performance goal.",
@@ -233,10 +226,10 @@ export const updatePerformanceGoal = (
   payload: UpdatePerformanceGoalPayload,
 ): Promise<PerformanceGoal> =>
   request(
-    axios.put<
+    api.put<
       ApiResponse<PerformanceGoal>
     >(
-      `${API_URL}/performance/${reviewId}/goals/${goalId}`,
+      `/performance/${reviewId}/goals/${goalId}`,
       payload,
     ),
     "Unable to update performance goal.",
@@ -251,10 +244,10 @@ export const deletePerformanceGoal = (
   goalId: number | string,
 ): Promise<PerformanceGoal> =>
   request(
-    axios.delete<
+    api.delete<
       ApiResponse<PerformanceGoal>
     >(
-      `${API_URL}/performance/${reviewId}/goals/${goalId}`,
+      `/performance/${reviewId}/goals/${goalId}`,
     ),
     "Unable to delete performance goal.",
   );

@@ -5,27 +5,30 @@ import {
   useEffect,
   useMemo,
   useState,
-} from "react";
-
-import type {
-  ReactNode,
+  type ReactNode,
 } from "react";
 
 import {
   getCurrentUser,
-  getStoredPermissions,
-  getStoredRoles,
-  getStoredToken,
-  getStoredUser,
   login as loginRequest,
   logout as logoutRequest,
   saveAuthData,
+  getStoredToken,
+  getStoredUser,
+  getStoredRoles,
+  getStoredPermissions,
+  type AuthUser,
+  type LoginPayload,
+  type LoginResponse,
 } from "../services/authService";
 
-import type {
-  AuthUser,
-  LoginPayload,
-} from "../services/authService";
+import { clearAuthStorage } from "../services/authStorage";
+
+import {
+  hasAllPermissions,
+  hasAnyPermission,
+  hasPermission,
+} from "../utils/permissions";
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -37,16 +40,18 @@ interface AuthContextValue {
 
   login: (
     payload: LoginPayload,
-  ) => Promise<void>;
+  ) => Promise<LoginResponse>;
 
   logout: () => Promise<void>;
+
+  refreshUser: () => Promise<void>;
 
   hasRole: (
     role: string,
   ) => boolean;
 
   hasAnyRole: (
-    roles: string[],
+    requiredRoles: string[],
   ) => boolean;
 
   hasPermission: (
@@ -54,128 +59,209 @@ interface AuthContextValue {
   ) => boolean;
 
   hasAnyPermission: (
-    permissions: string[],
+    requiredPermissions: string[],
   ) => boolean;
 
-  refreshUser: () => Promise<void>;
+  hasAllPermissions: (
+    requiredPermissions: string[],
+  ) => boolean;
 }
 
 const AuthContext =
-  createContext<AuthContextValue | undefined>(
-    undefined,
-  );
+  createContext<
+    AuthContextValue | undefined
+  >(undefined);
 
 interface AuthProviderProps {
   children: ReactNode;
 }
 
+function normalizeRole(
+  role: unknown,
+): string {
+  return String(role ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_");
+}
+
+function normalizeRoles(
+  roles: readonly unknown[],
+): string[] {
+  return roles
+    .map(normalizeRole)
+    .filter(Boolean);
+}
+
+function normalizePermissions(
+  permissions: readonly unknown[],
+): string[] {
+  return permissions
+    .map((permission) =>
+      String(permission ?? "")
+        .trim()
+        .toLowerCase(),
+    )
+    .filter(Boolean);
+}
+
 export function AuthProvider({
   children,
 }: AuthProviderProps) {
-  const [
-    user,
-    setUser,
-  ] = useState<AuthUser | null>(
-    getStoredUser(),
-  );
+  const [user, setUser] =
+    useState<AuthUser | null>(
+      getStoredUser(),
+    );
 
-  const [
-    roles,
-    setRoles,
-  ] = useState<string[]>(
-    getStoredRoles(),
-  );
+  const [roles, setRoles] =
+    useState<string[]>(
+      normalizeRoles(
+        getStoredRoles(),
+      ),
+    );
 
-  const [
-    permissions,
-    setPermissions,
-  ] = useState<string[]>(
-    getStoredPermissions(),
-  );
+  const [permissions, setPermissions] =
+    useState<string[]>(
+      normalizePermissions(
+        getStoredPermissions(),
+      ),
+    );
 
-  const [
-    isLoading,
-    setIsLoading,
-  ] = useState<boolean>(
-    true,
-  );
+  const [isLoading, setIsLoading] =
+    useState<boolean>(true);
+
+  const clearAuthenticationState =
+    useCallback(() => {
+      clearAuthStorage();
+
+      setUser(null);
+      setRoles([]);
+      setPermissions([]);
+    }, []);
 
   const refreshUser =
-    useCallback(
-      async () => {
-        const token =
-          getStoredToken();
+    useCallback(async () => {
+      const token =
+        getStoredToken();
 
-        if (!token) {
-          setUser(null);
-          setRoles([]);
-          setPermissions([]);
-          setIsLoading(false);
+      if (!token) {
+        setUser(null);
+        setRoles([]);
+        setPermissions([]);
+        setIsLoading(false);
+        return;
+      }
 
-          return;
-        }
+      try {
+        const response =
+          await getCurrentUser();
 
-        try {
-          const response =
-            await getCurrentUser();
+        const nextUser =
+          response.data.user;
 
-          setUser(
-            response.data.user,
-          );
-
-          setRoles(
+        const nextRoles =
+          normalizeRoles(
             response.data.roles,
           );
 
-          setPermissions(
+        const nextPermissions =
+          normalizePermissions(
             response.data.permissions,
           );
 
-          localStorage.setItem(
-            "aakam_hrms_user",
-            JSON.stringify(
-              response.data.user,
-            ),
-          );
+        setUser(nextUser);
+        setRoles(nextRoles);
+        setPermissions(
+          nextPermissions,
+        );
 
-          localStorage.setItem(
-            "aakam_hrms_roles",
-            JSON.stringify(
+        /*
+         * Keep local storage synchronized
+         * with the authoritative /auth/me
+         * response.
+         */
+        localStorage.setItem(
+          "aakam_hrms_user",
+          JSON.stringify(
+            nextUser,
+          ),
+        );
+
+        localStorage.setItem(
+          "aakam_hrms_roles",
+          JSON.stringify(
+            nextRoles,
+          ),
+        );
+
+        localStorage.setItem(
+          "aakam_hrms_permissions",
+          JSON.stringify(
+            nextPermissions,
+          ),
+        );
+      } catch (error) {
+        console.error(
+          "Unable to refresh authenticated user:",
+          error,
+        );
+
+        clearAuthenticationState();
+      } finally {
+        setIsLoading(false);
+      }
+    }, [
+      clearAuthenticationState,
+    ]);
+
+  useEffect(() => {
+    void refreshUser();
+  }, [refreshUser]);
+
+  const login =
+    useCallback(
+      async (
+        payload: LoginPayload,
+      ): Promise<LoginResponse> => {
+        setIsLoading(true);
+
+        try {
+          /*
+           * authService.login() already defines
+           * the correct request and response
+           * contract.
+           */
+          const response =
+            await loginRequest(
+              payload,
+            );
+
+          const nextUser =
+            response.data.user;
+
+          const nextRoles =
+            normalizeRoles(
               response.data.roles,
-            ),
-          );
+            );
 
-          localStorage.setItem(
-            "aakam_hrms_permissions",
-            JSON.stringify(
+          const nextPermissions =
+            normalizePermissions(
               response.data.permissions,
-            ),
-          );
-        } catch (error) {
-          console.error(
-            "Authentication validation failed:",
-            error,
+            );
+
+          /*
+           * saveAuthData expects the complete
+           * LoginResponse.
+           */
+          saveAuthData(response);
+
+          setUser(nextUser);
+          setRoles(nextRoles);
+          setPermissions(
+            nextPermissions,
           );
 
-          localStorage.removeItem(
-            "aakam_hrms_token",
-          );
-
-          localStorage.removeItem(
-            "aakam_hrms_user",
-          );
-
-          localStorage.removeItem(
-            "aakam_hrms_roles",
-          );
-
-          localStorage.removeItem(
-            "aakam_hrms_permissions",
-          );
-
-          setUser(null);
-          setRoles([]);
-          setPermissions([]);
+          return response;
         } finally {
           setIsLoading(false);
         }
@@ -183,72 +269,43 @@ export function AuthProvider({
       [],
     );
 
-  useEffect(() => {
-    refreshUser();
-  }, [refreshUser]);
-
-  const login =
-    useCallback(
-      async (
-        payload: LoginPayload,
-      ) => {
-        const response =
-          await loginRequest(
-            payload,
-          );
-
-        if (
-          !response.success ||
-          !response.data?.token ||
-          !response.data?.user
-        ) {
-          throw new Error(
-            response.message ||
-              "Login failed.",
-          );
-        }
-
-        saveAuthData(
-          response,
-        );
-
-        setUser(
-          response.data.user,
-        );
-
-        setRoles(
-          response.data.roles || [],
-        );
-
-        setPermissions(
-          response.data.permissions ||
-            [],
-        );
-      },
-      [],
-    );
-
   const logout =
-    useCallback(
-      async () => {
+    useCallback(async () => {
+      try {
         await logoutRequest();
-
-        setUser(null);
-        setRoles([]);
-        setPermissions([]);
-      },
-      [],
-    );
+      } catch (error) {
+        /*
+         * Clear the local session even if the
+         * server logout request fails.
+         */
+        console.error(
+          "Logout request failed:",
+          error,
+        );
+      } finally {
+        clearAuthenticationState();
+      }
+    }, [
+      clearAuthenticationState,
+    ]);
 
   const hasRole =
     useCallback(
       (
         role: string,
-      ) => {
+      ): boolean => {
+        const normalizedRole =
+          normalizeRole(role);
+
+        if (!normalizedRole) {
+          return false;
+        }
+
         return roles.some(
-          (currentRole) =>
-            currentRole.toUpperCase() ===
-            role.toUpperCase(),
+          (userRole) =>
+            normalizeRole(
+              userRole,
+            ) === normalizedRole,
         );
       },
       [roles],
@@ -258,51 +315,70 @@ export function AuthProvider({
     useCallback(
       (
         requiredRoles: string[],
-      ) => {
-        return requiredRoles.some(
-          (role) =>
-            roles.some(
-              (currentRole) =>
-                currentRole.toUpperCase() ===
-                role.toUpperCase(),
+      ): boolean => {
+        if (
+          requiredRoles.length === 0
+        ) {
+          return false;
+        }
+
+        const normalizedRequiredRoles =
+          requiredRoles.map(
+            normalizeRole,
+          );
+
+        return roles.some(
+          (userRole) =>
+            normalizedRequiredRoles.includes(
+              normalizeRole(
+                userRole,
+              ),
             ),
         );
       },
       [roles],
     );
 
-  const hasPermission =
+  const can =
     useCallback(
       (
         permission: string,
-      ) => {
-        return permissions.some(
-          (currentPermission) =>
-            currentPermission.toLowerCase() ===
-            permission.toLowerCase(),
+      ): boolean => {
+        return hasPermission(
+          permissions,
+          permission,
         );
       },
       [permissions],
     );
 
-  const hasAnyPermission =
+  const canAny =
     useCallback(
       (
         requiredPermissions: string[],
-      ) => {
-        return requiredPermissions.some(
-          (permission) =>
-            permissions.some(
-              (currentPermission) =>
-                currentPermission.toLowerCase() ===
-                permission.toLowerCase(),
-            ),
+      ): boolean => {
+        return hasAnyPermission(
+          permissions,
+          requiredPermissions,
         );
       },
       [permissions],
     );
 
-  const value =
+  const canAll =
+    useCallback(
+      (
+        requiredPermissions: string[],
+      ): boolean => {
+        return hasAllPermissions(
+          permissions,
+          requiredPermissions,
+        );
+      },
+      [permissions],
+    );
+
+  const contextValue =
     useMemo<AuthContextValue>(
       () => ({
         user,
@@ -310,20 +386,23 @@ export function AuthProvider({
         permissions,
 
         isAuthenticated:
-          Boolean(user),
+          Boolean(
+            user &&
+              getStoredToken(),
+          ),
 
         isLoading,
 
         login,
         logout,
+        refreshUser,
 
         hasRole,
         hasAnyRole,
 
-        hasPermission,
-        hasAnyPermission,
-
-        refreshUser,
+        hasPermission: can,
+        hasAnyPermission: canAny,
+        hasAllPermissions: canAll,
       }),
       [
         user,
@@ -332,17 +411,18 @@ export function AuthProvider({
         isLoading,
         login,
         logout,
+        refreshUser,
         hasRole,
         hasAnyRole,
-        hasPermission,
-        hasAnyPermission,
-        refreshUser,
+        can,
+        canAny,
+        canAll,
       ],
     );
 
   return (
     <AuthContext.Provider
-      value={value}
+      value={contextValue}
     >
       {children}
     </AuthContext.Provider>
@@ -351,13 +431,11 @@ export function AuthProvider({
 
 export function useAuth(): AuthContextValue {
   const context =
-    useContext(
-      AuthContext,
-    );
+    useContext(AuthContext);
 
   if (!context) {
     throw new Error(
-      "useAuth must be used inside an AuthProvider.",
+      "useAuth must be used within an AuthProvider.",
     );
   }
 

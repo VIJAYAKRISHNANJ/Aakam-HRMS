@@ -1,8 +1,7 @@
+import api from "./api";
 import axios from "axios";
 
-const API_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:5000/api";
+const API_URL = "/training";
 
 /*
 |--------------------------------------------------------------------------
@@ -269,8 +268,8 @@ export const getTrainingPrograms = async (
   filters: TrainingFilters = {},
 ): Promise<TrainingProgram[]> => {
   const response =
-    await axios.get<TrainingListResponse>(
-      `${API_URL}/training`,
+    await api.get<TrainingListResponse>(
+      API_URL,
       {
         params: {
           search:
@@ -295,8 +294,8 @@ export const getTrainingProgram = async (
   id: string | number,
 ): Promise<TrainingProgramDetail> => {
   const response =
-    await axios.get<TrainingProgramResponse>(
-      `${API_URL}/training/${id}`,
+    await api.get<TrainingProgramResponse>(
+      `${API_URL}/${id}`,
     );
 
   return response.data.data;
@@ -306,11 +305,11 @@ export const createTrainingProgram = async (
   payload: CreateTrainingProgramPayload,
 ): Promise<TrainingProgram> => {
   const response =
-    await axios.post<{
+    await api.post<{
       success: boolean;
       data: TrainingProgram;
     }>(
-      `${API_URL}/training`,
+      API_URL,
       payload,
     );
 
@@ -322,11 +321,11 @@ export const updateTrainingProgram = async (
   payload: UpdateTrainingProgramPayload,
 ): Promise<TrainingProgram> => {
   const response =
-    await axios.put<{
+    await api.put<{
       success: boolean;
       data: TrainingProgram;
     }>(
-      `${API_URL}/training/${id}`,
+      `${API_URL}/${id}`,
       payload,
     );
 
@@ -336,8 +335,8 @@ export const updateTrainingProgram = async (
 export const deleteTrainingProgram = async (
   id: string | number,
 ): Promise<void> => {
-  await axios.delete(
-    `${API_URL}/training/${id}`,
+  await api.delete(
+    `${API_URL}/${id}`,
   );
 };
 
@@ -349,8 +348,8 @@ export const getTrainingEnrollments = async (
   programId: string | number,
 ): Promise<TrainingEnrollment[]> => {
   const response =
-    await axios.get<TrainingEnrollmentResponse>(
-      `${API_URL}/training/${programId}/enrollments`,
+    await api.get<TrainingEnrollmentResponse>(
+      `${API_URL}/${programId}/enrollments`,
     );
 
   return response.data.data;
@@ -362,11 +361,11 @@ export const createTrainingEnrollment =
     payload: CreateTrainingEnrollmentPayload,
   ): Promise<TrainingEnrollment> => {
     const response =
-      await axios.post<{
+      await api.post<{
         success: boolean;
         data: TrainingEnrollment;
       }>(
-        `${API_URL}/training/${programId}/enrollments`,
+        `${API_URL}/${programId}/enrollments`,
         payload,
       );
 
@@ -380,11 +379,11 @@ export const updateTrainingEnrollment =
     payload: UpdateTrainingEnrollmentPayload,
   ): Promise<TrainingEnrollment> => {
     const response =
-      await axios.put<{
+      await api.put<{
         success: boolean;
         data: TrainingEnrollment;
       }>(
-        `${API_URL}/training/${programId}/enrollments/${enrollmentId}`,
+        `${API_URL}/${programId}/enrollments/${enrollmentId}`,
         payload,
       );
 
@@ -396,8 +395,8 @@ export const deleteTrainingEnrollment =
     programId: string | number,
     enrollmentId: string | number,
   ): Promise<void> => {
-    await axios.delete(
-      `${API_URL}/training/${programId}/enrollments/${enrollmentId}`,
+    await api.delete(
+      `${API_URL}/${programId}/enrollments/${enrollmentId}`,
     );
   };
 
@@ -409,8 +408,8 @@ export const getTrainingSkills = async (
   programId: string | number,
 ): Promise<EmployeeSkill[]> => {
   const response =
-    await axios.get<TrainingSkillResponse>(
-      `${API_URL}/training/${programId}/skills`,
+    await api.get<TrainingSkillResponse>(
+      `${API_URL}/${programId}/skills`,
     );
 
   return response.data.data;
@@ -421,11 +420,11 @@ export const createTrainingSkill = async (
   payload: CreateTrainingSkillPayload,
 ): Promise<EmployeeSkill> => {
   const response =
-    await axios.post<{
+    await api.post<{
       success: boolean;
       data: EmployeeSkill;
     }>(
-      `${API_URL}/training/${programId}/skills`,
+      `${API_URL}/${programId}/skills`,
       payload,
     );
 
@@ -438,11 +437,11 @@ export const updateTrainingSkill = async (
   payload: UpdateTrainingSkillPayload,
 ): Promise<EmployeeSkill> => {
   const response =
-    await axios.put<{
+    await api.put<{
       success: boolean;
       data: EmployeeSkill;
     }>(
-      `${API_URL}/training/${programId}/skills/${skillId}`,
+      `${API_URL}/${programId}/skills/${skillId}`,
       payload,
     );
 
@@ -453,8 +452,8 @@ export const deleteTrainingSkill = async (
   programId: string | number,
   skillId: string | number,
 ): Promise<void> => {
-  await axios.delete(
-    `${API_URL}/training/${programId}/skills/${skillId}`,
+  await api.delete(
+    `${API_URL}/${programId}/skills/${skillId}`,
   );
 };
 

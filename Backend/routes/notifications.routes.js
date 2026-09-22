@@ -6,6 +6,17 @@ const router = express.Router();
 const isValidId = (value) =>
   /^\d+$/.test(String(value)) && Number(value) > 0;
 
+const notificationScope = (req, values, conditions) => {
+  if (!req.user.roles.includes("SUPER_ADMINISTRATOR")) {
+    values.push(req.user.requestedCompanyId);
+    conditions.push(`company_id = $${values.length}`);
+  }
+  if (req.authorization?.ownOnly) {
+    values.push(req.user.id);
+    conditions.push(`(user_id = $${values.length} OR (user_id IS NULL AND recipient_type = 'ALL'))`);
+  }
+};
+
 /*
 |--------------------------------------------------------------------------
 | GET ALL NOTIFICATIONS
@@ -16,6 +27,7 @@ const isValidId = (value) =>
 
 router.get("/", async (req, res) => {
   try {
+    const values = []; const conditions = []; notificationScope(req, values, conditions);
     const result = await pool.query(
       `
         SELECT
@@ -25,9 +37,9 @@ router.get("/", async (req, res) => {
           message,
           is_read AS "isRead",
           created_at AS "createdAt"
-        FROM notifications
+        FROM notifications ${conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""}
         ORDER BY created_at DESC, id DESC
-      `,
+      `, values,
     );
 
     res.json({
@@ -60,13 +72,14 @@ router.get(
   "/unread-count",
   async (req, res) => {
     try {
+      const values = []; const conditions = ["is_read = FALSE"]; notificationScope(req, values, conditions);
       const result = await pool.query(
         `
           SELECT
             COUNT(*)::INTEGER AS count
           FROM notifications
-          WHERE is_read = FALSE
-        `,
+          WHERE ${conditions.join(" AND ")}
+        `, values,
       );
 
       res.json({
@@ -109,6 +122,7 @@ router.get(
         });
       }
 
+      const values = [req.params.id]; const conditions = ["id = $1"]; notificationScope(req, values, conditions);
       const result = await pool.query(
         `
           SELECT
@@ -119,10 +133,10 @@ router.get(
             is_read AS "isRead",
             created_at AS "createdAt"
           FROM notifications
-          WHERE id = $1
+          WHERE ${conditions.join(" AND ")}
           LIMIT 1
         `,
-        [req.params.id],
+        values,
       );
 
       if (result.rows.length === 0) {
@@ -228,9 +242,11 @@ router.post(
           INSERT INTO notifications (
             sender_name,
             recipient_type,
-            message
+            message,
+            company_id,
+            user_id
           )
-          VALUES ($1, $2, $3)
+          VALUES ($1, $2, $3, $4, $5)
           RETURNING
             id,
             sender_name AS "senderName",
@@ -240,9 +256,11 @@ router.post(
             created_at AS "createdAt"
         `,
         [
-          senderName.trim(),
+          req.user.fullName || req.user.username,
           recipientType,
           message.trim(),
+          req.user.requestedCompanyId,
+          recipientType === "SPECIFIC" ? req.user.id : null,
         ],
       );
 
@@ -286,11 +304,12 @@ router.put(
         });
       }
 
+      const values = [req.params.id]; const conditions = ["id = $1"]; notificationScope(req, values, conditions);
       const result = await pool.query(
         `
           UPDATE notifications
           SET is_read = TRUE
-          WHERE id = $1
+          WHERE ${conditions.join(" AND ")}
           RETURNING
             id,
             sender_name AS "senderName",
@@ -299,7 +318,7 @@ router.put(
             is_read AS "isRead",
             created_at AS "createdAt"
         `,
-        [req.params.id],
+        values,
       );
 
       if (result.rows.length === 0) {
@@ -342,12 +361,13 @@ router.put(
   "/read-all",
   async (req, res) => {
     try {
+      const values = []; const conditions = ["is_read = FALSE"]; notificationScope(req, values, conditions);
       const result = await pool.query(
         `
           UPDATE notifications
           SET is_read = TRUE
-          WHERE is_read = FALSE
-        `,
+          WHERE ${conditions.join(" AND ")}
+        `, values,
       );
 
       res.json({
@@ -393,13 +413,14 @@ router.delete(
         });
       }
 
+      const values = [req.params.id]; const conditions = ["id = $1"]; notificationScope(req, values, conditions);
       const result = await pool.query(
         `
           DELETE FROM notifications
-          WHERE id = $1
+          WHERE ${conditions.join(" AND ")}
           RETURNING id
         `,
-        [req.params.id],
+        values,
       );
 
       if (result.rows.length === 0) {

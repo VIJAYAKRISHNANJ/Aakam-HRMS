@@ -12,6 +12,8 @@ import {
   type FormEvent,
 } from "react";
 
+import { useAuth } from "../context/AuthContext";
+
 import {
   Link,
   useNavigate,
@@ -41,6 +43,9 @@ const initialForm: UpdateBranchPayload = {
 
 function EditBranch() {
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+
+  const canUpdateBranches = hasPermission("branches.update");
 
   const { id } = useParams<{
     id: string;
@@ -73,6 +78,13 @@ function EditBranch() {
   */
 
   useEffect(() => {
+    if (!canUpdateBranches) {
+      setCompanies([]);
+      setLoading(false);
+      setError("");
+      return;
+    }
+
     const loadBranch = async () => {
       if (!id) {
         setError("Invalid branch ID.");
@@ -132,7 +144,7 @@ function EditBranch() {
     };
 
     loadBranch();
-  }, [id]);
+  }, [id, canUpdateBranches]);
 
   /*
   |--------------------------------------------------------------------------
@@ -180,7 +192,7 @@ function EditBranch() {
   ) => {
     event.preventDefault();
 
-    if (saving) {
+    if (saving || !canUpdateBranches) {
       return;
     }
 
@@ -280,6 +292,50 @@ function EditBranch() {
   | Loading
   |--------------------------------------------------------------------------
   */
+
+  if (!canUpdateBranches) {
+    return (
+      <DashboardLayout>
+        <div className="flex min-h-[60vh] w-full items-center justify-center">
+          <section className="w-full max-w-lg rounded-xl border border-red-200 bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
+              <Building2 size={24} className="text-red-600" />
+            </div>
+
+            <h1 className="mt-4 text-xl font-semibold text-slate-900">
+              Access Restricted
+            </h1>
+
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              You do not have permission to update company branches.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => navigate("/organization/branches")}
+              className="
+                mt-6
+                inline-flex
+                items-center
+                justify-center
+                rounded-lg
+                bg-teal-700
+                px-4
+                py-2.5
+                text-sm
+                font-semibold
+                text-white
+                transition
+                hover:bg-teal-800
+              "
+            >
+              Back to Branches
+            </button>
+          </section>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   if (loading) {
     return (

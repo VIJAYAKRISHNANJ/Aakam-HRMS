@@ -19,12 +19,20 @@ import {
 
 import DashboardLayout from "../components/layout/DashboardLayout";
 
+import { useAuth } from "../context/AuthContext";
+
 import {
   getEmployeeById,
   getEmployees,
   updateEmployee,
   type WorkforceDepartment,
 } from "../services/workforceService";
+
+/*
+|--------------------------------------------------------------------------
+| Form State
+|--------------------------------------------------------------------------
+*/
 
 interface EditEmployeeForm {
   employeeCode: string;
@@ -38,11 +46,7 @@ interface EditEmployeeForm {
   employmentType: string;
 }
 
-type FormErrors = Partial<
-  Record<keyof EditEmployeeForm, string>
->;
-
-const emptyForm: EditEmployeeForm = {
+const initialForm: EditEmployeeForm = {
   employeeCode: "",
   firstName: "",
   lastName: "",
@@ -53,6 +57,16 @@ const emptyForm: EditEmployeeForm = {
   employmentStatus: "ACTIVE",
   employmentType: "FULL_TIME",
 };
+
+type FormErrors = Partial<
+  Record<keyof EditEmployeeForm, string>
+>;
+
+/*
+|--------------------------------------------------------------------------
+| Options
+|--------------------------------------------------------------------------
+*/
 
 const statusOptions = [
   {
@@ -92,39 +106,58 @@ const employmentTypeOptions = [
   },
 ];
 
-const getFieldClasses = (
-  hasError: boolean,
-): string =>
-  [
-    "h-12 w-full rounded-xl border bg-white px-4 text-sm text-slate-800 outline-none transition",
-    "placeholder:text-slate-400 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500",
-    hasError
-      ? "border-red-300 focus:border-red-500 focus:ring-4 focus:ring-red-500/10"
-      : "border-slate-200 hover:border-slate-300 focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10",
-  ].join(" ");
+/*
+|--------------------------------------------------------------------------
+| Helpers
+|--------------------------------------------------------------------------
+*/
 
 const toDateInputValue = (
-  value: string,
+  value: unknown,
 ): string => {
   if (!value) {
     return "";
   }
 
-  const datePart = value.slice(0, 10);
-
-  const parts = datePart.split("-");
-
-  if (
-    parts.length === 3 &&
-    /^\d{4}$/.test(parts[0]) &&
-    /^\d{2}$/.test(parts[1]) &&
-    /^\d{2}$/.test(parts[2])
-  ) {
-    return datePart;
+  if (typeof value === "string") {
+    return value.slice(0, 10);
   }
 
-  return "";
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  return String(value).slice(0, 10);
 };
+
+const getFieldClasses = (
+  hasError: boolean,
+): string =>
+  [
+    "w-full",
+    "rounded-xl",
+    "border",
+    "bg-white",
+    "px-3.5",
+    "py-3",
+    "text-sm",
+    "text-slate-900",
+    "outline-none",
+    "transition",
+    "placeholder:text-slate-400",
+    "disabled:cursor-not-allowed",
+    "disabled:bg-slate-50",
+    "disabled:text-slate-500",
+    hasError
+      ? "border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100"
+      : "border-slate-200 focus:border-teal-600 focus:ring-2 focus:ring-teal-100",
+  ].join(" ");
+
+/*
+|--------------------------------------------------------------------------
+| Component
+|--------------------------------------------------------------------------
+*/
 
 function EditEmployee() {
   const { id } =
@@ -132,18 +165,29 @@ function EditEmployee() {
 
   const navigate = useNavigate();
 
-  const [form, setForm] =
-    useState<EditEmployeeForm>(
-      emptyForm,
-    );
+  const { hasPermission } = useAuth();
 
-  const [errors, setErrors] =
-    useState<FormErrors>({});
+  const canUpdateEmployees =
+    hasPermission("employees.update");
 
-  const [departments, setDepartments] =
-    useState<WorkforceDepartment[]>(
-      [],
-    );
+  const [
+    form,
+    setForm,
+  ] = useState<EditEmployeeForm>(
+    initialForm,
+  );
+
+  const [
+    errors,
+    setErrors,
+  ] = useState<FormErrors>({});
+
+  const [
+    departments,
+    setDepartments,
+  ] = useState<WorkforceDepartment[]>(
+    [],
+  );
 
   const [
     departmentsLoading,
@@ -175,12 +219,6 @@ function EditEmployee() {
     setSuccess,
   ] = useState(false);
 
-  /*
-  |--------------------------------------------------------------------------
-  | Joining Date Input Reference
-  |--------------------------------------------------------------------------
-  */
-
   const joiningDateInputRef =
     useRef<HTMLInputElement | null>(
       null,
@@ -188,29 +226,32 @@ function EditEmployee() {
 
   /*
   |--------------------------------------------------------------------------
-  | Open Joining Date Calendar
+  | Date Picker
   |--------------------------------------------------------------------------
   */
 
-  const openJoiningDatePicker = () => {
-    if (
-      fieldDisabled ||
-      !joiningDateInputRef.current
-    ) {
-      return;
-    }
+  const openJoiningDatePicker =
+    () => {
+      if (
+        !joiningDateInputRef.current
+      ) {
+        return;
+      }
 
-    const input =
-      joiningDateInputRef.current as HTMLInputElement & {
-        showPicker?: () => void;
-      };
+      const input =
+        joiningDateInputRef.current as HTMLInputElement & {
+          showPicker?: () => void;
+        };
 
-    if (typeof input.showPicker === "function") {
-      input.showPicker();
-    } else {
-      input.focus();
-    }
-  };
+      if (
+        typeof input.showPicker ===
+        "function"
+      ) {
+        input.showPicker();
+      } else {
+        input.focus();
+      }
+    };
 
   /*
   |--------------------------------------------------------------------------
@@ -219,6 +260,13 @@ function EditEmployee() {
   */
 
   useEffect(() => {
+    if (!canUpdateEmployees) {
+      setPageLoading(false);
+      setDepartmentsLoading(false);
+
+      return;
+    }
+
     const loadData = async () => {
       if (!id) {
         setLoadError(
@@ -298,7 +346,10 @@ function EditEmployee() {
     };
 
     loadData();
-  }, [id]);
+  }, [
+    id,
+    canUpdateEmployees,
+  ]);
 
   /*
   |--------------------------------------------------------------------------
@@ -412,7 +463,8 @@ function EditEmployee() {
     if (
       submitting ||
       success ||
-      !id
+      !id ||
+      !canUpdateEmployees
     ) {
       return;
     }
@@ -509,6 +561,46 @@ function EditEmployee() {
 
   /*
   |--------------------------------------------------------------------------
+  | Access Control
+  |--------------------------------------------------------------------------
+  */
+
+  if (!canUpdateEmployees) {
+    return (
+      <DashboardLayout>
+        <div className="flex min-h-[520px] w-full items-center justify-center">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white px-6 py-10 text-center shadow-sm sm:px-8">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+              <CircleAlert size={24} />
+            </div>
+
+            <h2 className="mt-5 text-lg font-semibold text-slate-900">
+              Access Restricted
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              You do not have permission to edit employee records.
+            </p>
+
+            <Link
+              to={
+                id
+                  ? `/workforce/employees/${id}`
+                  : "/workforce"
+              }
+              className="!mt-6 !inline-flex !items-center !gap-2 !rounded-xl !border !border-slate-200 !bg-white !px-3.5 !py-2.5 !text-sm !font-semibold !text-slate-900 !shadow-none transition hover:!border-slate-300 hover:!bg-slate-50 hover:!text-slate-900"
+            >
+              <ArrowLeft size={16} />
+              Back
+            </Link>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  /*
+  |--------------------------------------------------------------------------
   | Loading
   |--------------------------------------------------------------------------
   */
@@ -517,16 +609,12 @@ function EditEmployee() {
     return (
       <DashboardLayout>
         <div className="flex min-h-[520px] w-full items-center justify-center">
-
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white px-6 py-10 text-center shadow-sm sm:px-8">
-
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 text-slate-700">
-
               <Loader2
                 size={24}
                 className="animate-spin"
               />
-
             </div>
 
             <h2 className="mt-5 text-lg font-semibold text-slate-900">
@@ -536,9 +624,7 @@ function EditEmployee() {
             <p className="mt-2 text-sm leading-6 text-slate-500">
               Fetching the latest employee information.
             </p>
-
           </div>
-
         </div>
       </DashboardLayout>
     );
@@ -553,11 +639,8 @@ function EditEmployee() {
   if (loadError) {
     return (
       <DashboardLayout>
-
         <div className="flex min-h-[520px] w-full items-center justify-center">
-
           <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white px-6 py-10 text-center shadow-sm sm:px-8">
-
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600">
               <CircleAlert size={24} />
             </div>
@@ -577,30 +660,18 @@ function EditEmployee() {
               <ArrowLeft size={16} />
               Back
             </Link>
-
           </div>
-
         </div>
-
       </DashboardLayout>
     );
   }
 
   return (
     <DashboardLayout>
-
-      {/* ================================================================
-          FULL WIDTH PAGE CONTAINER
-          ================================================================ */}
-
       <div className="flex w-full min-w-0 flex-col gap-6">
-
-        {/* ================================================================
-            BACK BUTTON
-            ================================================================ */}
+        {/* BACK BUTTON */}
 
         <div className="flex justify-start">
-
           <Link
             to={`/workforce/employees/${id}`}
             className="
@@ -634,17 +705,12 @@ function EditEmployee() {
             <span>
               Back to Employee Profile
             </span>
-
           </Link>
-
         </div>
 
-        {/* ================================================================
-            PAGE TITLE
-            ================================================================ */}
+        {/* PAGE TITLE */}
 
         <div className="flex flex-col items-start">
-
           <h1 className="text-[30px] font-semibold leading-9 tracking-tight text-slate-900">
             Edit Employee
           </h1>
@@ -652,25 +718,19 @@ function EditEmployee() {
           <p className="mt-1 text-sm text-slate-600">
             Update employee information while keeping the existing workforce record accurate.
           </p>
-
         </div>
 
-        {/* ================================================================
-            ERROR
-            ================================================================ */}
+        {/* ERROR */}
 
         {submitError && (
           <section className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm text-red-700">
-
             <div className="flex items-start gap-3">
-
               <CircleAlert
                 size={18}
                 className="mt-0.5 shrink-0"
               />
 
               <div>
-
                 <p className="font-semibold text-red-800">
                   Unable to save changes
                 </p>
@@ -678,30 +738,22 @@ function EditEmployee() {
                 <p className="mt-1 leading-6">
                   {submitError}
                 </p>
-
               </div>
-
             </div>
-
           </section>
         )}
 
-        {/* ================================================================
-            SUCCESS
-            ================================================================ */}
+        {/* SUCCESS */}
 
         {success && (
           <section className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 text-sm text-emerald-700">
-
             <div className="flex items-start gap-3">
-
               <CheckCircle2
                 size={18}
                 className="mt-0.5 shrink-0"
               />
 
               <div>
-
                 <p className="font-semibold text-emerald-800">
                   Employee updated successfully
                 </p>
@@ -709,35 +761,23 @@ function EditEmployee() {
                 <p className="mt-1 leading-6">
                   Redirecting to the employee profile with the latest details.
                 </p>
-
               </div>
-
             </div>
-
           </section>
         )}
 
-        {/* ================================================================
-            FORM
-            ================================================================ */}
+        {/* FORM */}
 
         <section className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
-
           <form
             onSubmit={handleSubmit}
             noValidate
           >
-
             <div className="space-y-10 px-6 py-6 sm:px-8 sm:py-8">
-
-              {/* ==========================================================
-                  PERSONAL INFORMATION
-                  ========================================================== */}
+              {/* PERSONAL INFORMATION */}
 
               <section>
-
                 <div className="mb-6">
-
                   <h2 className="text-base font-semibold text-slate-900">
                     Personal Information
                   </h2>
@@ -745,15 +785,12 @@ function EditEmployee() {
                   <p className="mt-1 text-sm text-slate-500">
                     Maintain the employee's core identity and contact details.
                   </p>
-
                 </div>
 
                 <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-
                   {/* Employee Code */}
 
                   <div>
-
                     <label className="mb-2 block text-sm font-medium text-slate-700">
                       Employee Code
                     </label>
@@ -784,13 +821,11 @@ function EditEmployee() {
                         }
                       </p>
                     )}
-
                   </div>
 
                   {/* Work Email */}
 
                   <div>
-
                     <label className="mb-2 block text-sm font-medium text-slate-700">
                       Work Email
                     </label>
@@ -817,13 +852,11 @@ function EditEmployee() {
                         {errors.email}
                       </p>
                     )}
-
                   </div>
 
                   {/* First Name */}
 
                   <div>
-
                     <label className="mb-2 block text-sm font-medium text-slate-700">
                       First Name
                     </label>
@@ -854,13 +887,11 @@ function EditEmployee() {
                         }
                       </p>
                     )}
-
                   </div>
 
                   {/* Last Name */}
 
                   <div>
-
                     <label className="mb-2 block text-sm font-medium text-slate-700">
                       Last Name
                     </label>
@@ -881,13 +912,11 @@ function EditEmployee() {
                         false,
                       )}
                     />
-
                   </div>
 
                   {/* Designation */}
 
                   <div className="lg:col-span-2">
-
                     <label className="mb-2 block text-sm font-medium text-slate-700">
                       Designation
                     </label>
@@ -918,21 +947,14 @@ function EditEmployee() {
                         }
                       </p>
                     )}
-
                   </div>
-
                 </div>
-
               </section>
 
-              {/* ==========================================================
-                  EMPLOYMENT INFORMATION
-                  ========================================================== */}
+              {/* EMPLOYMENT INFORMATION */}
 
               <section className="border-t border-slate-100 pt-8">
-
                 <div className="mb-6">
-
                   <h2 className="text-base font-semibold text-slate-900">
                     Employment Information
                   </h2>
@@ -940,15 +962,12 @@ function EditEmployee() {
                   <p className="mt-1 text-sm text-slate-500">
                     Update department, joining date and employment details.
                   </p>
-
                 </div>
 
                 <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-
                   {/* Department */}
 
                   <div>
-
                     <label className="mb-2 block text-sm font-medium text-slate-700">
                       Department
                     </label>
@@ -970,7 +989,6 @@ function EditEmployee() {
                         ),
                       )}
                     >
-
                       <option value="">
                         {departmentsLoading
                           ? "Loading departments..."
@@ -993,7 +1011,6 @@ function EditEmployee() {
                           </option>
                         ),
                       )}
-
                     </select>
 
                     {errors.departmentId && (
@@ -1003,13 +1020,11 @@ function EditEmployee() {
                         }
                       </p>
                     )}
-
                   </div>
 
                   {/* Joining Date */}
 
                   <div>
-
                     <label className="mb-2 block text-sm font-medium text-slate-700">
                       Joining Date
                     </label>
@@ -1045,13 +1060,11 @@ function EditEmployee() {
                         }
                       </p>
                     )}
-
                   </div>
 
                   {/* Employment Status */}
 
                   <div>
-
                     <label className="mb-2 block text-sm font-medium text-slate-700">
                       Employment Status
                     </label>
@@ -1070,7 +1083,6 @@ function EditEmployee() {
                         false,
                       )}
                     >
-
                       {statusOptions.map(
                         (option) => (
                           <option
@@ -1087,15 +1099,12 @@ function EditEmployee() {
                           </option>
                         ),
                       )}
-
                     </select>
-
                   </div>
 
                   {/* Employment Type */}
 
                   <div>
-
                     <label className="mb-2 block text-sm font-medium text-slate-700">
                       Employment Type
                     </label>
@@ -1114,7 +1123,6 @@ function EditEmployee() {
                         false,
                       )}
                     >
-
                       {employmentTypeOptions.map(
                         (option) => (
                           <option
@@ -1131,23 +1139,15 @@ function EditEmployee() {
                           </option>
                         ),
                       )}
-
                     </select>
-
                   </div>
-
                 </div>
-
               </section>
-
             </div>
 
-            {/* ============================================================
-                FORM FOOTER
-                ============================================================ */}
+            {/* FORM FOOTER */}
 
             <div className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/50 px-6 py-5 sm:flex-row sm:items-center sm:justify-end sm:px-8">
-
               <Link
                 to={`/workforce/employees/${id}`}
                 className="!inline-flex !items-center !justify-center !gap-2 !rounded-xl !border !border-slate-200 !bg-white !px-3.5 !py-2.5 !text-sm !font-semibold !text-slate-900 !shadow-none transition hover:!border-slate-300 hover:!bg-slate-50 hover:!text-slate-900"
@@ -1160,7 +1160,6 @@ function EditEmployee() {
                 <span className="!text-slate-900">
                   Back to Profile
                 </span>
-
               </Link>
 
               <button
@@ -1168,7 +1167,6 @@ function EditEmployee() {
                 disabled={fieldDisabled}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
-
                 {submitting && (
                   <Loader2
                     size={16}
@@ -1181,17 +1179,11 @@ function EditEmployee() {
                   : success
                     ? "Saved"
                     : "Save Changes"}
-
               </button>
-
             </div>
-
           </form>
-
         </section>
-
       </div>
-
     </DashboardLayout>
   );
 }

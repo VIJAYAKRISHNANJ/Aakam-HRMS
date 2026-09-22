@@ -1,8 +1,4 @@
-import axios from "axios";
-
-const API_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:5000/api";
+import api from "./api";
 
 /**
  * |--------------------------------------------------------------------------
@@ -80,8 +76,8 @@ interface CompaniesResponse {
 export const getCompanies =
   async (): Promise<Company[]> => {
     const response =
-      await axios.get<CompaniesResponse>(
-        `${API_URL}/companies`,
+      await api.get<CompaniesResponse>(
+        "/companies",
       );
 
     return response.data.data;
@@ -98,8 +94,8 @@ export const getCompanyById =
     companyId: number | string,
   ): Promise<Company> => {
     const response =
-      await axios.get<CompanyResponse>(
-        `${API_URL}/companies/${companyId}`,
+      await api.get<CompanyResponse>(
+        `/companies/${companyId}`,
       );
 
     return response.data.data;
@@ -116,8 +112,8 @@ export const createCompany =
     payload: CompanyPayload,
   ): Promise<Company> => {
     const response =
-      await axios.post<CompanyResponse>(
-        `${API_URL}/companies`,
+      await api.post<CompanyResponse>(
+        "/companies",
         payload,
       );
 
@@ -136,8 +132,8 @@ export const updateCompany =
     payload: CompanyPayload,
   ): Promise<Company> => {
     const response =
-      await axios.put<CompanyResponse>(
-        `${API_URL}/companies/${companyId}`,
+      await api.put<CompanyResponse>(
+        `/companies/${companyId}`,
         payload,
       );
 
@@ -154,7 +150,7 @@ export const deleteCompany =
   async (
     companyId: number | string,
   ): Promise<void> => {
-    await axios.delete(
-      `${API_URL}/companies/${companyId}`,
+    await api.delete(
+      `/companies/${companyId}`,
     );
   };

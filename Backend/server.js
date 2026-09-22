@@ -3,6 +3,7 @@ import cors from "cors";
 import "dotenv/config";
 
 import pool from "./db.js";
+import { authenticate, authorizeResource, verifyClientScope, verifyCompanyScope } from "./middleware/auth.middleware.js";
 
 import dashboardRoutes from "./routes/dashboard.routes.js";
 import employeeRoutes from "./routes/employees.routes.js";
@@ -66,7 +67,10 @@ app.get("/api/health", async (req, res) => {
 |--------------------------------------------------------------------------
 */
 
-app.use("/api/dashboard", dashboardRoutes);
+const protectedResource = (path, resource, router) =>
+  app.use(path, authenticate, verifyCompanyScope, verifyClientScope, authorizeResource(resource), router);
+
+protectedResource("/api/dashboard", "dashboard", dashboardRoutes);
 
 /*
 |--------------------------------------------------------------------------
@@ -74,7 +78,7 @@ app.use("/api/dashboard", dashboardRoutes);
 |--------------------------------------------------------------------------
 */
 
-app.use("/api/employees", employeeRoutes);
+protectedResource("/api/employees", "employees", employeeRoutes);
 
 /*
 |--------------------------------------------------------------------------
@@ -82,7 +86,7 @@ app.use("/api/employees", employeeRoutes);
 |--------------------------------------------------------------------------
 */
 
-app.use("/api/companies", companyRoutes);
+protectedResource("/api/companies", "company", companyRoutes);
 
 /*
 |--------------------------------------------------------------------------
@@ -90,7 +94,7 @@ app.use("/api/companies", companyRoutes);
 |--------------------------------------------------------------------------
 */
 
-app.use("/api/branches", branchRoutes);
+protectedResource("/api/branches", "branches", branchRoutes);
 
 /*
 |--------------------------------------------------------------------------
@@ -98,7 +102,7 @@ app.use("/api/branches", branchRoutes);
 |--------------------------------------------------------------------------
 */
 
-app.use("/api/departments", departmentRoutes);
+protectedResource("/api/departments", "departments", departmentRoutes);
 
 /*
 |--------------------------------------------------------------------------
@@ -106,7 +110,7 @@ app.use("/api/departments", departmentRoutes);
 |--------------------------------------------------------------------------
 */
 
-app.use("/api/notifications", notificationRoutes);
+protectedResource("/api/notifications", "notifications", notificationRoutes);
 
 /*
 |--------------------------------------------------------------------------
@@ -130,7 +134,7 @@ app.use("/api/users", usersRoutes);
 |--------------------------------------------------------------------------
 */
 
-app.use("/api/recruitment", recruitmentRoutes);
+protectedResource("/api/recruitment", "recruitment", recruitmentRoutes);
 
 /*
 |--------------------------------------------------------------------------
@@ -138,7 +142,7 @@ app.use("/api/recruitment", recruitmentRoutes);
 |--------------------------------------------------------------------------
 */
 
-app.use("/api/clients", clientsRoutes);
+protectedResource("/api/clients", "clients", clientsRoutes);
 
 /*
 |--------------------------------------------------------------------------
@@ -146,7 +150,7 @@ app.use("/api/clients", clientsRoutes);
 |--------------------------------------------------------------------------
 */
 
-app.use("/api/onboarding", onboardingRoutes);
+protectedResource("/api/onboarding", "onboarding", onboardingRoutes);
 
 /*
 |--------------------------------------------------------------------------
@@ -154,7 +158,7 @@ app.use("/api/onboarding", onboardingRoutes);
 |--------------------------------------------------------------------------
 */
 
-app.use("/api/payroll", payrollRoutes);
+protectedResource("/api/payroll", "payroll", payrollRoutes);
 
 /*
 |--------------------------------------------------------------------------
@@ -162,7 +166,7 @@ app.use("/api/payroll", payrollRoutes);
 |--------------------------------------------------------------------------
 */
 
-app.use("/api/performance", performanceRoutes);
+protectedResource("/api/performance", "performance", performanceRoutes);
 
 /*
 |--------------------------------------------------------------------------
@@ -170,7 +174,7 @@ app.use("/api/performance", performanceRoutes);
 |--------------------------------------------------------------------------
 */
 
-app.use("/api/training", trainingRoutes);
+protectedResource("/api/training", "training", trainingRoutes);
 
 /*
 |--------------------------------------------------------------------------
@@ -178,7 +182,7 @@ app.use("/api/training", trainingRoutes);
 |--------------------------------------------------------------------------
 */
 
-app.use("/api/reports", reportsRoutes);
+protectedResource("/api/reports", "reports", reportsRoutes);
 
 /*
 |--------------------------------------------------------------------------
@@ -186,7 +190,7 @@ app.use("/api/reports", reportsRoutes);
 |--------------------------------------------------------------------------
 */
 
-app.use("/api/exits", exitsRoutes);
+protectedResource("/api/exits", "exits", exitsRoutes);
 
 /*
 |--------------------------------------------------------------------------

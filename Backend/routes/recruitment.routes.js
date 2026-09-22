@@ -80,18 +80,33 @@ const candidateSelect = `
     ON d.id = j.department_id
 `;
 
-const getJob = async (id) => {
+const addRecruitmentScope = (req, values, conditions, alias, clientColumn = "client_id") => {
+  if (!req.user.roles.includes("SUPER_ADMINISTRATOR")) {
+    values.push(req.user.requestedCompanyId);
+    conditions.push(`${alias}.company_id = $${values.length}`);
+  }
+  if (req.user.roles.includes("CLIENT_USER")) {
+    values.push(req.user.client_id);
+    conditions.push(`${clientColumn.includes(".") ? clientColumn : `${alias}.${clientColumn}`} = $${values.length}`);
+  }
+};
+
+const getJob = async (req, id) => {
+  const values = [id];
+  const conditions = ["j.id = $1"];
+  addRecruitmentScope(req, values, conditions, "j");
   const result = await pool.query(
-    `${jobSelect} WHERE j.id = $1 GROUP BY j.id, d.name ORDER BY j.id DESC LIMIT 1;`,
-    [id],
+    `${jobSelect} WHERE ${conditions.join(" AND ")} GROUP BY j.id, d.name ORDER BY j.id DESC LIMIT 1;`, values,
   );
   return result.rows[0];
 };
 
-const getCandidate = async (id) => {
+const getCandidate = async (req, id) => {
+  const values = [id];
+  const conditions = ["c.id = $1"];
+  addRecruitmentScope(req, values, conditions, "c", "j.client_id");
   const result = await pool.query(
-    `${candidateSelect} WHERE c.id = $1 LIMIT 1;`,
-    [id],
+    `${candidateSelect} WHERE ${conditions.join(" AND ")} LIMIT 1;`, values,
   );
   return result.rows[0];
 };
@@ -173,20 +188,20 @@ const validateCandidateFields = (
   return null;
 };
 
-const verifyDepartment = async (departmentId) => {
+const verifyDepartment = async (req, departmentId) => {
   if (departmentId === null) return true;
   const result = await pool.query(
-    "SELECT id FROM departments WHERE id = $1 LIMIT 1;",
-    [departmentId],
+    "SELECT id FROM departments WHERE id = $1 AND ($2::boolean OR company_id = $3) LIMIT 1;",
+    [departmentId, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
   );
   return result.rows.length > 0;
 };
 
-const verifyJobPosition = async (jobPositionId) => {
+const verifyJobPosition = async (req, jobPositionId) => {
   if (jobPositionId === null) return true;
   const result = await pool.query(
-    "SELECT id FROM job_positions WHERE id = $1 LIMIT 1;",
-    [jobPositionId],
+    "SELECT id FROM job_positions WHERE id = $1 AND ($2::boolean OR company_id = $3) LIMIT 1;",
+    [jobPositionId, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
   );
   return result.rows.length > 0;
 };
@@ -213,6 +228,7 @@ router.get("/jobs", async (req, res) => {
       conditions.push(`j.status = $${values.length}`);
     }
 
+    addRecruitmentScope(req, values, conditions, "j");
     const whereClause = conditions.length
       ? `WHERE ${conditions.join(" AND ")}`
       : "";
@@ -240,7 +256,7 @@ router.get("/jobs/:id", async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: "Job position not found" });
-    const job = await getJob(req.params.id);
+    const job = await getJob(req, req.params.id);
     if (!job)
       return res
         .status(404)
@@ -267,22 +283,24 @@ router.post("/jobs", async (req, res) => {
       return res.status(400).json({ success: false, message: validationError });
 
     const parsedDepartmentId = parseOptionalInteger(departmentId);
-    if (!(await verifyDepartment(parsedDepartmentId))) {
+    if (!(await verifyDepartment(req, parsedDepartmentId))) {
       return res
         .status(400)
         .json({ success: false, message: "Department not found" });
     }
 
     const result = await pool.query(
-      `INSERT INTO job_positions (title, department_id, openings, status) VALUES ($1, $2, $3, $4) RETURNING id;`,
+      `INSERT INTO job_positions (title, department_id, openings, status, company_id, client_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id;`,
       [
         title.trim(),
         parsedDepartmentId,
         Number(openings),
         status.toUpperCase(),
+        req.user.requestedCompanyId,
+        req.user.roles.includes("CLIENT_USER") ? req.user.client_id : null,
       ],
     );
-    const job = await getJob(result.rows[0].id);
+    const job = await getJob(req, result.rows[0].id);
     res
       .status(201)
       .json({
@@ -304,7 +322,7 @@ router.put("/jobs/:id", async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: "Job position not found" });
-    const existingJob = await getJob(req.params.id);
+    const existingJob = await getJob(req, req.params.id);
     if (!existingJob)
       return res
         .status(404)
@@ -338,16 +356,16 @@ router.put("/jobs/:id", async (req, res) => {
       departmentId === undefined
         ? existingJob.department_id
         : parseOptionalInteger(departmentId);
-    if (!(await verifyDepartment(departmentValue)))
+    if (!(await verifyDepartment(req, departmentValue)))
       return res
         .status(400)
         .json({ success: false, message: "Department not found" });
-    values.push(req.params.id);
+    values.push(req.params.id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null);
     await pool.query(
-      `UPDATE job_positions SET ${updates.join(", ")} WHERE id = $${values.length};`,
+      `UPDATE job_positions SET ${updates.join(", ")} WHERE id = $${values.length - 2} AND ($${values.length - 1}::boolean OR company_id = $${values.length});`,
       values,
     );
-    const job = await getJob(req.params.id);
+    const job = await getJob(req, req.params.id);
     res.json({
       success: true,
       message: "Job position updated successfully",
@@ -367,7 +385,7 @@ router.delete("/jobs/:id", async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: "Job position not found" });
-    const job = await getJob(req.params.id);
+    const job = await getJob(req, req.params.id);
     if (!job)
       return res
         .status(404)
@@ -383,9 +401,7 @@ router.delete("/jobs/:id", async (req, res) => {
           success: false,
           message: "Cannot delete a job position that has candidates.",
         });
-    await pool.query("DELETE FROM job_positions WHERE id = $1;", [
-      req.params.id,
-    ]);
+    await pool.query("DELETE FROM job_positions WHERE id = $1 AND ($2::boolean OR company_id = $3);", [req.params.id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null]);
     res.json({ success: true, message: "Job position deleted successfully" });
   } catch (error) {
     console.error("Delete recruitment job error:", error);
@@ -427,6 +443,7 @@ router.get("/candidates", async (req, res) => {
       values.push(parsedJobPositionId);
       conditions.push(`c.job_position_id = $${values.length}`);
     }
+    addRecruitmentScope(req, values, conditions, "c", "j.client_id");
     const whereClause = conditions.length
       ? `WHERE ${conditions.join(" AND ")}`
       : "";
@@ -453,7 +470,7 @@ router.get("/candidates/:id", async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: "Candidate not found" });
-    const candidate = await getCandidate(req.params.id);
+    const candidate = await getCandidate(req, req.params.id);
     if (!candidate)
       return res
         .status(404)
@@ -484,20 +501,21 @@ router.post("/candidates", async (req, res) => {
     if (validationError)
       return res.status(400).json({ success: false, message: validationError });
     const parsedJobPositionId = parseOptionalInteger(jobPositionId);
-    if (!(await verifyJobPosition(parsedJobPositionId)))
+    if (!(await verifyJobPosition(req, parsedJobPositionId)))
       return res
         .status(400)
         .json({ success: false, message: "Job position not found" });
     const result = await pool.query(
-      `INSERT INTO candidates (name, email, job_position_id, stage) VALUES ($1, $2, $3, $4) RETURNING id;`,
+      `INSERT INTO candidates (name, email, job_position_id, stage, company_id) VALUES ($1, $2, $3, $4, $5) RETURNING id;`,
       [
         name.trim(),
         email?.trim() || null,
         parsedJobPositionId,
         stage.toUpperCase(),
+        req.user.requestedCompanyId,
       ],
     );
-    const candidate = await getCandidate(result.rows[0].id);
+    const candidate = await getCandidate(req, result.rows[0].id);
     res
       .status(201)
       .json({
@@ -519,7 +537,7 @@ router.put("/candidates/:id", async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: "Candidate not found" });
-    const existingCandidate = await getCandidate(req.params.id);
+    const existingCandidate = await getCandidate(req, req.params.id);
     if (!existingCandidate)
       return res
         .status(404)
@@ -550,16 +568,16 @@ router.put("/candidates/:id", async (req, res) => {
       jobPositionId === undefined
         ? existingCandidate.job_position_id
         : parseOptionalInteger(jobPositionId);
-    if (!(await verifyJobPosition(jobValue)))
+    if (!(await verifyJobPosition(req, jobValue)))
       return res
         .status(400)
         .json({ success: false, message: "Job position not found" });
-    values.push(req.params.id);
+    values.push(req.params.id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null);
     await pool.query(
-      `UPDATE candidates SET ${updates.join(", ")} WHERE id = $${values.length};`,
+      `UPDATE candidates SET ${updates.join(", ")} WHERE id = $${values.length - 2} AND ($${values.length - 1}::boolean OR company_id = $${values.length});`,
       values,
     );
-    const candidate = await getCandidate(req.params.id);
+    const candidate = await getCandidate(req, req.params.id);
     res.json({
       success: true,
       message: "Candidate updated successfully",
@@ -579,7 +597,7 @@ router.put("/candidates/:id/stage", async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: "Candidate not found" });
-    const candidate = await getCandidate(req.params.id);
+    const candidate = await getCandidate(req, req.params.id);
     if (!candidate)
       return res
         .status(404)
@@ -592,11 +610,12 @@ router.put("/candidates/:id/stage", async (req, res) => {
       return res
         .status(400)
         .json({ success: false, message: "Invalid candidate stage" });
-    await pool.query("UPDATE candidates SET stage = $1 WHERE id = $2;", [
+    await pool.query("UPDATE candidates SET stage = $1 WHERE id = $2 AND ($3::boolean OR company_id = $4);", [
       stage.toUpperCase(),
       req.params.id,
+      req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null,
     ]);
-    const updatedCandidate = await getCandidate(req.params.id);
+    const updatedCandidate = await getCandidate(req, req.params.id);
     res.json({
       success: true,
       message: "Candidate stage updated successfully",
@@ -617,8 +636,8 @@ router.delete("/candidates/:id", async (req, res) => {
         .status(404)
         .json({ success: false, message: "Candidate not found" });
     const result = await pool.query(
-      "DELETE FROM candidates WHERE id = $1 RETURNING id;",
-      [req.params.id],
+      "DELETE FROM candidates WHERE id = $1 AND ($2::boolean OR company_id = $3) RETURNING id;",
+      [req.params.id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
     );
     if (!result.rows.length)
       return res
@@ -635,18 +654,20 @@ router.delete("/candidates/:id", async (req, res) => {
 
 router.get("/stats", async (req, res) => {
   try {
+    const isPlatform = req.user.roles.includes("SUPER_ADMINISTRATOR");
+    const companyId = req.user.requestedCompanyId ?? null;
+    const clientId = req.user.roles.includes("CLIENT_USER") ? req.user.client_id : null;
     const result = await pool.query(`
       SELECT
-        (SELECT COUNT(*) FROM job_positions) AS total_job_positions,
-        (SELECT COUNT(*) FROM job_positions WHERE status = 'OPEN') AS open_positions,
-        (SELECT COUNT(*) FROM candidates) AS total_candidates,
-        (SELECT COUNT(*) FROM candidates WHERE stage = 'INTERVIEW') AS in_interview,
-        (SELECT COUNT(*) FROM candidates WHERE stage = 'SELECTED') AS selected,
-        (SELECT COUNT(*) FROM candidates WHERE stage = 'HIRED') AS hired,
-        (SELECT COUNT(*) FROM candidates WHERE stage = 'APPLIED') AS applied,
-        (SELECT COUNT(*) FROM candidates WHERE stage = 'SCREENING') AS screening,
-        (SELECT COUNT(*) FROM candidates WHERE stage = 'REJECTED') AS rejected;
-    `);
+        (SELECT COUNT(*) FROM job_positions j WHERE ($1::boolean OR j.company_id = $2) AND ($3::integer IS NULL OR j.client_id = $3)) AS total_job_positions,
+        (SELECT COUNT(*) FROM job_positions j WHERE ($1::boolean OR j.company_id = $2) AND ($3::integer IS NULL OR j.client_id = $3) AND status = 'OPEN') AS open_positions,
+        (SELECT COUNT(*) FROM candidates c LEFT JOIN job_positions j ON j.id = c.job_position_id WHERE ($1::boolean OR c.company_id = $2) AND ($3::integer IS NULL OR j.client_id = $3)) AS total_candidates,
+        (SELECT COUNT(*) FROM candidates c LEFT JOIN job_positions j ON j.id = c.job_position_id WHERE ($1::boolean OR c.company_id = $2) AND ($3::integer IS NULL OR j.client_id = $3) AND c.stage = 'INTERVIEW') AS in_interview,
+        (SELECT COUNT(*) FROM candidates c LEFT JOIN job_positions j ON j.id = c.job_position_id WHERE ($1::boolean OR c.company_id = $2) AND ($3::integer IS NULL OR j.client_id = $3) AND c.stage = 'SELECTED') AS selected,
+        (SELECT COUNT(*) FROM candidates c LEFT JOIN job_positions j ON j.id = c.job_position_id WHERE ($1::boolean OR c.company_id = $2) AND ($3::integer IS NULL OR j.client_id = $3) AND c.stage = 'HIRED') AS hired,
+        (SELECT COUNT(*) FROM candidates c LEFT JOIN job_positions j ON j.id = c.job_position_id WHERE ($1::boolean OR c.company_id = $2) AND ($3::integer IS NULL OR j.client_id = $3) AND c.stage = 'APPLIED') AS applied,
+        (SELECT COUNT(*) FROM candidates c LEFT JOIN job_positions j ON j.id = c.job_position_id WHERE ($1::boolean OR c.company_id = $2) AND ($3::integer IS NULL OR j.client_id = $3) AND c.stage = 'SCREENING') AS screening,
+        (SELECT COUNT(*) FROM candidates c LEFT JOIN job_positions j ON j.id = c.job_position_id WHERE ($1::boolean OR c.company_id = $2) AND ($3::integer IS NULL OR j.client_id = $3) AND c.stage = 'REJECTED') AS rejected;`, [isPlatform, companyId, clientId]);
     const row = result.rows[0];
     res.json({
       success: true,

@@ -1,43 +1,81 @@
 import { ArrowLeft, UserRound } from "lucide-react";
-
 import { useEffect, useState } from "react";
-
+import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-
 import DashboardLayout from "../components/layout/DashboardLayout";
-
 import { PageHeader } from "../components/recruitment/RecruitmentComponents";
-
-import { getCandidates, type Candidate } from "../services/recruitmentService";
-
+import { useAuth } from "../context/AuthContext";
+import {
+  getCandidates,
+  type Candidate,
+} from "../services/recruitmentService";
 import {
   createOnboarding,
   getOnboardingErrorMessage,
 } from "../services/onboardingService";
-
-import { getDepartments, type Department } from "../services/departmentService";
+import {
+  getDepartments,
+  type Department,
+} from "../services/departmentService";
 
 function AddOnboarding() {
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
 
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
+  const canCreateOnboarding =
+    hasPermission("onboarding.create");
 
-  const [candidateId, setCandidateId] = useState("");
-  const [departmentId, setDepartmentId] = useState("");
-  const [expectedJoiningDate, setExpectedJoiningDate] = useState("");
-  const [onboardingCode, setOnboardingCode] = useState("");
+  const [candidates, setCandidates] =
+    useState<Candidate[]>([]);
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [departments, setDepartments] =
+    useState<Department[]>([]);
+
+  const [candidateId, setCandidateId] =
+    useState("");
+
+  const [departmentId, setDepartmentId] =
+    useState("");
+
+  const [expectedJoiningDate, setExpectedJoiningDate] =
+    useState("");
+
+  const [onboardingCode, setOnboardingCode] =
+    useState("");
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [saving, setSaving] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
 
   useEffect(() => {
-    Promise.all([getCandidates(), getDepartments()])
-      .then(([candidateData, departmentData]) => {
-        setCandidates(candidateData);
-        setDepartments(departmentData);
-      })
+    if (!canCreateOnboarding) {
+      setCandidates([]);
+      setDepartments([]);
+      setLoading(false);
+      setError("");
+      return;
+    }
+
+    Promise.all([
+      getCandidates(),
+      getDepartments(),
+    ])
+      .then(
+        ([
+          candidateData,
+          departmentData,
+        ]) => {
+          setCandidates(candidateData);
+          setDepartments(
+            departmentData,
+          );
+        },
+      )
       .catch((requestError) =>
         setError(
           getOnboardingErrorMessage(
@@ -46,13 +84,25 @@ function AddOnboarding() {
           ),
         ),
       )
-      .finally(() => setLoading(false));
-  }, []);
+      .finally(() =>
+        setLoading(false),
+      );
+  }, [canCreateOnboarding]);
 
-  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const submit = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
     event.preventDefault();
 
-    const trimmedOnboardingCode = onboardingCode.trim();
+    if (!canCreateOnboarding) {
+      setError(
+        "You do not have permission to create onboarding records.",
+      );
+      return;
+    }
+
+    const trimmedOnboardingCode =
+      onboardingCode.trim();
 
     if (
       !candidateId ||
@@ -71,9 +121,12 @@ function AddOnboarding() {
       setError("");
 
       await createOnboarding({
-        onboardingCode: trimmedOnboardingCode,
-        candidateId: Number(candidateId),
-        departmentId: Number(departmentId),
+        onboardingCode:
+          trimmedOnboardingCode,
+        candidateId:
+          Number(candidateId),
+        departmentId:
+          Number(departmentId),
         expectedJoiningDate,
       });
 
@@ -89,6 +142,36 @@ function AddOnboarding() {
       setSaving(false);
     }
   };
+
+  if (!canCreateOnboarding) {
+    return (
+      <DashboardLayout>
+        <div className="flex min-h-[520px] items-center justify-center px-6">
+          <div className="max-w-md text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+              <UserRound size={21} />
+            </div>
+
+            <h2 className="text-lg font-bold text-slate-900">
+              Access Restricted
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              You do not have permission to create onboarding records.
+            </p>
+
+            <Link
+              to="/onboarding"
+              className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              <ArrowLeft size={16} />
+              Back to Onboarding
+            </Link>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -137,16 +220,28 @@ function AddOnboarding() {
                 <select
                   required
                   value={candidateId}
-                  onChange={(event) => setCandidateId(event.target.value)}
+                  onChange={(event) =>
+                    setCandidateId(
+                      event.target.value,
+                    )
+                  }
                   className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 font-normal outline-none focus:border-teal-600"
                 >
-                  <option value="">Select candidate</option>
+                  <option value="">
+                    Select candidate
+                  </option>
 
-                  {candidates.map((candidate) => (
-                    <option key={candidate.id} value={candidate.id}>
-                      {candidate.name} · {candidate.jobPosition}
-                    </option>
-                  ))}
+                  {candidates.map(
+                    (candidate) => (
+                      <option
+                        key={candidate.id}
+                        value={candidate.id}
+                      >
+                        {candidate.name} •{" "}
+                        {candidate.jobPosition}
+                      </option>
+                    ),
+                  )}
                 </select>
               </label>
 
@@ -156,16 +251,27 @@ function AddOnboarding() {
                 <select
                   required
                   value={departmentId}
-                  onChange={(event) => setDepartmentId(event.target.value)}
+                  onChange={(event) =>
+                    setDepartmentId(
+                      event.target.value,
+                    )
+                  }
                   className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 font-normal outline-none focus:border-teal-600"
                 >
-                  <option value="">Select department</option>
+                  <option value="">
+                    Select department
+                  </option>
 
-                  {departments.map((department) => (
-                    <option key={department.id} value={department.id}>
-                      {department.name}
-                    </option>
-                  ))}
+                  {departments.map(
+                    (department) => (
+                      <option
+                        key={department.id}
+                        value={department.id}
+                      >
+                        {department.name}
+                      </option>
+                    ),
+                  )}
                 </select>
               </label>
 
@@ -175,21 +281,32 @@ function AddOnboarding() {
                 <input
                   required
                   type="date"
-                  value={expectedJoiningDate}
+                  value={
+                    expectedJoiningDate
+                  }
                   onChange={(event) =>
-                    setExpectedJoiningDate(event.target.value)
+                    setExpectedJoiningDate(
+                      event.target.value,
+                    )
                   }
                   className="mt-2 h-11 w-full rounded-lg border border-slate-300 px-3 font-normal outline-none focus:border-teal-600"
                 />
               </label>
 
               <label className="text-sm font-medium text-slate-700">
-                Onboarding Code <span className="text-red-500">*</span>
+                Onboarding Code{" "}
+                <span className="text-red-500">
+                  *
+                </span>
 
                 <input
                   required
                   value={onboardingCode}
-                  onChange={(event) => setOnboardingCode(event.target.value)}
+                  onChange={(event) =>
+                    setOnboardingCode(
+                      event.target.value,
+                    )
+                  }
                   placeholder="Enter onboarding code"
                   className="mt-2 h-11 w-full rounded-lg border border-slate-300 px-3 font-normal uppercase outline-none focus:border-teal-600"
                 />
@@ -202,7 +319,9 @@ function AddOnboarding() {
                 disabled={saving}
                 className="rounded-lg bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
               >
-                {saving ? "Creating..." : "Create Onboarding"}
+                {saving
+                  ? "Creating..."
+                  : "Create Onboarding"}
               </button>
             </div>
           </form>

@@ -1,10 +1,4 @@
-import axios from "axios";
-
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:5000/api";
-
-const API_URL = `${API_BASE_URL}/notifications`;
+import api from "./api";
 
 /**
  * |--------------------------------------------------------------------------
@@ -77,8 +71,8 @@ interface ReadAllResponse {
 export const getNotifications =
   async (): Promise<Notification[]> => {
     const response =
-      await axios.get<NotificationsResponse>(
-        API_URL,
+      await api.get<NotificationsResponse>(
+        "/notifications",
       );
 
     if (!response.data.success) {
@@ -100,8 +94,8 @@ export const getNotifications =
 export const getUnreadNotificationCount =
   async (): Promise<number> => {
     const response =
-      await axios.get<UnreadCountResponse>(
-        `${API_URL}/unread-count`,
+      await api.get<UnreadCountResponse>(
+        "/notifications/unread-count",
       );
 
     if (!response.data.success) {
@@ -125,8 +119,8 @@ export const getNotificationById =
     notificationId: number | string,
   ): Promise<Notification> => {
     const response =
-      await axios.get<NotificationResponse>(
-        `${API_URL}/${notificationId}`,
+      await api.get<NotificationResponse>(
+        `/notifications/${notificationId}`,
       );
 
     if (!response.data.success) {
@@ -150,8 +144,8 @@ export const createNotification =
     payload: NotificationPayload,
   ): Promise<Notification> => {
     const response =
-      await axios.post<NotificationResponse>(
-        API_URL,
+      await api.post<NotificationResponse>(
+        "/notifications",
         payload,
       );
 
@@ -176,8 +170,8 @@ export const markNotificationAsRead =
     notificationId: number | string,
   ): Promise<Notification> => {
     const response =
-      await axios.put<NotificationResponse>(
-        `${API_URL}/${notificationId}/read`,
+      await api.put<NotificationResponse>(
+        `/notifications/${notificationId}/read`,
       );
 
     if (!response.data.success) {
@@ -199,8 +193,8 @@ export const markNotificationAsRead =
 export const markAllNotificationsAsRead =
   async (): Promise<number> => {
     const response =
-      await axios.put<ReadAllResponse>(
-        `${API_URL}/read-all`,
+      await api.put<ReadAllResponse>(
+        "/notifications/read-all",
       );
 
     if (!response.data.success) {
@@ -224,11 +218,11 @@ export const deleteNotification =
     notificationId: number | string,
   ): Promise<void> => {
     const response =
-      await axios.delete<{
+      await api.delete<{
         success: boolean;
         message?: string;
       }>(
-        `${API_URL}/${notificationId}`,
+        `/notifications/${notificationId}`,
       );
 
     if (!response.data.success) {

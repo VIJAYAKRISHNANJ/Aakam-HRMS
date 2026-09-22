@@ -83,7 +83,20 @@ const validateClient = (
   return null;
 };
 
-const getClient = async (id) => {
+const addClientScope = (req, values, conditions, alias = "") => {
+  const col = (name) => alias ? `${alias}.${name}` : name;
+  if (!req.user.roles.includes("SUPER_ADMINISTRATOR")) {
+    values.push(req.user.requestedCompanyId);
+    conditions.push(`${col("company_id")} = $${values.length}`);
+  }
+  if (req.user.roles.includes("CLIENT_USER")) {
+    values.push(req.user.client_id);
+    conditions.push(`${col("id")} = $${values.length}`);
+  }
+};
+
+const getClient = async (req, id) => {
+  const values = [id]; const conditions = ["id = $1"]; addClientScope(req, values, conditions);
   const result = await pool.query(
     `
       SELECT
@@ -101,10 +114,10 @@ const getClient = async (id) => {
         created_at,
         updated_at
       FROM clients
-      WHERE id = $1
+      WHERE ${conditions.join(" AND ")}
       LIMIT 1;
     `,
-    [id],
+    values,
   );
 
   return result.rows[0];
@@ -150,6 +163,8 @@ router.get("/", async (req, res) => {
       values.push(normalizedStatus);
       conditions.push(`c.status = $${values.length}`);
     }
+
+    addClientScope(req, values, conditions, "c");
 
     const whereClause =
       conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -209,7 +224,7 @@ router.get("/:id", async (req, res) => {
       });
     }
 
-    const client = await getClient(req.params.id);
+    const client = await getClient(req, req.params.id);
 
     if (!client) {
       return res.status(404).json({
@@ -287,9 +302,10 @@ router.post("/", async (req, res) => {
           city,
           state,
           country,
-          status
+          status,
+          company_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING
           id,
           client_code,
@@ -316,6 +332,7 @@ router.post("/", async (req, res) => {
         state?.trim() || null,
         country?.trim() || "India",
         status.toUpperCase(),
+        req.user.requestedCompanyId,
       ],
     );
 
@@ -358,7 +375,7 @@ router.put("/:id", async (req, res) => {
       });
     }
 
-    const existingClient = await getClient(req.params.id);
+    const existingClient = await getClient(req, req.params.id);
 
     if (!existingClient) {
       return res.status(404).json({
@@ -430,13 +447,15 @@ router.put("/:id", async (req, res) => {
     }
 
     updates.push("updated_at = CURRENT_TIMESTAMP");
-    values.push(req.params.id);
+    values.push(req.params.id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null, req.user.client_id ?? null);
 
     const result = await pool.query(
       `
         UPDATE clients
         SET ${updates.join(", ")}
-        WHERE id = $${values.length}
+        WHERE id = $${values.length - 3}
+          AND ($${values.length - 2}::boolean OR company_id = $${values.length - 1})
+          AND ($${values.length}::integer IS NULL OR id = $${values.length})
         RETURNING
           id,
           client_code,
@@ -495,8 +514,8 @@ router.delete("/:id", async (req, res) => {
     }
 
     const result = await pool.query(
-      "DELETE FROM clients WHERE id = $1 RETURNING id;",
-      [req.params.id],
+      "DELETE FROM clients WHERE id = $1 AND ($2::boolean OR company_id = $3) AND ($4::integer IS NULL OR id = $4) RETURNING id;",
+      [req.params.id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null, req.user.roles.includes("CLIENT_USER") ? req.user.client_id : null],
     );
 
     if (!result.rows.length) {

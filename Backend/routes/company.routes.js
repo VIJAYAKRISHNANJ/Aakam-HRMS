@@ -33,8 +33,9 @@ router.get("/", async (req, res) => {
         created_at,
         updated_at
       FROM companies
+      WHERE ($1::boolean OR id = $2)
       ORDER BY id ASC;
-    `);
+    `, [req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null]);
 
     res.json({
       success: true,
@@ -103,9 +104,10 @@ router.get("/:id", async (req, res) => {
           updated_at
         FROM companies
         WHERE id = $1
+          AND ($2::boolean OR id = $3)
         LIMIT 1;
       `,
-      [id],
+      [id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
     );
 
     if (result.rows.length === 0) {
@@ -379,9 +381,10 @@ router.put("/:id", async (req, res) => {
         SELECT id
         FROM companies
         WHERE id = $1
+          AND ($2::boolean OR id = $3)
         LIMIT 1;
       `,
-      [id],
+      [id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
     );
 
     if (existingResult.rows.length === 0) {
@@ -417,7 +420,8 @@ router.put("/:id", async (req, res) => {
             payroll_frequency = $13,
             status = $14,
             updated_at = CURRENT_TIMESTAMP
-          WHERE id = $15;
+          WHERE id = $15
+            AND ($16::boolean OR id = $17);
         `,
         [
           companyCode.trim(),
@@ -435,6 +439,8 @@ router.put("/:id", async (req, res) => {
           payrollFrequency || "MONTHLY",
           status || "ACTIVE",
           id,
+          req.user.roles.includes("SUPER_ADMINISTRATOR"),
+          req.user.requestedCompanyId ?? null,
         ],
       );
     } catch (updateError) {
@@ -477,9 +483,10 @@ router.put("/:id", async (req, res) => {
           updated_at
         FROM companies
         WHERE id = $1
+          AND ($2::boolean OR id = $3)
         LIMIT 1;
       `,
-      [id],
+      [id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
     );
 
     const company = result.rows[0];
@@ -537,9 +544,10 @@ router.delete("/:id", async (req, res) => {
       `
         DELETE FROM companies
         WHERE id = $1
+          AND ($2::boolean OR id = $3)
         RETURNING id;
       `,
-      [id],
+      [id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
     );
 
     if (result.rows.length === 0) {

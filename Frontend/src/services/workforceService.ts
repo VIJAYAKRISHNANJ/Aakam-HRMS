@@ -1,4 +1,4 @@
-import axios from "axios";
+import api from "./api";
 
 /*
 |--------------------------------------------------------------------------
@@ -6,8 +6,7 @@ import axios from "axios";
 |--------------------------------------------------------------------------
 */
 
-const API_URL =
-  `${import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api"}`;
+const API_URL = "/";
 
 /*
 |--------------------------------------------------------------------------
@@ -17,31 +16,18 @@ const API_URL =
 
 export interface Employee {
   id: number;
-
   employeeCode: string;
-
   firstName: string;
-
   lastName: string | null;
-
   fullName: string;
-
   email: string;
-
   designation: string;
-
   departmentId: number | null;
-
   department: string;
-
   systemRole: string;
-
   joiningDate: string;
-
   status: string;
-
   employmentType: string;
-
   createdAt: string;
 }
 
@@ -53,9 +39,7 @@ export interface Employee {
 
 export interface WorkforceDepartment {
   id: number;
-
   name: string;
-
   code: string;
 }
 
@@ -67,23 +51,18 @@ export interface WorkforceDepartment {
 
 export interface EmployeeDirectoryData {
   employees: Employee[];
-
   total: number;
-
   departments: WorkforceDepartment[];
 }
 
 interface EmployeeDirectoryResponse {
   success: boolean;
-
   data: EmployeeDirectoryData;
 }
 
 export interface EmployeeDirectoryFilters {
   search?: string;
-
   departmentId?: string;
-
   status?: string;
 }
 
@@ -97,18 +76,16 @@ export const getEmployees = async (
   filters: EmployeeDirectoryFilters = {},
 ): Promise<EmployeeDirectoryData> => {
   const response =
-    await axios.get<EmployeeDirectoryResponse>(
-      `${API_URL}/employees`,
+    await api.get<EmployeeDirectoryResponse>(
+      `${API_URL}employees`,
       {
         params: {
           search:
             filters.search ||
             undefined,
-
           departmentId:
             filters.departmentId ||
             undefined,
-
           status:
             filters.status ||
             undefined,
@@ -127,7 +104,6 @@ export const getEmployees = async (
 
 interface EmployeeProfileResponse {
   success: boolean;
-
   data: Employee;
 }
 
@@ -135,8 +111,8 @@ export const getEmployeeById = async (
   employeeId: number | string,
 ): Promise<Employee> => {
   const response =
-    await axios.get<EmployeeProfileResponse>(
-      `${API_URL}/employees/${employeeId}`,
+    await api.get<EmployeeProfileResponse>(
+      `${API_URL}employees/${employeeId}`,
     );
 
   return response.data.data;
@@ -150,29 +126,19 @@ export const getEmployeeById = async (
 
 export interface CreateEmployeePayload {
   employeeCode: string;
-
   firstName: string;
-
   lastName?: string;
-
   email: string;
-
   designation: string;
-
   departmentId: number;
-
   joiningDate: string;
-
   employmentStatus: string;
-
   employmentType: string;
 }
 
 interface CreateEmployeeResponse {
   success: boolean;
-
   data: Employee;
-
   message?: string;
 }
 
@@ -180,8 +146,8 @@ export const createEmployee = async (
   payload: CreateEmployeePayload,
 ): Promise<Employee> => {
   const response =
-    await axios.post<CreateEmployeeResponse>(
-      `${API_URL}/employees`,
+    await api.post<CreateEmployeeResponse>(
+      `${API_URL}employees`,
       payload,
     );
 
@@ -196,29 +162,19 @@ export const createEmployee = async (
 
 export interface UpdateEmployeePayload {
   employeeCode: string;
-
   firstName: string;
-
   lastName?: string;
-
   email: string;
-
   designation: string;
-
   departmentId: number;
-
   joiningDate: string;
-
   employmentStatus: string;
-
   employmentType: string;
 }
 
 interface UpdateEmployeeResponse {
   success: boolean;
-
   data: Employee;
-
   message?: string;
 }
 
@@ -227,8 +183,8 @@ export const updateEmployee = async (
   payload: UpdateEmployeePayload,
 ): Promise<Employee> => {
   const response =
-    await axios.put<UpdateEmployeeResponse>(
-      `${API_URL}/employees/${employeeId}`,
+    await api.put<UpdateEmployeeResponse>(
+      `${API_URL}employees/${employeeId}`,
       payload,
     );
 
@@ -252,7 +208,6 @@ export const updateEmployee = async (
 
 interface DeleteEmployeeResponse {
   success: boolean;
-
   message?: string;
 }
 
@@ -260,8 +215,8 @@ export const deleteEmployee = async (
   employeeId: number | string,
 ): Promise<string> => {
   const response =
-    await axios.delete<DeleteEmployeeResponse>(
-      `${API_URL}/employees/${employeeId}`,
+    await api.delete<DeleteEmployeeResponse>(
+      `${API_URL}employees/${employeeId}`,
     );
 
   return (

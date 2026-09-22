@@ -46,11 +46,9 @@ const isValidDate = (value) => {
 const formatDateOnly = (value) => {
   if (!(value instanceof Date)) return value;
 
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, "0");
-  const day = String(value.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
+  return `${value.getFullYear()}-${String(
+    value.getMonth() + 1,
+  ).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
 };
 
 const parseNonNegativeNumber = (value) => {
@@ -61,6 +59,112 @@ const parseNonNegativeNumber = (value) => {
   }
 
   return Number.NaN;
+};
+
+const isSuperAdmin = (req) =>
+  req.user.roles.includes("SUPER_ADMINISTRATOR");
+
+const isEmployee = (req) =>
+  req.user.roles.includes("EMPLOYEE");
+
+const isManagerOnly = (req) =>
+  req.user.roles.includes("MANAGER") &&
+  !req.user.roles.includes("HR_ADMINISTRATOR");
+
+const isClientUser = (req) =>
+  req.user.roles.includes("CLIENT_USER");
+
+const canManagePrograms = (req) =>
+  isSuperAdmin(req) ||
+  req.user.roles.includes("COMPANY_ADMINISTRATOR") ||
+  req.user.roles.includes("HR_ADMINISTRATOR");
+
+const assertTrainingAccess = (req, res) => {
+  if (isClientUser(req)) {
+    res.status(403).json({
+      success: false,
+      message:
+        "You do not have access to training records",
+    });
+
+    return false;
+  }
+
+  return true;
+};
+
+const addCompanyScope = (
+  req,
+  values,
+  conditions,
+  alias = "company_id",
+) => {
+  if (!isSuperAdmin(req)) {
+    values.push(req.user.requestedCompanyId ?? -1);
+
+    conditions.push(
+      `${alias} = $${values.length}`,
+    );
+  }
+};
+
+const addEmployeeScope = (
+  req,
+  values,
+  conditions,
+  employeeAlias = "e",
+) => {
+  if (isEmployee(req)) {
+    values.push(req.user.employee_id ?? -1);
+
+    conditions.push(
+      `${employeeAlias}.id = $${values.length}`,
+    );
+  }
+
+  if (isManagerOnly(req)) {
+    values.push(req.user.employee_id ?? -1);
+
+    conditions.push(
+      `${employeeAlias}.reporting_manager_id = $${values.length}`,
+    );
+  }
+};
+
+const addProgramScope = (
+  req,
+  values,
+  conditions,
+  alias = "tp",
+) => {
+  addCompanyScope(
+    req,
+    values,
+    conditions,
+    `${alias}.company_id`,
+  );
+};
+
+const addEnrollmentScope = (
+  req,
+  values,
+  conditions,
+  enrollmentAlias = "te",
+  employeeAlias = "e",
+) => {
+  addCompanyScope(
+    req,
+    values,
+    conditions,
+    `${enrollmentAlias}.company_id`,
+  );
+
+  addEmployeeScope(
+    req,
+    values,
+    conditions,
+    employeeAlias,
+  );
 };
 
 const mapProgram = (program) => ({
@@ -80,7 +184,9 @@ const mapProgram = (program) => ({
 
 const mapEnrollment = (enrollment) => ({
   id: Number(enrollment.id),
-  trainingProgramId: Number(enrollment.training_program_id),
+  trainingProgramId: Number(
+    enrollment.training_program_id,
+  ),
   employeeId: Number(enrollment.employee_id),
   employeeCode: enrollment.employee_code,
   employeeName: `${enrollment.first_name} ${
@@ -89,17 +195,28 @@ const mapEnrollment = (enrollment) => ({
   employeeDepartment:
     enrollment.department_name ?? "Unassigned",
   status: enrollment.status,
-  assignedDate: formatDateOnly(enrollment.assigned_date),
-  registeredDate: formatDateOnly(enrollment.registered_date),
-  attendedDate: formatDateOnly(enrollment.attended_date),
-  completedDate: formatDateOnly(enrollment.completed_date),
+  assignedDate: formatDateOnly(
+    enrollment.assigned_date,
+  ),
+  registeredDate: formatDateOnly(
+    enrollment.registered_date,
+  ),
+  attendedDate: formatDateOnly(
+    enrollment.attended_date,
+  ),
+  completedDate: formatDateOnly(
+    enrollment.completed_date,
+  ),
   assessmentScore:
     enrollment.assessment_score === null
       ? null
       : Number(enrollment.assessment_score),
-  assessmentResult: enrollment.assessment_result,
-  certificateName: enrollment.certificate_name,
-  certificateUrl: enrollment.certificate_url,
+  assessmentResult:
+    enrollment.assessment_result,
+  certificateName:
+    enrollment.certificate_name,
+  certificateUrl:
+    enrollment.certificate_url,
   certificateDate: formatDateOnly(
     enrollment.certificate_date,
   ),
@@ -115,38 +232,54 @@ const mapSkill = (skill) => ({
   employeeName: `${skill.first_name} ${
     skill.last_name ?? ""
   }`.trim(),
-  trainingEnrollmentId: skill.training_enrollment_id
-    ? Number(skill.training_enrollment_id)
-    : null,
+  trainingEnrollmentId:
+    skill.training_enrollment_id
+      ? Number(skill.training_enrollment_id)
+      : null,
   skillName: skill.skill_name,
   skillLevel: skill.skill_level,
-  acquiredDate: formatDateOnly(skill.acquired_date),
+  acquiredDate: formatDateOnly(
+    skill.acquired_date,
+  ),
   remarks: skill.remarks,
   createdAt: skill.created_at,
   updatedAt: skill.updated_at,
 });
 
-const getProgram = async (id) => {
+const getProgram = async (req, id) => {
+  const values = [id];
+
+  const conditions = [
+    "tp.id = $1",
+  ];
+
+  addProgramScope(
+    req,
+    values,
+    conditions,
+  );
+
   const result = await pool.query(
     `
       SELECT
-        id,
-        course_name,
-        category,
-        trainer,
-        duration,
-        cost,
-        mode,
-        assessment,
-        description,
-        status,
-        created_at,
-        updated_at
-      FROM training_programs
-      WHERE id = $1
+        tp.id,
+        tp.company_id,
+        tp.course_name,
+        tp.category,
+        tp.trainer,
+        tp.duration,
+        tp.cost,
+        tp.mode,
+        tp.assessment,
+        tp.description,
+        tp.status,
+        tp.created_at,
+        tp.updated_at
+      FROM training_programs tp
+      WHERE ${conditions.join(" AND ")}
       LIMIT 1;
     `,
-    [id],
+    values,
   );
 
   return result.rows[0];
@@ -200,23 +333,58 @@ const skillSelect = `
     ON e.id = es.employee_id
 `;
 
+const getEnrollment = async (
+  req,
+  id,
+  programId = null,
+) => {
+  const values = [id];
+
+  const conditions = [
+    "te.id = $1",
+  ];
+
+  if (programId !== null) {
+    values.push(programId);
+
+    conditions.push(
+      `te.training_program_id = $${values.length}`,
+    );
+  }
+
+  addEnrollmentScope(
+    req,
+    values,
+    conditions,
+  );
+
+  const result = await pool.query(
+    `${enrollmentSelect}
+     WHERE ${conditions.join(" AND ")}
+     LIMIT 1;`,
+    values,
+  );
+
+  return result.rows[0];
+};
+
 const validateProgram = (
   fields,
   partial = false,
 ) => {
-  const requiredFields = [
+  for (const field of [
     "courseName",
     "category",
     "trainer",
     "duration",
-  ];
-
-  for (const field of requiredFields) {
+  ]) {
     if (
       (!partial ||
         fields[field] !== undefined) &&
-      (typeof fields[field] !== "string" ||
-        !fields[field].trim())
+      (
+        typeof fields[field] !== "string" ||
+        !fields[field].trim()
+      )
     ) {
       return `${field} is required`;
     }
@@ -309,9 +477,10 @@ const validateEnrollment = (
     fields.assessmentScore !== undefined &&
     fields.assessmentScore !== null
   ) {
-    const score = parseNonNegativeNumber(
-      fields.assessmentScore,
-    );
+    const score =
+      parseNonNegativeNumber(
+        fields.assessmentScore,
+      );
 
     if (
       !Number.isFinite(score) ||
@@ -395,117 +564,143 @@ const validateSkill = (
 };
 
 /* =========================================================
-   TRAINING PROGRAMS
+   TRAINING PROGRAM LIST
 ========================================================= */
 
-router.get("/", async (req, res) => {
-  try {
-    const {
-      search = "",
-      category = "",
-      status = "",
-    } = req.query;
-
-    const values = [];
-    const conditions = [];
-
-    if (
-      typeof search === "string" &&
-      search.trim()
-    ) {
-      values.push(
-        `%${search.trim()}%`,
-      );
-
-      conditions.push(`(
-        tp.course_name ILIKE $${values.length}
-        OR tp.category ILIKE $${values.length}
-        OR tp.trainer ILIKE $${values.length}
-      )`);
+router.get(
+  "/",
+  async (req, res) => {
+    if (!assertTrainingAccess(req, res)) {
+      return;
     }
 
-    if (category) {
-      values.push(String(category).trim());
+    try {
+      const {
+        search = "",
+        category = "",
+        status = "",
+      } = req.query;
 
-      conditions.push(
-        `tp.category = $${values.length}`,
-      );
-    }
-
-    if (status) {
-      const normalizedStatus =
-        String(status).toUpperCase();
+      const values = [];
+      const conditions = [];
 
       if (
-        !PROGRAM_STATUSES.includes(
-          normalizedStatus,
-        )
+        typeof search === "string" &&
+        search.trim()
       ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Invalid training program status",
-        });
+        values.push(
+          `%${search.trim()}%`,
+        );
+
+        conditions.push(`(
+          tp.course_name ILIKE $${values.length}
+          OR tp.category ILIKE $${values.length}
+          OR tp.trainer ILIKE $${values.length}
+        )`);
       }
 
-      values.push(normalizedStatus);
+      if (category) {
+        values.push(
+          String(category).trim(),
+        );
 
-      conditions.push(
-        `tp.status = $${values.length}`,
+        conditions.push(
+          `tp.category = $${values.length}`,
+        );
+      }
+
+      if (status) {
+        const normalizedStatus =
+          String(status).toUpperCase();
+
+        if (
+          !PROGRAM_STATUSES.includes(
+            normalizedStatus,
+          )
+        ) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Invalid training program status",
+          });
+        }
+
+        values.push(normalizedStatus);
+
+        conditions.push(
+          `tp.status = $${values.length}`,
+        );
+      }
+
+      addProgramScope(
+        req,
+        values,
+        conditions,
       );
+
+      const result =
+        await pool.query(
+          `
+            SELECT
+              tp.id,
+              tp.company_id,
+              tp.course_name,
+              tp.category,
+              tp.trainer,
+              tp.duration,
+              tp.cost,
+              tp.mode,
+              tp.assessment,
+              tp.description,
+              tp.status,
+              tp.created_at,
+              tp.updated_at
+            FROM training_programs tp
+            ${
+              conditions.length
+                ? `WHERE ${conditions.join(" AND ")}`
+                : ""
+            }
+            ORDER BY
+              tp.created_at DESC,
+              tp.id DESC;
+          `,
+          values,
+        );
+
+      res.json({
+        success: true,
+        data: result.rows.map(
+          mapProgram,
+        ),
+        total: result.rows.length,
+      });
+    } catch (error) {
+      console.error(
+        "Training program list error:",
+        error,
+      );
+
+      res.status(500).json({
+        success: false,
+        message:
+          "Failed to load training programs",
+      });
     }
+  },
+);
 
-    const whereClause =
-      conditions.length
-        ? `WHERE ${conditions.join(
-            " AND ",
-          )}`
-        : "";
-
-    const result = await pool.query(
-      `
-        SELECT
-          tp.id,
-          tp.course_name,
-          tp.category,
-          tp.trainer,
-          tp.duration,
-          tp.cost,
-          tp.mode,
-          tp.assessment,
-          tp.description,
-          tp.status,
-          tp.created_at,
-          tp.updated_at
-        FROM training_programs tp
-        ${whereClause}
-        ORDER BY tp.created_at DESC, tp.id DESC;
-      `,
-      values,
-    );
-
-    res.json({
-      success: true,
-      data: result.rows.map(mapProgram),
-      total: result.rows.length,
-    });
-  } catch (error) {
-    console.error(
-      "Training program list error:",
-      error,
-    );
-
-    res.status(500).json({
-      success: false,
-      message:
-        "Failed to load training programs",
-    });
-  }
-});
+/* =========================================================
+   TRAINING ENROLLMENTS LIST
+========================================================= */
 
 router.get(
   "/:id/enrollments",
   async (req, res) => {
+    if (!assertTrainingAccess(req, res)) {
+      return;
+    }
+
     try {
       if (
         !isValidId(req.params.id)
@@ -518,7 +713,10 @@ router.get(
       }
 
       if (
-        !(await getProgram(req.params.id))
+        !(await getProgram(
+          req,
+          req.params.id,
+        ))
       ) {
         return res.status(404).json({
           success: false,
@@ -527,12 +725,28 @@ router.get(
         });
       }
 
+      const values = [
+        req.params.id,
+      ];
+
+      const conditions = [
+        "te.training_program_id = $1",
+      ];
+
+      addEnrollmentScope(
+        req,
+        values,
+        conditions,
+      );
+
       const result =
         await pool.query(
           `${enrollmentSelect}
-           WHERE te.training_program_id = $1
-           ORDER BY te.created_at DESC, te.id DESC;`,
-          [req.params.id],
+           WHERE ${conditions.join(" AND ")}
+           ORDER BY
+             te.created_at DESC,
+             te.id DESC;`,
+          values,
         );
 
       res.json({
@@ -557,9 +771,73 @@ router.get(
   },
 );
 
+/* =========================================================
+   TRAINING SKILLS LIST
+========================================================= */
+
+const getProgramSkills = async (
+  req,
+  programId,
+) => {
+  const values = [programId];
+
+  let companyCondition = "TRUE";
+
+  if (!isSuperAdmin(req)) {
+    values.push(
+      req.user.requestedCompanyId ?? -1,
+    );
+
+    companyCondition =
+      `$2::integer = te.company_id`;
+  }
+
+  const conditions = [`(
+    (
+      te.training_program_id = $1
+      AND ${companyCondition}
+    )
+    OR (
+      es.training_enrollment_id IS NULL
+      AND EXISTS (
+        SELECT 1
+        FROM training_enrollments te2
+        WHERE te2.training_program_id = $1
+          AND te2.employee_id = es.employee_id
+          AND ${
+            isSuperAdmin(req)
+              ? "TRUE"
+              : "te2.company_id = $2"
+          }
+      )
+    )
+  )`];
+
+  addEmployeeScope(
+    req,
+    values,
+    conditions,
+  );
+
+  return pool.query(
+    `${skillSelect}
+     LEFT JOIN training_enrollments te
+       ON te.id = es.training_enrollment_id
+     WHERE ${conditions.join(" AND ")}
+     ORDER BY
+       es.created_at DESC,
+       es.id DESC;`,
+    values,
+  );
+};
+
 router.get(
   "/:id/skills",
   async (req, res) => {
+    if (!assertTrainingAccess(req, res)) {
+      return;
+    }
+
     try {
       if (
         !isValidId(req.params.id)
@@ -572,7 +850,10 @@ router.get(
       }
 
       if (
-        !(await getProgram(req.params.id))
+        !(await getProgram(
+          req,
+          req.params.id,
+        ))
       ) {
         return res.status(404).json({
           success: false,
@@ -582,24 +863,9 @@ router.get(
       }
 
       const result =
-        await pool.query(
-          `${skillSelect}
-           LEFT JOIN training_enrollments te
-             ON te.id = es.training_enrollment_id
-           WHERE (
-             te.training_program_id = $1
-             OR (
-               es.training_enrollment_id IS NULL
-               AND EXISTS (
-                 SELECT 1
-                 FROM training_enrollments te2
-                 WHERE te2.training_program_id = $1
-                   AND te2.employee_id = es.employee_id
-               )
-             )
-           )
-           ORDER BY es.created_at DESC, es.id DESC;`,
-          [req.params.id],
+        await getProgramSkills(
+          req,
+          req.params.id,
         );
 
       res.json({
@@ -624,9 +890,17 @@ router.get(
   },
 );
 
+/* =========================================================
+   TRAINING PROGRAM DETAIL
+========================================================= */
+
 router.get(
   "/:id",
   async (req, res) => {
+    if (!assertTrainingAccess(req, res)) {
+      return;
+    }
+
     try {
       if (
         !isValidId(req.params.id)
@@ -640,6 +914,7 @@ router.get(
 
       const program =
         await getProgram(
+          req,
           req.params.id,
         );
 
@@ -651,35 +926,36 @@ router.get(
         });
       }
 
+      const enrollmentValues = [
+        req.params.id,
+      ];
+
+      const enrollmentConditions = [
+        "te.training_program_id = $1",
+      ];
+
+      addEnrollmentScope(
+        req,
+        enrollmentValues,
+        enrollmentConditions,
+      );
+
       const [
         enrollments,
         skills,
       ] = await Promise.all([
         pool.query(
           `${enrollmentSelect}
-           WHERE te.training_program_id = $1
-           ORDER BY te.created_at DESC, te.id DESC;`,
-          [req.params.id],
+           WHERE ${enrollmentConditions.join(" AND ")}
+           ORDER BY
+             te.created_at DESC,
+             te.id DESC;`,
+          enrollmentValues,
         ),
 
-        pool.query(
-          `${skillSelect}
-           LEFT JOIN training_enrollments te
-             ON te.id = es.training_enrollment_id
-           WHERE (
-             te.training_program_id = $1
-             OR (
-               es.training_enrollment_id IS NULL
-               AND EXISTS (
-                 SELECT 1
-                 FROM training_enrollments te2
-                 WHERE te2.training_program_id = $1
-                   AND te2.employee_id = es.employee_id
-               )
-             )
-           )
-           ORDER BY es.created_at DESC, es.id DESC;`,
-          [req.params.id],
+        getProgramSkills(
+          req,
+          req.params.id,
         ),
       ]);
 
@@ -712,323 +988,418 @@ router.get(
   },
 );
 
-router.post("/", async (req, res) => {
-  try {
-    const {
-      course_name: courseName,
-      courseName: camelCourseName,
-      category,
-      trainer,
-      duration,
-      cost,
-      mode,
-      assessment = null,
-      description = null,
-      status = "ACTIVE",
-    } = req.body;
+/* =========================================================
+   CREATE TRAINING PROGRAM
+========================================================= */
 
-    const fields = {
-      courseName:
-        courseName ??
-        camelCourseName,
-      category,
-      trainer,
-      duration,
-      cost,
-      mode,
-      status,
-    };
-
-    const validationError =
-      validateProgram(fields);
-
-    if (validationError) {
-      return res.status(400).json({
-        success: false,
-        message: validationError,
-      });
+router.post(
+  "/",
+  async (req, res) => {
+    if (!assertTrainingAccess(req, res)) {
+      return;
     }
 
-    const result =
-      await pool.query(
-        `
-          INSERT INTO training_programs
-            (
-              course_name,
-              category,
-              trainer,
-              duration,
-              cost,
-              mode,
-              assessment,
-              description,
-              status
-            )
-          VALUES
-            ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-          RETURNING id;
-        `,
-        [
+    try {
+      if (!canManagePrograms(req)) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "You do not have permission to manage training programs",
+        });
+      }
+
+      const {
+        course_name: courseName,
+        courseName: camelCourseName,
+        category,
+        trainer,
+        duration,
+        cost,
+        mode,
+        assessment = null,
+        description = null,
+        status = "ACTIVE",
+      } = req.body;
+
+      const fields = {
+        courseName:
+          courseName ??
+          camelCourseName,
+        category,
+        trainer,
+        duration,
+        cost,
+        mode,
+        status,
+      };
+
+      const validationError =
+        validateProgram(fields);
+
+      if (validationError) {
+        return res.status(400).json({
+          success: false,
+          message: validationError,
+        });
+      }
+
+      const companyId = isSuperAdmin(req)
+        ? req.body.companyId ??
+          req.body.company_id
+        : req.user.requestedCompanyId;
+
+      if (!isValidId(companyId)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Valid company ID is required",
+        });
+      }
+
+      const result =
+        await pool.query(
+          `
+            INSERT INTO training_programs
+              (
+                course_name,
+                category,
+                trainer,
+                duration,
+                cost,
+                mode,
+                assessment,
+                description,
+                status,
+                company_id
+              )
+            VALUES
+              (
+                $1,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                $8,
+                $9,
+                $10
+              )
+            RETURNING id;
+          `,
+          [
+            fields.courseName.trim(),
+            fields.category.trim(),
+            fields.trainer.trim(),
+            fields.duration.trim(),
+            parseNonNegativeNumber(
+              fields.cost,
+            ),
+            fields.mode.toUpperCase(),
+            assessment?.trim() || null,
+            description?.trim() || null,
+            fields.status.toUpperCase(),
+            companyId,
+          ],
+        );
+
+      res.status(201).json({
+        success: true,
+        message:
+          "Training program created successfully",
+        data: mapProgram(
+          await getProgram(
+            req,
+            result.rows[0].id,
+          ),
+        ),
+      });
+    } catch (error) {
+      if (error.code === "23505") {
+        return res.status(409).json({
+          success: false,
+          message:
+            "A training program with these details already exists",
+        });
+      }
+
+      console.error(
+        "Training program creation error:",
+        error,
+      );
+
+      res.status(500).json({
+        success: false,
+        message:
+          "Failed to create training program",
+      });
+    }
+  },
+);
+
+/* =========================================================
+   UPDATE TRAINING PROGRAM
+========================================================= */
+
+router.put(
+  "/:id",
+  async (req, res) => {
+    if (!assertTrainingAccess(req, res)) {
+      return;
+    }
+
+    try {
+      if (!canManagePrograms(req)) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "You do not have permission to manage training programs",
+        });
+      }
+
+      if (
+        !isValidId(req.params.id)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid training program ID",
+        });
+      }
+
+      if (
+        !(await getProgram(
+          req,
+          req.params.id,
+        ))
+      ) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Training program not found",
+        });
+      }
+
+      const {
+        course_name: courseName,
+        courseName: camelCourseName,
+        category,
+        trainer,
+        duration,
+        cost,
+        mode,
+        assessment,
+        description,
+        status,
+      } = req.body;
+
+      const fields = {
+        courseName:
+          courseName ??
+          camelCourseName,
+        category,
+        trainer,
+        duration,
+        cost,
+        mode,
+        status,
+      };
+
+      const validationError =
+        validateProgram(
+          fields,
+          true,
+        );
+
+      if (validationError) {
+        return res.status(400).json({
+          success: false,
+          message: validationError,
+        });
+      }
+
+      const updates = [];
+      const values = [];
+
+      const addUpdate = (
+        column,
+        value,
+      ) => {
+        values.push(value);
+
+        updates.push(
+          `${column} = $${values.length}`,
+        );
+      };
+
+      if (
+        fields.courseName !==
+        undefined
+      ) {
+        addUpdate(
+          "course_name",
           fields.courseName.trim(),
+        );
+      }
+
+      if (
+        fields.category !==
+        undefined
+      ) {
+        addUpdate(
+          "category",
           fields.category.trim(),
+        );
+      }
+
+      if (
+        fields.trainer !==
+        undefined
+      ) {
+        addUpdate(
+          "trainer",
           fields.trainer.trim(),
+        );
+      }
+
+      if (
+        fields.duration !==
+        undefined
+      ) {
+        addUpdate(
+          "duration",
           fields.duration.trim(),
+        );
+      }
+
+      if (
+        fields.cost !==
+        undefined
+      ) {
+        addUpdate(
+          "cost",
           parseNonNegativeNumber(
             fields.cost,
           ),
+        );
+      }
+
+      if (
+        fields.mode !==
+        undefined
+      ) {
+        addUpdate(
+          "mode",
           fields.mode.toUpperCase(),
-          assessment?.trim() || null,
-          description?.trim() || null,
+        );
+      }
+
+      if (
+        assessment !==
+        undefined
+      ) {
+        addUpdate(
+          "assessment",
+          assessment?.trim() ||
+            null,
+        );
+      }
+
+      if (
+        description !==
+        undefined
+      ) {
+        addUpdate(
+          "description",
+          description?.trim() ||
+            null,
+        );
+      }
+
+      if (
+        fields.status !==
+        undefined
+      ) {
+        addUpdate(
+          "status",
           fields.status.toUpperCase(),
-        ],
-      );
+        );
+      }
 
-    res.status(201).json({
-      success: true,
-      message:
-        "Training program created successfully",
-      data: mapProgram(
-        await getProgram(
-          result.rows[0].id,
-        ),
-      ),
-    });
-  } catch (error) {
-    if (error.code === "23505") {
-      return res.status(409).json({
-        success: false,
-        message:
-          "A training program with these details already exists",
-      });
-    }
-
-    console.error(
-      "Training program creation error:",
-      error,
-    );
-
-    res.status(500).json({
-      success: false,
-      message:
-        "Failed to create training program",
-    });
-  }
-});
-
-router.put("/:id", async (req, res) => {
-  try {
-    if (
-      !isValidId(req.params.id)
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Invalid training program ID",
-      });
-    }
-
-    if (
-      !(await getProgram(req.params.id))
-    ) {
-      return res.status(404).json({
-        success: false,
-        message:
-          "Training program not found",
-      });
-    }
-
-    const {
-      course_name: courseName,
-      courseName: camelCourseName,
-      category,
-      trainer,
-      duration,
-      cost,
-      mode,
-      assessment,
-      description,
-      status,
-    } = req.body;
-
-    const fields = {
-      courseName:
-        courseName ??
-        camelCourseName,
-      category,
-      trainer,
-      duration,
-      cost,
-      mode,
-      status,
-    };
-
-    const validationError =
-      validateProgram(
-        fields,
-        true,
-      );
-
-    if (validationError) {
-      return res.status(400).json({
-        success: false,
-        message: validationError,
-      });
-    }
-
-    const updates = [];
-    const values = [];
-
-    const addUpdate = (
-      column,
-      value,
-    ) => {
-      values.push(value);
+      if (!updates.length) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "At least one field is required",
+        });
+      }
 
       updates.push(
-        `${column} = $${values.length}`,
+        "updated_at = CURRENT_TIMESTAMP",
       );
-    };
 
-    if (
-      fields.courseName !==
-      undefined
-    ) {
-      addUpdate(
-        "course_name",
-        fields.courseName.trim(),
+      values.push(
+        req.params.id,
       );
-    }
 
-    if (
-      fields.category !==
-      undefined
-    ) {
-      addUpdate(
-        "category",
-        fields.category.trim(),
+      const idParam =
+        values.length;
+
+      let where =
+        `id = $${idParam}`;
+
+      if (!isSuperAdmin(req)) {
+        values.push(
+          req.user.requestedCompanyId ??
+            -1,
+        );
+
+        where +=
+          ` AND company_id = $${values.length}`;
+      }
+
+      await pool.query(
+        `
+          UPDATE training_programs
+          SET ${updates.join(", ")}
+          WHERE ${where};
+        `,
+        values,
       );
-    }
 
-    if (
-      fields.trainer !==
-      undefined
-    ) {
-      addUpdate(
-        "trainer",
-        fields.trainer.trim(),
-      );
-    }
-
-    if (
-      fields.duration !==
-      undefined
-    ) {
-      addUpdate(
-        "duration",
-        fields.duration.trim(),
-      );
-    }
-
-    if (
-      fields.cost !==
-      undefined
-    ) {
-      addUpdate(
-        "cost",
-        parseNonNegativeNumber(
-          fields.cost,
+      res.json({
+        success: true,
+        message:
+          "Training program updated successfully",
+        data: mapProgram(
+          await getProgram(
+            req,
+            req.params.id,
+          ),
         ),
-      );
-    }
+      });
+    } catch (error) {
+      if (error.code === "23505") {
+        return res.status(409).json({
+          success: false,
+          message:
+            "A training program with these details already exists",
+        });
+      }
 
-    if (
-      fields.mode !==
-      undefined
-    ) {
-      addUpdate(
-        "mode",
-        fields.mode.toUpperCase(),
+      console.error(
+        "Training program update error:",
+        error,
       );
-    }
 
-    if (
-      assessment !==
-      undefined
-    ) {
-      addUpdate(
-        "assessment",
-        assessment?.trim() || null,
-      );
-    }
-
-    if (
-      description !==
-      undefined
-    ) {
-      addUpdate(
-        "description",
-        description?.trim() || null,
-      );
-    }
-
-    if (
-      fields.status !==
-      undefined
-    ) {
-      addUpdate(
-        "status",
-        fields.status.toUpperCase(),
-      );
-    }
-
-    if (!updates.length) {
-      return res.status(400).json({
+      res.status(500).json({
         success: false,
         message:
-          "At least one field is required",
+          "Failed to update training program",
       });
     }
-
-    updates.push(
-      "updated_at = CURRENT_TIMESTAMP",
-    );
-
-    values.push(
-      req.params.id,
-    );
-
-    await pool.query(
-      `
-        UPDATE training_programs
-        SET ${updates.join(", ")}
-        WHERE id = $${values.length};
-      `,
-      values,
-    );
-
-    res.json({
-      success: true,
-      message:
-        "Training program updated successfully",
-      data: mapProgram(
-        await getProgram(
-          req.params.id,
-        ),
-      ),
-    });
-  } catch (error) {
-    console.error(
-      "Training program update error:",
-      error,
-    );
-
-    res.status(500).json({
-      success: false,
-      message:
-        "Failed to update training program",
-    });
-  }
-});
+  },
+);
 
 /* =========================================================
    DELETE TRAINING PROGRAM
@@ -1037,10 +1408,22 @@ router.put("/:id", async (req, res) => {
 router.delete(
   "/:id",
   async (req, res) => {
+    if (!assertTrainingAccess(req, res)) {
+      return;
+    }
+
     const client =
       await pool.connect();
 
     try {
+      if (!canManagePrograms(req)) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "You do not have permission to manage training programs",
+        });
+      }
+
       if (
         !isValidId(req.params.id)
       ) {
@@ -1053,6 +1436,7 @@ router.delete(
 
       const program =
         await getProgram(
+          req,
           req.params.id,
         );
 
@@ -1068,41 +1452,58 @@ router.delete(
         "BEGIN",
       );
 
-      /*
-       * employee_skills are linked to
-       * training_enrollments.
-       *
-       * Delete them first, then enrollments,
-       * then the training program.
-       */
+      const values = [
+        req.params.id,
+      ];
+
+      let companyPredicate =
+        "tp.id = $1";
+
+      if (!isSuperAdmin(req)) {
+        values.push(
+          req.user.requestedCompanyId ??
+            -1,
+        );
+
+        companyPredicate +=
+          ` AND tp.company_id = $${values.length}`;
+      }
+
       await client.query(
         `
-          DELETE FROM employee_skills
-          WHERE training_enrollment_id IN (
-            SELECT id
-            FROM training_enrollments
-            WHERE training_program_id = $1
-          );
+          DELETE FROM employee_skills es
+          USING
+            training_enrollments te,
+            training_programs tp,
+            employees e
+          WHERE
+            es.training_enrollment_id = te.id
+            AND te.training_program_id = tp.id
+            AND e.id = te.employee_id
+            AND ${companyPredicate};
         `,
-        [req.params.id],
+        values,
       );
 
       await client.query(
         `
-          DELETE FROM training_enrollments
-          WHERE training_program_id = $1;
+          DELETE FROM training_enrollments te
+          USING training_programs tp
+          WHERE
+            te.training_program_id = tp.id
+            AND ${companyPredicate};
         `,
-        [req.params.id],
+        values,
       );
 
       const result =
         await client.query(
           `
-            DELETE FROM training_programs
-            WHERE id = $1
-            RETURNING id;
+            DELETE FROM training_programs tp
+            WHERE ${companyPredicate}
+            RETURNING tp.id;
           `,
-          [req.params.id],
+          values,
         );
 
       if (!result.rows.length) {
@@ -1149,13 +1550,25 @@ router.delete(
 );
 
 /* =========================================================
-   ENROLLMENTS
+   CREATE ENROLLMENT
 ========================================================= */
 
 router.post(
   "/:id/enrollments",
   async (req, res) => {
+    if (!assertTrainingAccess(req, res)) {
+      return;
+    }
+
     try {
+      if (isEmployee(req)) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Employees cannot create training enrollments",
+        });
+      }
+
       if (
         !isValidId(req.params.id)
       ) {
@@ -1167,7 +1580,10 @@ router.post(
       }
 
       if (
-        !(await getProgram(req.params.id))
+        !(await getProgram(
+          req,
+          req.params.id,
+        ))
       ) {
         return res.status(404).json({
           success: false,
@@ -1177,7 +1593,8 @@ router.post(
       }
 
       const {
-        employee_id: employeeIdSnake,
+        employee_id:
+          employeeIdSnake,
         employeeId,
         status = "ASSIGNED",
         assigned_date:
@@ -1204,20 +1621,41 @@ router.post(
       if (validationError) {
         return res.status(400).json({
           success: false,
-          message:
-            validationError,
+          message: validationError,
         });
       }
+
+      const employeeValues = [
+        fields.employeeId,
+      ];
+
+      const employeeConditions = [
+        "e.id = $1",
+      ];
+
+      addCompanyScope(
+        req,
+        employeeValues,
+        employeeConditions,
+        "e.company_id",
+      );
+
+      addEmployeeScope(
+        req,
+        employeeValues,
+        employeeConditions,
+        "e",
+      );
 
       const employee =
         await pool.query(
           `
-            SELECT id
-            FROM employees
-            WHERE id = $1
+            SELECT e.id
+            FROM employees e
+            WHERE ${employeeConditions.join(" AND ")}
             LIMIT 1;
           `,
-          [fields.employeeId],
+          employeeValues,
         );
 
       if (!employee.rows.length) {
@@ -1225,6 +1663,24 @@ router.post(
           success: false,
           message:
             "Employee not found",
+        });
+      }
+
+      const program =
+        await getProgram(
+          req,
+          req.params.id,
+        );
+
+      const companyId =
+        program.company_id ??
+        req.user.requestedCompanyId;
+
+      if (!isValidId(companyId)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Valid company ID is required",
         });
       }
 
@@ -1237,7 +1693,8 @@ router.post(
                 employee_id,
                 status,
                 assigned_date,
-                remarks
+                remarks,
+                company_id
               )
             VALUES
               (
@@ -1245,7 +1702,8 @@ router.post(
                 $2,
                 $3,
                 COALESCE($4, CURRENT_DATE),
-                $5
+                $5,
+                $6
               )
             RETURNING id;
           `,
@@ -1257,23 +1715,25 @@ router.post(
               null,
             remarks?.trim() ||
               null,
+            companyId,
           ],
         );
 
       const enrollment =
-        await pool.query(
-          `${enrollmentSelect}
-           WHERE te.id = $1;`,
-          [result.rows[0].id],
+        await getEnrollment(
+          req,
+          result.rows[0].id,
+          req.params.id,
         );
 
       res.status(201).json({
         success: true,
         message:
           "Employee enrolled successfully",
-        data: mapEnrollment(
-          enrollment.rows[0],
-        ),
+        data:
+          mapEnrollment(
+            enrollment,
+          ),
       });
     } catch (error) {
       if (error.code === "23505") {
@@ -1298,10 +1758,26 @@ router.post(
   },
 );
 
+/* =========================================================
+   UPDATE ENROLLMENT
+========================================================= */
+
 router.put(
   "/:id/enrollments/:enrollmentId",
   async (req, res) => {
+    if (!assertTrainingAccess(req, res)) {
+      return;
+    }
+
     try {
+      if (isEmployee(req)) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Employees cannot modify training enrollments",
+        });
+      }
+
       if (
         !isValidId(req.params.id) ||
         !isValidId(
@@ -1316,7 +1792,10 @@ router.put(
       }
 
       if (
-        !(await getProgram(req.params.id))
+        !(await getProgram(
+          req,
+          req.params.id,
+        ))
       ) {
         return res.status(404).json({
           success: false,
@@ -1326,21 +1805,13 @@ router.put(
       }
 
       const existing =
-        await pool.query(
-          `
-            SELECT id
-            FROM training_enrollments
-            WHERE id = $1
-              AND training_program_id = $2
-            LIMIT 1;
-          `,
-          [
-            req.params.enrollmentId,
-            req.params.id,
-          ],
+        await getEnrollment(
+          req,
+          req.params.enrollmentId,
+          req.params.id,
         );
 
-      if (!existing.rows.length) {
+      if (!existing) {
         return res.status(404).json({
           success: false,
           message:
@@ -1394,6 +1865,9 @@ router.put(
         assessmentResult:
           assessmentResult ??
           assessmentResultSnake,
+        certificateDate:
+          certificateDate ??
+          certificateDateSnake,
       };
 
       const validationError =
@@ -1405,8 +1879,7 @@ router.put(
       if (validationError) {
         return res.status(400).json({
           success: false,
-          message:
-            validationError,
+          message: validationError,
         });
       }
 
@@ -1424,9 +1897,7 @@ router.put(
         );
       };
 
-      if (
-        status !== undefined
-      ) {
+      if (status !== undefined) {
         addUpdate(
           "status",
           status.toUpperCase(),
@@ -1470,7 +1941,7 @@ router.put(
         addUpdate(
           "assessment_score",
           fields.assessmentScore ===
-          null
+            null
             ? null
             : parseNonNegativeNumber(
                 fields.assessmentScore,
@@ -1485,7 +1956,7 @@ router.put(
         addUpdate(
           "assessment_result",
           fields.assessmentResult ===
-          null
+            null
             ? null
             : fields.assessmentResult.toUpperCase(),
         );
@@ -1531,9 +2002,7 @@ router.put(
         );
       }
 
-      if (
-        remarks !== undefined
-      ) {
+      if (remarks !== undefined) {
         addUpdate(
           "remarks",
           remarks?.trim() || null,
@@ -1554,38 +2023,50 @@ router.put(
 
       values.push(
         req.params.enrollmentId,
+        req.params.id,
       );
 
-      values.push(
-        req.params.id,
+      const scopeValues = [
+        ...values,
+      ];
+
+      const scopeConditions = [
+        `te.id = $${scopeValues.length - 1}`,
+        `te.training_program_id = $${scopeValues.length}`,
+      ];
+
+      addEnrollmentScope(
+        req,
+        scopeValues,
+        scopeConditions,
       );
 
       await pool.query(
         `
-          UPDATE training_enrollments
+          UPDATE training_enrollments te
           SET ${updates.join(", ")}
-          WHERE id = $${values.length - 1}
-            AND training_program_id = $${values.length};
+          FROM employees e
+          WHERE ${scopeConditions.join(" AND ")}
+            AND e.id = te.employee_id;
         `,
-        values,
+        scopeValues,
       );
 
       const enrollment =
-        await pool.query(
-          `${enrollmentSelect}
-           WHERE te.id = $1;`,
-          [
-            req.params.enrollmentId,
-          ],
+        await getEnrollment(
+          req,
+          req.params.enrollmentId,
+          req.params.id,
         );
 
       res.json({
         success: true,
         message:
           "Training enrollment updated successfully",
-        data: mapEnrollment(
-          enrollment.rows[0],
-        ),
+        data:
+          mapEnrollment(
+            enrollment,
+          ),
       });
     } catch (error) {
       console.error(
@@ -1602,9 +2083,17 @@ router.put(
   },
 );
 
+/* =========================================================
+   DELETE ENROLLMENT
+========================================================= */
+
 router.delete(
   "/:id/enrollments/:enrollmentId",
   async (req, res) => {
+    if (!assertTrainingAccess(req, res)) {
+      return;
+    }
+
     const client =
       await pool.connect();
 
@@ -1622,8 +2111,19 @@ router.delete(
         });
       }
 
+      if (isEmployee(req)) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Employees cannot delete training enrollments",
+        });
+      }
+
       if (
-        !(await getProgram(req.params.id))
+        !(await getProgram(
+          req,
+          req.params.id,
+        ))
       ) {
         return res.status(404).json({
           success: false,
@@ -1633,21 +2133,13 @@ router.delete(
       }
 
       const existing =
-        await client.query(
-          `
-            SELECT id
-            FROM training_enrollments
-            WHERE id = $1
-              AND training_program_id = $2
-            LIMIT 1;
-          `,
-          [
-            req.params.enrollmentId,
-            req.params.id,
-          ],
+        await getEnrollment(
+          req,
+          req.params.enrollmentId,
+          req.params.id,
         );
 
-      if (!existing.rows.length) {
+      if (!existing) {
         return res.status(404).json({
           success: false,
           message:
@@ -1669,16 +2161,30 @@ router.delete(
         ],
       );
 
+      const values = [
+        req.params.enrollmentId,
+        req.params.id,
+      ];
+
+      const conditions = [
+        "te.id = $1",
+        "te.training_program_id = $2",
+      ];
+
+      addEnrollmentScope(
+        req,
+        values,
+        conditions,
+      );
+
       await client.query(
         `
-          DELETE FROM training_enrollments
-          WHERE id = $1
-            AND training_program_id = $2;
+          DELETE FROM training_enrollments te
+          USING employees e
+          WHERE ${conditions.join(" AND ")}
+            AND e.id = te.employee_id;
         `,
-        [
-          req.params.enrollmentId,
-          req.params.id,
-        ],
+        values,
       );
 
       await client.query(
@@ -1713,13 +2219,113 @@ router.delete(
 );
 
 /* =========================================================
-   SKILLS
+   EMPLOYEE HELPERS
+========================================================= */
+
+const getEmployeeForTraining = async (
+  req,
+  employeeId,
+) => {
+  const values = [employeeId];
+
+  const conditions = [
+    "e.id = $1",
+  ];
+
+  addCompanyScope(
+    req,
+    values,
+    conditions,
+    "e.company_id",
+  );
+
+  addEmployeeScope(
+    req,
+    values,
+    conditions,
+    "e",
+  );
+
+  const result =
+    await pool.query(
+      `
+        SELECT e.id
+        FROM employees e
+        WHERE ${conditions.join(" AND ")}
+        LIMIT 1;
+      `,
+      values,
+    );
+
+  return result.rows[0];
+};
+
+const getProgramEnrollmentForEmployee =
+  async (
+    req,
+    programId,
+    employeeId,
+    enrollmentId = null,
+  ) => {
+    const values = [
+      programId,
+      employeeId,
+    ];
+
+    const conditions = [
+      "te.training_program_id = $1",
+      "te.employee_id = $2",
+    ];
+
+    if (enrollmentId !== null) {
+      values.push(enrollmentId);
+
+      conditions.push(
+        `te.id = $${values.length}`,
+      );
+    }
+
+    addCompanyScope(
+      req,
+      values,
+      conditions,
+      "te.company_id",
+    );
+
+    const result =
+      await pool.query(
+        `
+          SELECT te.id
+          FROM training_enrollments te
+          WHERE ${conditions.join(" AND ")}
+          LIMIT 1;
+        `,
+        values,
+      );
+
+    return result.rows[0];
+  };
+
+/* =========================================================
+   CREATE EMPLOYEE SKILL
 ========================================================= */
 
 router.post(
   "/:id/skills",
   async (req, res) => {
+    if (!assertTrainingAccess(req, res)) {
+      return;
+    }
+
     try {
+      if (isEmployee(req)) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Employees cannot create employee skills",
+        });
+      }
+
       if (
         !isValidId(req.params.id)
       ) {
@@ -1731,7 +2337,10 @@ router.post(
       }
 
       if (
-        !(await getProgram(req.params.id))
+        !(await getProgram(
+          req,
+          req.params.id,
+        ))
       ) {
         return res.status(404).json({
           success: false,
@@ -1741,14 +2350,17 @@ router.post(
       }
 
       const {
-        employee_id: employeeIdSnake,
+        employee_id:
+          employeeIdSnake,
         employeeId,
         training_enrollment_id:
           enrollmentIdSnake,
         trainingEnrollmentId,
-        skill_name: skillNameSnake,
+        skill_name:
+          skillNameSnake,
         skillName,
-        skill_level: skillLevelSnake,
+        skill_level:
+          skillLevelSnake,
         skillLevel,
         acquired_date:
           acquiredDateSnake,
@@ -1760,20 +2372,16 @@ router.post(
         employeeId:
           employeeId ??
           employeeIdSnake,
-
         trainingEnrollmentId:
           trainingEnrollmentId ??
           enrollmentIdSnake,
-
         skillName:
           skillName ??
           skillNameSnake,
-
         skillLevel:
           skillLevel ??
           skillLevelSnake ??
           "BEGINNER",
-
         acquiredDate:
           acquiredDate ??
           acquiredDateSnake,
@@ -1785,23 +2393,16 @@ router.post(
       if (validationError) {
         return res.status(400).json({
           success: false,
-          message:
-            validationError,
+          message: validationError,
         });
       }
 
-      const employee =
-        await pool.query(
-          `
-            SELECT id
-            FROM employees
-            WHERE id = $1
-            LIMIT 1;
-          `,
-          [fields.employeeId],
-        );
-
-      if (!employee.rows.length) {
+      if (
+        !(await getEmployeeForTraining(
+          req,
+          fields.employeeId,
+        ))
+      ) {
         return res.status(404).json({
           success: false,
           message:
@@ -1809,16 +2410,6 @@ router.post(
         });
       }
 
-      /*
-       * A skill belongs to the selected
-       * training program through its
-       * training enrollment.
-       *
-       * If the frontend doesn't send an
-       * enrollment ID, automatically find
-       * the employee's enrollment for this
-       * training program.
-       */
       let resolvedEnrollmentId =
         fields.trainingEnrollmentId;
 
@@ -1828,21 +2419,13 @@ router.post(
         resolvedEnrollmentId === null
       ) {
         const enrollment =
-          await pool.query(
-            `
-              SELECT id
-              FROM training_enrollments
-              WHERE training_program_id = $1
-                AND employee_id = $2
-              LIMIT 1;
-            `,
-            [
-              req.params.id,
-              fields.employeeId,
-            ],
+          await getProgramEnrollmentForEmployee(
+            req,
+            req.params.id,
+            fields.employeeId,
           );
 
-        if (!enrollment.rows.length) {
+        if (!enrollment) {
           return res.status(400).json({
             success: false,
             message:
@@ -1851,32 +2434,20 @@ router.post(
         }
 
         resolvedEnrollmentId =
-          enrollment.rows[0].id;
-      } else {
-        const enrollment =
-          await pool.query(
-            `
-              SELECT id
-              FROM training_enrollments
-              WHERE id = $1
-                AND training_program_id = $2
-                AND employee_id = $3
-              LIMIT 1;
-            `,
-            [
-              resolvedEnrollmentId,
-              req.params.id,
-              fields.employeeId,
-            ],
-          );
-
-        if (!enrollment.rows.length) {
-          return res.status(400).json({
-            success: false,
-            message:
-              "Training enrollment does not belong to this program and employee",
-          });
-        }
+          enrollment.id;
+      } else if (
+        !(await getProgramEnrollmentForEmployee(
+          req,
+          req.params.id,
+          fields.employeeId,
+          resolvedEnrollmentId,
+        ))
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Training enrollment does not belong to this program and employee",
+        });
       }
 
       const result =
@@ -1907,20 +2478,43 @@ router.post(
           ],
         );
 
+      const values = [
+        result.rows[0].id,
+      ];
+
+      const conditions = [
+        "es.id = $1",
+      ];
+
+      addCompanyScope(
+        req,
+        values,
+        conditions,
+        "e.company_id",
+      );
+
+      addEmployeeScope(
+        req,
+        values,
+        conditions,
+        "e",
+      );
+
       const skill =
         await pool.query(
           `${skillSelect}
-           WHERE es.id = $1;`,
-          [result.rows[0].id],
+           WHERE ${conditions.join(" AND ")};`,
+          values,
         );
 
       res.status(201).json({
         success: true,
         message:
           "Employee skill created successfully",
-        data: mapSkill(
-          skill.rows[0],
-        ),
+        data:
+          mapSkill(
+            skill.rows[0],
+          ),
       });
     } catch (error) {
       if (error.code === "23505") {
@@ -1945,10 +2539,26 @@ router.post(
   },
 );
 
+/* =========================================================
+   UPDATE EMPLOYEE SKILL
+========================================================= */
+
 router.put(
   "/:id/skills/:skillId",
   async (req, res) => {
+    if (!assertTrainingAccess(req, res)) {
+      return;
+    }
+
     try {
+      if (isEmployee(req)) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Employees cannot modify employee skills",
+        });
+      }
+
       if (
         !isValidId(req.params.id) ||
         !isValidId(
@@ -1963,7 +2573,10 @@ router.put(
       }
 
       if (
-        !(await getProgram(req.params.id))
+        !(await getProgram(
+          req,
+          req.params.id,
+        ))
       ) {
         return res.status(404).json({
           success: false,
@@ -1972,35 +2585,48 @@ router.put(
         });
       }
 
+      const values = [
+        req.params.skillId,
+        req.params.id,
+      ];
+
+      const conditions = [
+        "es.id = $1",
+        `(te.training_program_id = $2
+          OR (
+            es.training_enrollment_id IS NULL
+            AND EXISTS (
+              SELECT 1
+              FROM training_enrollments te2
+              WHERE te2.training_program_id = $2
+                AND te2.employee_id = es.employee_id
+            )
+          )
+        )`,
+      ];
+
+      addCompanyScope(
+        req,
+        values,
+        conditions,
+        "e.company_id",
+      );
+
+      addEmployeeScope(
+        req,
+        values,
+        conditions,
+        "e",
+      );
+
       const existing =
         await pool.query(
-          `
-            SELECT
-              es.id,
-              es.employee_id,
-              es.training_enrollment_id
-            FROM employee_skills es
-            LEFT JOIN training_enrollments te
-              ON te.id = es.training_enrollment_id
-            WHERE es.id = $1
-              AND (
-                te.training_program_id = $2
-                OR (
-                  es.training_enrollment_id IS NULL
-                  AND EXISTS (
-                    SELECT 1
-                    FROM training_enrollments te2
-                    WHERE te2.training_program_id = $2
-                      AND te2.employee_id = es.employee_id
-                  )
-                )
-              )
-            LIMIT 1;
-          `,
-          [
-            req.params.skillId,
-            req.params.id,
-          ],
+          `${skillSelect}
+           LEFT JOIN training_enrollments te
+             ON te.id = es.training_enrollment_id
+           WHERE ${conditions.join(" AND ")}
+           LIMIT 1;`,
+          values,
         );
 
       if (!existing.rows.length) {
@@ -2012,14 +2638,17 @@ router.put(
       }
 
       const {
-        employee_id: employeeIdSnake,
+        employee_id:
+          employeeIdSnake,
         employeeId,
         training_enrollment_id:
           enrollmentIdSnake,
         trainingEnrollmentId,
-        skill_name: skillNameSnake,
+        skill_name:
+          skillNameSnake,
         skillName,
-        skill_level: skillLevelSnake,
+        skill_level:
+          skillLevelSnake,
         skillLevel,
         acquired_date:
           acquiredDateSnake,
@@ -2031,19 +2660,15 @@ router.put(
         employeeId:
           employeeId ??
           employeeIdSnake,
-
         trainingEnrollmentId:
           trainingEnrollmentId ??
           enrollmentIdSnake,
-
         skillName:
           skillName ??
           skillNameSnake,
-
         skillLevel:
           skillLevel ??
           skillLevelSnake,
-
         acquiredDate:
           acquiredDate ??
           acquiredDateSnake,
@@ -2058,24 +2683,9 @@ router.put(
       if (validationError) {
         return res.status(400).json({
           success: false,
-          message:
-            validationError,
+          message: validationError,
         });
       }
-
-      const updates = [];
-      const values = [];
-
-      const addUpdate = (
-        column,
-        value,
-      ) => {
-        values.push(value);
-
-        updates.push(
-          `${column} = $${values.length}`,
-        );
-      };
 
       const currentEmployeeId =
         existing.rows[0]
@@ -2087,11 +2697,19 @@ router.put(
           ? fields.employeeId
           : currentEmployeeId;
 
-      /*
-       * Resolve enrollment whenever the
-       * employee changes or an enrollment
-       * wasn't supplied.
-       */
+      if (
+        !(await getEmployeeForTraining(
+          req,
+          newEmployeeId,
+        ))
+      ) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Employee not found",
+        });
+      }
+
       let resolvedEnrollmentId =
         fields.trainingEnrollmentId;
 
@@ -2101,21 +2719,13 @@ router.put(
         resolvedEnrollmentId === null
       ) {
         const enrollment =
-          await pool.query(
-            `
-              SELECT id
-              FROM training_enrollments
-              WHERE training_program_id = $1
-                AND employee_id = $2
-              LIMIT 1;
-            `,
-            [
-              req.params.id,
-              newEmployeeId,
-            ],
+          await getProgramEnrollmentForEmployee(
+            req,
+            req.params.id,
+            newEmployeeId,
           );
 
-        if (!enrollment.rows.length) {
+        if (!enrollment) {
           return res.status(400).json({
             success: false,
             message:
@@ -2124,33 +2734,35 @@ router.put(
         }
 
         resolvedEnrollmentId =
-          enrollment.rows[0].id;
-      } else {
-        const enrollment =
-          await pool.query(
-            `
-              SELECT id
-              FROM training_enrollments
-              WHERE id = $1
-                AND training_program_id = $2
-                AND employee_id = $3
-              LIMIT 1;
-            `,
-            [
-              resolvedEnrollmentId,
-              req.params.id,
-              newEmployeeId,
-            ],
-          );
-
-        if (!enrollment.rows.length) {
-          return res.status(400).json({
-            success: false,
-            message:
-              "Training enrollment does not belong to this program and employee",
-          });
-        }
+          enrollment.id;
+      } else if (
+        !(await getProgramEnrollmentForEmployee(
+          req,
+          req.params.id,
+          newEmployeeId,
+          resolvedEnrollmentId,
+        ))
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Training enrollment does not belong to this program and employee",
+        });
       }
+
+      const updates = [];
+      const updateValues = [];
+
+      const addUpdate = (
+        column,
+        value,
+      ) => {
+        updateValues.push(value);
+
+        updates.push(
+          `${column} = $${updateValues.length}`,
+        );
+      };
 
       if (
         fields.employeeId !==
@@ -2162,9 +2774,19 @@ router.put(
         );
       }
 
+      /*
+       * Important:
+       * Do not overwrite training_enrollment_id
+       * during a normal skill update.
+       *
+       * Only change it when the caller supplied
+       * trainingEnrollmentId or changed employeeId.
+       */
       if (
-        resolvedEnrollmentId !==
-        undefined
+        fields.trainingEnrollmentId !==
+          undefined ||
+        fields.employeeId !==
+          undefined
       ) {
         addUpdate(
           "training_enrollment_id",
@@ -2202,12 +2824,11 @@ router.put(
         );
       }
 
-      if (
-        remarks !== undefined
-      ) {
+      if (remarks !== undefined) {
         addUpdate(
           "remarks",
-          remarks?.trim() || null,
+          remarks?.trim() ||
+            null,
         );
       }
 
@@ -2223,33 +2844,80 @@ router.put(
         "updated_at = CURRENT_TIMESTAMP",
       );
 
-      values.push(
+      updateValues.push(
         req.params.skillId,
+      );
+
+      const scopeValues = [
+        ...updateValues,
+      ];
+
+      const scopeConditions = [
+        `es.id = $${scopeValues.length}`,
+      ];
+
+      addCompanyScope(
+        req,
+        scopeValues,
+        scopeConditions,
+        "e.company_id",
+      );
+
+      addEmployeeScope(
+        req,
+        scopeValues,
+        scopeConditions,
+        "e",
       );
 
       await pool.query(
         `
-          UPDATE employee_skills
+          UPDATE employee_skills es
           SET ${updates.join(", ")}
-          WHERE id = $${values.length};
+          FROM employees e
+          WHERE ${scopeConditions.join(" AND ")}
+            AND e.id = es.employee_id;
         `,
-        values,
+        scopeValues,
+      );
+
+      const resultValues = [
+        req.params.skillId,
+      ];
+
+      const resultConditions = [
+        "es.id = $1",
+      ];
+
+      addCompanyScope(
+        req,
+        resultValues,
+        resultConditions,
+        "e.company_id",
+      );
+
+      addEmployeeScope(
+        req,
+        resultValues,
+        resultConditions,
+        "e",
       );
 
       const skill =
         await pool.query(
           `${skillSelect}
-           WHERE es.id = $1;`,
-          [req.params.skillId],
+           WHERE ${resultConditions.join(" AND ")};`,
+          resultValues,
         );
 
       res.json({
         success: true,
         message:
           "Employee skill updated successfully",
-        data: mapSkill(
-          skill.rows[0],
-        ),
+        data:
+          mapSkill(
+            skill.rows[0],
+          ),
       });
     } catch (error) {
       if (error.code === "23505") {
@@ -2274,10 +2942,26 @@ router.put(
   },
 );
 
+/* =========================================================
+   DELETE EMPLOYEE SKILL
+========================================================= */
+
 router.delete(
   "/:id/skills/:skillId",
   async (req, res) => {
+    if (!assertTrainingAccess(req, res)) {
+      return;
+    }
+
     try {
+      if (isEmployee(req)) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Employees cannot delete employee skills",
+        });
+      }
+
       if (
         !isValidId(req.params.id) ||
         !isValidId(
@@ -2292,7 +2976,10 @@ router.delete(
       }
 
       if (
-        !(await getProgram(req.params.id))
+        !(await getProgram(
+          req,
+          req.params.id,
+        ))
       ) {
         return res.status(404).json({
           success: false,
@@ -2301,32 +2988,48 @@ router.delete(
         });
       }
 
+      const values = [
+        req.params.skillId,
+        req.params.id,
+      ];
+
+      const conditions = [
+        "es.id = $1",
+        `(te.training_program_id = $2
+          OR (
+            es.training_enrollment_id IS NULL
+            AND EXISTS (
+              SELECT 1
+              FROM training_enrollments te2
+              WHERE te2.training_program_id = $2
+                AND te2.employee_id = es.employee_id
+            )
+          )
+        )`,
+      ];
+
+      addCompanyScope(
+        req,
+        values,
+        conditions,
+        "e.company_id",
+      );
+
+      addEmployeeScope(
+        req,
+        values,
+        conditions,
+        "e",
+      );
+
       const existing =
         await pool.query(
-          `
-            SELECT es.id
-            FROM employee_skills es
-            LEFT JOIN training_enrollments te
-              ON te.id = es.training_enrollment_id
-            WHERE es.id = $1
-              AND (
-                te.training_program_id = $2
-                OR (
-                  es.training_enrollment_id IS NULL
-                  AND EXISTS (
-                    SELECT 1
-                    FROM training_enrollments te2
-                    WHERE te2.training_program_id = $2
-                      AND te2.employee_id = es.employee_id
-                  )
-                )
-              )
-            LIMIT 1;
-          `,
-          [
-            req.params.skillId,
-            req.params.id,
-          ],
+          `${skillSelect}
+           LEFT JOIN training_enrollments te
+             ON te.id = es.training_enrollment_id
+           WHERE ${conditions.join(" AND ")}
+           LIMIT 1;`,
+          values,
         );
 
       if (!existing.rows.length) {
@@ -2337,12 +3040,36 @@ router.delete(
         });
       }
 
+      const deleteValues = [
+        req.params.skillId,
+      ];
+
+      const deleteConditions = [
+        "es.id = $1",
+      ];
+
+      addCompanyScope(
+        req,
+        deleteValues,
+        deleteConditions,
+        "e.company_id",
+      );
+
+      addEmployeeScope(
+        req,
+        deleteValues,
+        deleteConditions,
+        "e",
+      );
+
       await pool.query(
         `
-          DELETE FROM employee_skills
-          WHERE id = $1;
+          DELETE FROM employee_skills es
+          USING employees e
+          WHERE ${deleteConditions.join(" AND ")}
+            AND e.id = es.employee_id;
         `,
-        [req.params.skillId],
+        deleteValues,
       );
 
       res.json({

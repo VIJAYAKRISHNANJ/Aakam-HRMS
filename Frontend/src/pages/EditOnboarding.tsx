@@ -13,7 +13,10 @@ import {
   StateMessage,
 } from "../components/recruitment/RecruitmentComponents";
 
-import { getDepartments, type Department } from "../services/departmentService";
+import {
+  getDepartments,
+  type Department,
+} from "../services/departmentService";
 
 import {
   getOnboarding,
@@ -23,49 +26,84 @@ import {
   type OnboardingRecord,
 } from "../services/onboardingService";
 
+import { useAuth } from "../context/AuthContext";
+
 function EditOnboarding() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
 
-  const [record, setRecord] = useState<OnboardingRecord | null>(null);
+  const canUpdateOnboarding =
+    hasPermission("onboarding.update");
 
-  const [departments, setDepartments] = useState<Department[]>([]);
+  const [record, setRecord] =
+    useState<OnboardingRecord | null>(null);
+
+  const [departments, setDepartments] =
+    useState<Department[]>([]);
 
   const [code, setCode] = useState("");
-  const [departmentId, setDepartmentId] = useState("");
-  const [expectedDate, setExpectedDate] = useState("");
+  const [departmentId, setDepartmentId] =
+    useState("");
+  const [expectedDate, setExpectedDate] =
+    useState("");
   const [status, setStatus] = useState("");
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [loading, setLoading] =
+    useState(true);
+  const [saving, setSaving] =
+    useState(false);
+  const [error, setError] =
+    useState("");
 
   /* =========================================================
      LOAD ONBOARDING RECORD
   ========================================================= */
 
   useEffect(() => {
+    if (!canUpdateOnboarding) {
+      setRecord(null);
+      setDepartments([]);
+      setLoading(false);
+      setError("");
+      return;
+    }
+
     if (!id) {
       setError("Invalid onboarding record ID.");
       setLoading(false);
       return;
     }
 
-    Promise.all([getOnboarding(id), getDepartments()])
-      .then(([data, departmentData]) => {
-        setRecord(data);
-        setDepartments(departmentData);
+    Promise.all([
+      getOnboarding(id),
+      getDepartments(),
+    ])
+      .then(
+        ([data, departmentData]) => {
+          setRecord(data);
+          setDepartments(
+            departmentData,
+          );
 
-        setCode(data.onboardingCode);
+          setCode(data.onboardingCode);
 
-        setDepartmentId(String(data.departmentId ?? ""));
+          setDepartmentId(
+            String(data.departmentId ?? ""),
+          );
 
-        setExpectedDate(
-          data.expectedJoiningDate ? data.expectedJoiningDate.slice(0, 10) : "",
-        );
+          setExpectedDate(
+            data.expectedJoiningDate
+              ? data.expectedJoiningDate.slice(
+                  0,
+                  10,
+                )
+              : "",
+          );
 
-        setStatus(data.status);
-      })
+          setStatus(data.status);
+        },
+      )
       .catch((requestError) => {
         setError(
           getOnboardingErrorMessage(
@@ -77,18 +115,33 @@ function EditOnboarding() {
       .finally(() => {
         setLoading(false);
       });
-  }, [id]);
+  }, [id, canUpdateOnboarding]);
 
   /* =========================================================
      SUBMIT
   ========================================================= */
 
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
     event.preventDefault();
+
+    if (!canUpdateOnboarding) {
+      setError(
+        "You do not have permission to update onboarding records.",
+      );
+      return;
+    }
 
     setError("");
 
-    if (!id || !code.trim() || !departmentId || !expectedDate || !status) {
+    if (
+      !id ||
+      !code.trim() ||
+      !departmentId ||
+      !expectedDate ||
+      !status
+    ) {
       setError(
         "Onboarding code, department, joining date, and status are required.",
       );
@@ -118,9 +171,39 @@ function EditOnboarding() {
     }
   };
 
-  /* =========================================================
-     PAGE
-  ========================================================= */
+  if (!canUpdateOnboarding) {
+    return (
+      <DashboardLayout>
+        <div className="flex min-h-[520px] items-center justify-center px-6">
+          <div className="max-w-md text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+              <Edit size={21} />
+            </div>
+
+            <h2 className="text-lg font-bold text-slate-900">
+              Access Restricted
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              You do not have permission to update onboarding records.
+            </p>
+
+            <Link
+              to={
+                id
+                  ? `/onboarding/${id}`
+                  : "/onboarding"
+              }
+              className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              <ArrowLeft size={16} />
+              Back to Onboarding
+            </Link>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -130,7 +213,11 @@ function EditOnboarding() {
         ===================================================== */}
 
         <Link
-          to={id ? `/onboarding/${id}` : "/onboarding"}
+          to={
+            id
+              ? `/onboarding/${id}`
+              : "/onboarding"
+          }
           className="inline-flex w-fit items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
           aria-label="Back to profile"
         >
@@ -146,7 +233,7 @@ function EditOnboarding() {
           title="Edit Onboarding"
           subtitle={
             record
-              ? `${record.onboardingCode} · ${record.candidateName}`
+              ? `${record.onboardingCode} • ${record.candidateName}`
               : "Update onboarding details."
           }
           icon={Edit}
@@ -165,7 +252,9 @@ function EditOnboarding() {
              ERROR
           =================================================== */
 
-          <StateMessage type="error">{error}</StateMessage>
+          <StateMessage type="error">
+            {error}
+          </StateMessage>
         ) : (
           /* ===================================================
              FORM
@@ -212,7 +301,9 @@ function EditOnboarding() {
                   <input
                     required
                     value={code}
-                    onChange={(event) => setCode(event.target.value)}
+                    onChange={(event) =>
+                      setCode(event.target.value)
+                    }
                     disabled={saving}
                     className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 disabled:cursor-not-allowed disabled:bg-slate-50"
                   />
@@ -227,15 +318,25 @@ function EditOnboarding() {
                   <select
                     required
                     value={status}
-                    onChange={(event) => setStatus(event.target.value)}
+                    onChange={(event) =>
+                      setStatus(event.target.value)
+                    }
                     disabled={saving}
                     className="mt-2 h-11 w-full cursor-pointer rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 disabled:cursor-not-allowed disabled:bg-slate-50"
                   >
-                    {onboardingStatuses.map((item) => (
-                      <option key={item} value={item}>
-                        {item.replaceAll("_", " ")}
-                      </option>
-                    ))}
+                    {onboardingStatuses.map(
+                      (item) => (
+                        <option
+                          key={item}
+                          value={item}
+                        >
+                          {item.replaceAll(
+                            "_",
+                            " ",
+                          )}
+                        </option>
+                      ),
+                    )}
                   </select>
                 </label>
 
@@ -248,17 +349,28 @@ function EditOnboarding() {
                   <select
                     required
                     value={departmentId}
-                    onChange={(event) => setDepartmentId(event.target.value)}
+                    onChange={(event) =>
+                      setDepartmentId(
+                        event.target.value,
+                      )
+                    }
                     disabled={saving}
                     className="mt-2 h-11 w-full cursor-pointer rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 disabled:cursor-not-allowed disabled:bg-slate-50"
                   >
-                    <option value="">Select department</option>
+                    <option value="">
+                      Select department
+                    </option>
 
-                    {departments.map((department) => (
-                      <option key={department.id} value={department.id}>
-                        {department.name}
-                      </option>
-                    ))}
+                    {departments.map(
+                      (department) => (
+                        <option
+                          key={department.id}
+                          value={department.id}
+                        >
+                          {department.name}
+                        </option>
+                      ),
+                    )}
                   </select>
                 </label>
 
@@ -272,7 +384,11 @@ function EditOnboarding() {
                     required
                     type="date"
                     value={expectedDate}
-                    onChange={(event) => setExpectedDate(event.target.value)}
+                    onChange={(event) =>
+                      setExpectedDate(
+                        event.target.value,
+                      )
+                    }
                     disabled={saving}
                     className="mt-2 block h-11 w-full cursor-pointer rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 disabled:cursor-not-allowed disabled:bg-slate-50"
                   />
@@ -285,7 +401,11 @@ function EditOnboarding() {
 
               <div className="mt-7 flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
                 <Link
-                  to={id ? `/onboarding/${id}` : "/onboarding"}
+                  to={
+                    id
+                      ? `/onboarding/${id}`
+                      : "/onboarding"
+                  }
                   className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
                 >
                   Cancel
@@ -298,7 +418,9 @@ function EditOnboarding() {
                 >
                   <Save size={16} />
 
-                  {saving ? "Saving..." : "Save Changes"}
+                  {saving
+                    ? "Saving..."
+                    : "Save Changes"}
                 </button>
               </div>
             </div>

@@ -1,8 +1,5 @@
+import api from "./api";
 import axios from "axios";
-
-const API_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:5000/api";
 
 export interface ReportFilters {
   startDate?: string;
@@ -153,14 +150,21 @@ interface ApiResponse<T> {
   message?: string;
 }
 
-const query = (filters: ReportFilters = {}) => ({
-  startDate: filters.startDate || undefined,
-  endDate: filters.endDate || undefined,
-  departmentId: filters.departmentId || undefined,
+const query = (
+  filters: ReportFilters = {},
+) => ({
+  startDate:
+    filters.startDate || undefined,
+  endDate:
+    filters.endDate || undefined,
+  departmentId:
+    filters.departmentId || undefined,
 });
 
 const request = async <T>(
-  promise: Promise<{ data: ApiResponse<T> }>,
+  promise: Promise<{
+    data: ApiResponse<T>;
+  }>,
   fallback: string,
 ): Promise<T> => {
   try {
@@ -184,8 +188,8 @@ const request = async <T>(
 export const getReportsSummary =
   (): Promise<ReportsSummary> =>
     request(
-      axios.get<ApiResponse<ReportsSummary>>(
-        `${API_URL}/reports/summary`,
+      api.get<ApiResponse<ReportsSummary>>(
+        "/reports/summary",
       ),
       "Unable to load reports summary.",
     );
@@ -194,8 +198,8 @@ export const getWorkforceReport = (
   filters: ReportFilters = {},
 ): Promise<WorkforceReport> =>
   request(
-    axios.get<ApiResponse<WorkforceReport>>(
-      `${API_URL}/reports/workforce`,
+    api.get<ApiResponse<WorkforceReport>>(
+      "/reports/workforce",
       {
         params: query(filters),
       },
@@ -207,8 +211,8 @@ export const getRecruitmentReport = (
   filters: ReportFilters = {},
 ): Promise<RecruitmentReport> =>
   request(
-    axios.get<ApiResponse<RecruitmentReport>>(
-      `${API_URL}/reports/recruitment`,
+    api.get<ApiResponse<RecruitmentReport>>(
+      "/reports/recruitment",
       {
         params: query(filters),
       },
@@ -220,8 +224,8 @@ export const getOnboardingReport = (
   filters: ReportFilters = {},
 ): Promise<OnboardingReport> =>
   request(
-    axios.get<ApiResponse<OnboardingReport>>(
-      `${API_URL}/reports/onboarding`,
+    api.get<ApiResponse<OnboardingReport>>(
+      "/reports/onboarding",
       {
         params: query(filters),
       },
@@ -233,8 +237,8 @@ export const getPayrollReport = (
   filters: ReportFilters = {},
 ): Promise<PayrollReport> =>
   request(
-    axios.get<ApiResponse<PayrollReport>>(
-      `${API_URL}/reports/payroll`,
+    api.get<ApiResponse<PayrollReport>>(
+      "/reports/payroll",
       {
         params: {
           startDate:
@@ -251,8 +255,8 @@ export const getPerformanceReport = (
   filters: ReportFilters = {},
 ): Promise<PerformanceReport> =>
   request(
-    axios.get<ApiResponse<PerformanceReport>>(
-      `${API_URL}/reports/performance`,
+    api.get<ApiResponse<PerformanceReport>>(
+      "/reports/performance",
       {
         params: query(filters),
       },
@@ -264,8 +268,8 @@ export const getTrainingReport = (
   filters: ReportFilters = {},
 ): Promise<TrainingReport> =>
   request(
-    axios.get<ApiResponse<TrainingReport>>(
-      `${API_URL}/reports/training`,
+    api.get<ApiResponse<TrainingReport>>(
+      "/reports/training",
       {
         params: {
           startDate:
@@ -283,7 +287,8 @@ export const getReportsErrorMessage = (
   fallback: string,
 ): string => {
   if (axios.isAxiosError(error)) {
-    const message = error.response?.data?.message;
+    const message =
+      error.response?.data?.message;
 
     if (
       typeof message === "string" &&

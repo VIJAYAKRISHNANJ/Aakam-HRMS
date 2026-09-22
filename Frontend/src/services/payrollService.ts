@@ -1,3 +1,4 @@
+import api from "./api";
 import axios from "axios";
 
 export type PayrollStatus =
@@ -28,10 +29,6 @@ interface ApiResponse<T> {
   message?: string;
   total?: number;
 }
-
-const API_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:5000/api/payroll";
 
 const request = async <T>(
   requestPromise: Promise<{
@@ -66,8 +63,8 @@ export const getPayrollRuns = (): Promise<
   PayrollRun[]
 > =>
   request(
-    axios.get<ApiResponse<PayrollRun[]>>(
-      API_URL,
+    api.get<ApiResponse<PayrollRun[]>>(
+      "/payroll",
     ),
     "Unable to load payroll runs.",
   );
@@ -76,8 +73,8 @@ export const getPayrollRun = (
   id: number | string,
 ): Promise<PayrollRun> =>
   request(
-    axios.get<ApiResponse<PayrollRun>>(
-      `${API_URL}/${id}`,
+    api.get<ApiResponse<PayrollRun>>(
+      `/payroll/${id}`,
     ),
     "Unable to load payroll run.",
   );
@@ -86,8 +83,8 @@ export const createPayrollRun = (
   payload: CreatePayrollPayload,
 ): Promise<PayrollRun> =>
   request(
-    axios.post<ApiResponse<PayrollRun>>(
-      API_URL,
+    api.post<ApiResponse<PayrollRun>>(
+      "/payroll",
       payload,
     ),
     "Unable to create payroll run.",
@@ -98,8 +95,8 @@ export const updatePayrollRun = (
   payload: UpdatePayrollPayload,
 ): Promise<PayrollRun> =>
   request(
-    axios.put<ApiResponse<PayrollRun>>(
-      `${API_URL}/${id}`,
+    api.put<ApiResponse<PayrollRun>>(
+      `/payroll/${id}`,
       payload,
     ),
     "Unable to update payroll run.",
@@ -109,8 +106,8 @@ export const deletePayrollRun = (
   id: number | string,
 ): Promise<PayrollRun> =>
   request(
-    axios.delete<ApiResponse<PayrollRun>>(
-      `${API_URL}/${id}`,
+    api.delete<ApiResponse<PayrollRun>>(
+      `/payroll/${id}`,
     ),
     "Unable to delete payroll run.",
   );
@@ -119,8 +116,8 @@ export const processPayroll = (
   id: number | string,
 ): Promise<PayrollRun> =>
   request(
-    axios.post<ApiResponse<PayrollRun>>(
-      `${API_URL}/${id}/process`,
+    api.post<ApiResponse<PayrollRun>>(
+      `/payroll/${id}/process`,
     ),
     "Unable to process payroll run.",
   );
@@ -129,8 +126,8 @@ export const approvePayroll = (
   id: number | string,
 ): Promise<PayrollRun> =>
   request(
-    axios.post<ApiResponse<PayrollRun>>(
-      `${API_URL}/${id}/approve`,
+    api.post<ApiResponse<PayrollRun>>(
+      `/payroll/${id}/approve`,
     ),
     "Unable to approve payroll run.",
   );
@@ -139,8 +136,8 @@ export const completePayroll = (
   id: number | string,
 ): Promise<PayrollRun> =>
   request(
-    axios.post<ApiResponse<PayrollRun>>(
-      `${API_URL}/${id}/complete`,
+    api.post<ApiResponse<PayrollRun>>(
+      `/payroll/${id}/complete`,
     ),
     "Unable to complete payroll run.",
   );

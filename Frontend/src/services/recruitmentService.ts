@@ -1,3 +1,4 @@
+import api from "./api";
 import axios from "axios";
 
 const API_URL =
@@ -177,7 +178,7 @@ export const getJobPositions = async (
   filters: JobPositionFilters = {},
 ): Promise<JobPosition[]> => {
   const response =
-    await axios.get<ApiResponse<JobPosition[]>>(
+    await api.get<ApiResponse<JobPosition[]>>(
       `${API_URL}/recruitment/jobs`,
       {
         params: {
@@ -203,7 +204,7 @@ export const getJobPositionById = async (
   id: number | string,
 ): Promise<JobPosition> => {
   const response =
-    await axios.get<ApiResponse<JobPosition>>(
+    await api.get<ApiResponse<JobPosition>>(
       `${API_URL}/recruitment/jobs/${id}`,
     );
 
@@ -218,7 +219,7 @@ export const createJobPosition = async (
   payload: JobPositionPayload,
 ): Promise<JobPosition> => {
   const response =
-    await axios.post<ApiResponse<JobPosition>>(
+    await api.post<ApiResponse<JobPosition>>(
       `${API_URL}/recruitment/jobs`,
       payload,
     );
@@ -235,7 +236,7 @@ export const updateJobPosition = async (
   payload: JobPositionPayload,
 ): Promise<JobPosition> => {
   const response =
-    await axios.put<ApiResponse<JobPosition>>(
+    await api.put<ApiResponse<JobPosition>>(
       `${API_URL}/recruitment/jobs/${id}`,
       payload,
     );
@@ -250,7 +251,7 @@ export const updateJobPosition = async (
 export const deleteJobPosition = async (
   id: number | string,
 ): Promise<void> => {
-  await axios.delete(
+  await api.delete(
     `${API_URL}/recruitment/jobs/${id}`,
   );
 };
@@ -269,7 +270,7 @@ export const getCandidates = async (
   filters: CandidateFilters = {},
 ): Promise<Candidate[]> => {
   const response =
-    await axios.get<ApiResponse<Candidate[]>>(
+    await api.get<ApiResponse<Candidate[]>>(
       `${API_URL}/recruitment/candidates`,
       {
         params: {
@@ -299,7 +300,7 @@ export const getCandidateById = async (
   id: number | string,
 ): Promise<Candidate> => {
   const response =
-    await axios.get<ApiResponse<Candidate>>(
+    await api.get<ApiResponse<Candidate>>(
       `${API_URL}/recruitment/candidates/${id}`,
     );
 
@@ -314,7 +315,7 @@ export const createCandidate = async (
   payload: CandidatePayload,
 ): Promise<Candidate> => {
   const response =
-    await axios.post<ApiResponse<Candidate>>(
+    await api.post<ApiResponse<Candidate>>(
       `${API_URL}/recruitment/candidates`,
       payload,
     );
@@ -331,7 +332,7 @@ export const updateCandidate = async (
   payload: CandidatePayload,
 ): Promise<Candidate> => {
   const response =
-    await axios.put<ApiResponse<Candidate>>(
+    await api.put<ApiResponse<Candidate>>(
       `${API_URL}/recruitment/candidates/${id}`,
       payload,
     );
@@ -346,7 +347,7 @@ export const updateCandidate = async (
 export const deleteCandidate = async (
   id: number | string,
 ): Promise<void> => {
-  await axios.delete(
+  await api.delete(
     `${API_URL}/recruitment/candidates/${id}`,
   );
 };
@@ -360,7 +361,7 @@ export const updateCandidateStage = async (
   stage: CandidateStage,
 ): Promise<Candidate> => {
   const response =
-    await axios.put<ApiResponse<Candidate>>(
+    await api.put<ApiResponse<Candidate>>(
       `${API_URL}/recruitment/candidates/${id}/stage`,
       { stage },
     );
@@ -381,7 +382,7 @@ export const updateCandidateStage = async (
 export const getRecruitmentStats =
   async (): Promise<RecruitmentStats> => {
     const response =
-      await axios.get<
+      await api.get<
         ApiResponse<RecruitmentStats>
       >(
         `${API_URL}/recruitment/stats`,

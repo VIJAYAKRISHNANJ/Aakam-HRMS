@@ -6,6 +6,18 @@ import {
   verifyAuthToken,
 } from "../utils/auth.js";
 
+export const CANONICAL_ROLES = new Set([
+  "SUPER_ADMINISTRATOR", "COMPANY_ADMINISTRATOR", "HR_ADMINISTRATOR",
+  "RECRUITER", "PAYROLL_ADMINISTRATOR", "MANAGER", "EMPLOYEE", "CLIENT_USER",
+]);
+
+export const canonicalizeRole = (role) => {
+  const normalized = String(role ?? "").trim().toUpperCase().replace(/\s+/g, "_");
+  return CANONICAL_ROLES.has(normalized) ? normalized : null;
+};
+
+const canonicalizeRoles = (roles) => [...new Set((roles ?? []).map(canonicalizeRole).filter(Boolean))];
+
 const getUserWithAccess = async (userId) => {
   const result = await pool.query(
     `
@@ -23,6 +35,7 @@ const getUserWithAccess = async (userId) => {
         u.password_changed_at,
         u.password_expires_at,
         u.company_id,
+        u.client_id,
         u.created_at,
         u.updated_at,
 
@@ -233,14 +246,16 @@ export const authenticate = async (
     req.user = {
       ...mapUserProfile(user),
 
-      roles:
-        user.roles ?? [],
+      roles: canonicalizeRoles(user.roles),
 
       permissions:
         user.permissions ?? [],
 
       company_id:
         user.company_id,
+
+      client_id:
+        user.client_id,
 
       tokenPayload:
         payload,
@@ -322,6 +337,98 @@ export const authorizePermissions =
   };
 
 /**
+ * Route-level permission gate.  Keep this at the API boundary so adding a new
+ * handler cannot accidentally make it available to every authenticated user.
+ */
+export const authorizeResource = (resource) => (req, res, next) => {
+  if (!req.user) return unauthorized(res);
+
+  const method = req.method.toUpperCase();
+  const path = req.path.toLowerCase();
+  let action = ({ GET: "view", POST: "create", PUT: "update", PATCH: "update", DELETE: "delete" })[method];
+
+  if (resource === "payroll" && /\/(approve|validate|process)/.test(path)) action = "approve";
+  if (resource === "leave" && /\/(approve|reject)/.test(path)) action = "approve";
+  if (resource === "exits" && /\/(approve|settlement)/.test(path)) action = "approve";
+  if (resource === "recruitment" && path.includes("/candidates")) resource = "candidates";
+
+  const permissionResource = { exits: "exit", reports: "reports", dashboard: "dashboard", companies: "company" }[resource] ?? resource;
+  const permission = `${permissionResource}.${action}`;
+  const ownPermission = `${permissionResource}.view.own`;
+  // "manage" is an established, broader grant in the existing seed data.
+  const legacyPermission = resource === "dashboard" ? "reports.view" : null;
+  const hasPermission = req.user.permissions.includes(permission)
+    || req.user.permissions.includes(`${permissionResource}.manage`)
+    || (legacyPermission && req.user.permissions.includes(legacyPermission))
+    || (method === "GET" && req.user.permissions.includes(ownPermission));
+
+  if (!hasPermission) return forbidden(res, "Insufficient permission access");
+  req.authorization = { resource, action, ownOnly: method === "GET" && !req.user.permissions.includes(permission) };
+  next();
+};
+
+const resourceEmployeeColumn = {
+  employees: "id",
+  attendance: "employee_id",
+  leave: "employee_id",
+  payroll: "employee_id",
+  performance: "employee_id",
+  training: "employee_id",
+  exits: "employee_id",
+};
+
+/** Assert a direct resource belongs to the authenticated employee or manager's team. */
+export const verifyEmployeeResourceScope = (table, idParam = "id") => async (req, res, next) => {
+  try {
+    if (isSuperAdmin(req.user) || !req.params[idParam]) return next();
+    const column = resourceEmployeeColumn[table];
+    if (!column || !/^[1-9]\d*$/.test(String(req.params[idParam]))) return forbidden(res);
+    const result = await pool.query(
+      `SELECT e.id FROM ${table === "employees" ? "employees" : table === "exits" ? "exit_records" : table + "_records"} r
+       JOIN employees e ON e.id = r.${column}
+       WHERE r.id = $1 AND e.company_id = $2
+       AND (e.id = $3 OR e.reporting_manager_id = $3)
+       LIMIT 1`,
+      [Number(req.params[idParam]), req.user.requestedCompanyId, req.user.employee_id],
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, message: "Resource not found" });
+    next();
+  } catch (error) {
+    console.error("Employee scope middleware error:", error);
+    res.status(500).json({ success: false, message: "Failed to authorize resource access" });
+  }
+};
+
+/** CLIENT_USER may only address its server-linked client and its job requirements. */
+export const verifyClientScope = async (req, res, next) => {
+  try {
+    if (!req.user?.roles?.includes("CLIENT_USER") || isSuperAdmin(req.user)) return next();
+    if (!req.user.client_id) return forbidden(res, "Client account is not linked to a client");
+    const id = Number(req.params.id);
+    const path = req.baseUrl + req.path;
+
+    // Collection routes are authorized by their route-specific, server-side
+    // company/client filters. Do not reject them before those filters run.
+    if (!Number.isInteger(id) || id < 1) return next();
+    if (path.startsWith("/api/clients")) {
+      if (id !== Number(req.user.client_id)) return res.status(404).json({ success: false, message: "Resource not found" });
+      return next();
+    }
+    if (path.startsWith("/api/recruitment/jobs")) {
+      const result = await pool.query(
+        "SELECT 1 FROM job_positions WHERE id = $1 AND client_id = $2 AND company_id = $3 LIMIT 1;",
+        [id, req.user.client_id, req.user.requestedCompanyId],
+      );
+      if (result.rows.length) return next();
+    }
+    return res.status(404).json({ success: false, message: "Resource not found" });
+  } catch (error) {
+    console.error("Client scope middleware error:", error);
+    res.status(500).json({ success: false, message: "Failed to authorize client access" });
+  }
+};
+
+/**
  * Verify company scope - ensures user can only access resources in their company
  */
 export const verifyCompanyScope =
@@ -334,51 +441,24 @@ export const verifyCompanyScope =
       });
     }
 
-    // Super admin can access all companies
+    // Super admins may select one existing company explicitly, or omit the
+    // header for platform-wide queries. Other request fields never select scope.
     if (isSuperAdmin(req.user)) {
-      return next();
-    }
-
-    // Get company ID from request
-    // header, params, or body
-    const companyId =
-      req.headers["x-company-id"] ||
-      req.params.companyId ||
-      req.body?.companyId;
-
-    if (!companyId) {
-      // If no company ID specified,
-      // use user's primary company
-      if (!req.user.company_id) {
-        return forbidden(
-          res,
-          "No company context available",
-        );
+      const requested = req.headers["x-company-id"];
+      if (requested !== undefined) {
+        if (!/^[1-9]\d*$/.test(String(requested))) return forbidden(res, "Invalid company context");
+        const company = await pool.query("SELECT 1 FROM companies WHERE id = $1 LIMIT 1", [Number(requested)]);
+        if (!company.rows.length) return forbidden(res, "Invalid company context");
+        req.user.requestedCompanyId = Number(requested);
+      } else {
+        req.user.requestedCompanyId = null;
       }
-
-      req.user.requestedCompanyId =
-        req.user.company_id;
-
       return next();
     }
 
-    // Check if user has access
-    // to requested company
-    const hasAccess =
-      await userHasCompanyAccess(
-        req.user.id,
-        Number(companyId),
-      );
-
-    if (!hasAccess) {
-      return forbidden(
-        res,
-        "You do not have access to this company",
-      );
-    }
-
-    req.user.requestedCompanyId =
-      Number(companyId);
-
+    // Ordinary accounts never switch tenant from a header, parameter, query,
+    // or body field. Their primary company is the authorization source.
+    if (!req.user.company_id) return forbidden(res, "No company context available");
+    req.user.requestedCompanyId = Number(req.user.company_id);
     next();
   };

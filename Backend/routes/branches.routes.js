@@ -35,9 +35,10 @@ router.get("/:id", async (req, res) => {
         INNER JOIN companies c
           ON c.id = b.company_id
         WHERE b.id = $1
+          AND ($2::boolean OR b.company_id = $3)
         LIMIT 1;
       `,
-      [id],
+      [id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
     );
 
     if (result.rows.length === 0) {
@@ -131,12 +132,17 @@ router.get("/", async (req, res) => {
     |--------------------------------------------------------------------------
     */
 
-    if (companyId) {
+    if (companyId && req.user.roles.includes("SUPER_ADMINISTRATOR")) {
       values.push(Number(companyId));
 
       conditions.push(
         `b.company_id = $${values.length}`,
       );
+    }
+
+    if (!req.user.roles.includes("SUPER_ADMINISTRATOR")) {
+      values.push(req.user.requestedCompanyId);
+      conditions.push(`b.company_id = $${values.length}`);
     }
 
     /*
@@ -246,8 +252,9 @@ router.get("/", async (req, res) => {
             legal_name
           FROM companies
           WHERE status = 'ACTIVE'
+            AND ($1::boolean OR id = $2)
           ORDER BY display_name ASC;
-        `,
+        `, [req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
       );
 
     /*
@@ -371,7 +378,6 @@ router.post("/", async (req, res) => {
     */
 
     if (
-      !companyId ||
       !branchCode ||
       !branchName
     ) {
@@ -397,9 +403,10 @@ router.post("/", async (req, res) => {
             display_name
           FROM companies
           WHERE id = $1
+            AND ($2::boolean OR id = $3)
           LIMIT 1;
         `,
-        [companyId],
+        [req.user.roles.includes("SUPER_ADMINISTRATOR") ? companyId : req.user.requestedCompanyId, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
       );
 
     if (
@@ -457,7 +464,7 @@ router.post("/", async (req, res) => {
               updated_at;
           `,
           [
-            Number(companyId),
+            req.user.roles.includes("SUPER_ADMINISTRATOR") ? Number(companyId) : req.user.requestedCompanyId,
 
             branchCode.trim(),
 
@@ -620,7 +627,6 @@ router.put("/:id", async (req, res) => {
     */
 
     if (
-      !companyId ||
       !branchCode ||
       !branchName
     ) {
@@ -643,9 +649,10 @@ router.put("/:id", async (req, res) => {
           SELECT id
           FROM branches
           WHERE id = $1
+            AND ($2::boolean OR company_id = $3)
           LIMIT 1;
         `,
-        [id],
+        [id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
       );
 
     if (
@@ -674,9 +681,10 @@ router.put("/:id", async (req, res) => {
             display_name
           FROM companies
           WHERE id = $1
+            AND ($2::boolean OR id = $3)
           LIMIT 1;
         `,
-        [companyId],
+        [req.user.roles.includes("SUPER_ADMINISTRATOR") ? companyId : req.user.requestedCompanyId, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
       );
 
     if (
@@ -710,10 +718,11 @@ router.put("/:id", async (req, res) => {
             email = $7,
             status = $8,
             updated_at = CURRENT_TIMESTAMP
-          WHERE id = $9;
+          WHERE id = $9
+            AND ($10::boolean OR company_id = $11);
         `,
         [
-          Number(companyId),
+          req.user.roles.includes("SUPER_ADMINISTRATOR") ? Number(companyId) : req.user.requestedCompanyId,
 
           branchCode.trim(),
 
@@ -738,6 +747,8 @@ router.put("/:id", async (req, res) => {
             : "ACTIVE",
 
           id,
+          req.user.roles.includes("SUPER_ADMINISTRATOR"),
+          req.user.requestedCompanyId ?? null,
         ],
       );
     } catch (updateError) {
@@ -805,9 +816,10 @@ router.put("/:id", async (req, res) => {
           INNER JOIN companies c
             ON c.id = b.company_id
           WHERE b.id = $1
+            AND ($2::boolean OR b.company_id = $3)
           LIMIT 1;
         `,
-        [id],
+        [id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
       );
 
     const branch =

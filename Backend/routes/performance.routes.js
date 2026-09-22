@@ -3,6 +3,40 @@ import pool from "../db.js";
 
 const router = express.Router();
 
+const addReviewScope = (req, values, conditions) => {
+  if (!req.user.roles.includes("SUPER_ADMINISTRATOR")) {
+    values.push(req.user.requestedCompanyId ?? -1);
+    conditions.push(`pr.company_id = $${values.length}`);
+  }
+  if (req.authorization?.ownOnly) {
+    values.push(req.user.employee_id ?? -1);
+    conditions.push(`pr.employee_id = $${values.length}`);
+  } else if (req.user.roles.includes("MANAGER") && !req.user.roles.includes("HR_ADMINISTRATOR")) {
+    values.push(req.user.employee_id ?? -1);
+    conditions.push(`e.reporting_manager_id = $${values.length}`);
+  }
+};
+
+// Authorize the parent review before any direct or nested goal operation.
+// This makes a goal ID insufficient to cross an employee/team/tenant boundary.
+router.use("/:id", async (req, res, next) => {
+  if (!/^\d+$/.test(String(req.params.id))) return next();
+  try {
+    const values = [Number(req.params.id)];
+    const conditions = ["pr.id = $1"];
+    addReviewScope(req, values, conditions);
+    const allowed = await pool.query(
+      `SELECT 1 FROM performance_reviews pr JOIN employees e ON e.id = pr.employee_id WHERE ${conditions.join(" AND ")} LIMIT 1`,
+      values,
+    );
+    if (!allowed.rows.length) return res.status(404).json({ success: false, message: "Performance review not found" });
+    next();
+  } catch (error) {
+    console.error("Performance scope authorization error:", error);
+    res.status(500).json({ success: false, message: "Failed to authorize performance review access" });
+  }
+});
+
 const REVIEW_STATUSES = [
   "DRAFT",
   "IN_REVIEW",
@@ -522,6 +556,8 @@ router.get(
           `pr.review_period_end = $${values.length}`,
         );
       }
+
+      addReviewScope(req, values, conditions);
 
       const whereClause =
         conditions.length

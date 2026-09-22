@@ -3,6 +3,19 @@ import pool from "../db.js";
 
 const router = express.Router();
 
+// The current schema contains payroll runs but no employee-linked payslip or
+// payroll-detail table. An own-only grant must therefore not fall back to the
+// company-wide payroll-run directory.
+router.use((req, res, next) => {
+  if (req.authorization?.ownOnly) {
+    return res.status(403).json({
+      success: false,
+      message: "Individual payroll records are not available through this endpoint",
+    });
+  }
+  next();
+});
+
 const PAYROLL_STATUSES = [
   "PENDING",
   "PROCESSING",
@@ -55,7 +68,7 @@ const mapPayrollRun = (run) => ({
   createdAt: run.created_at,
 });
 
-const getPayrollRun = async (id) => {
+const getPayrollRun = async (req, id) => {
   const result = await pool.query(
     `
       SELECT
@@ -66,9 +79,10 @@ const getPayrollRun = async (id) => {
         created_at
       FROM payroll_runs
       WHERE id = $1
+        AND ($2::boolean OR company_id = $3)
       LIMIT 1;
     `,
-    [id],
+    [id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
   );
 
   return result.rows[0];
@@ -131,8 +145,9 @@ router.get("/", async (req, res) => {
         pending_approvals,
         created_at
       FROM payroll_runs
+      WHERE ($1::boolean OR company_id = $2)
       ORDER BY payroll_month DESC, id DESC;
-    `);
+    `, [req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null]);
 
     res.json({
       success: true,
@@ -167,7 +182,7 @@ router.get("/:id", async (req, res) => {
     }
 
     const payrollRun =
-      await getPayrollRun(req.params.id);
+      await getPayrollRun(req, req.params.id);
 
     if (!payrollRun) {
       return res.status(404).json({
@@ -231,9 +246,10 @@ router.post("/", async (req, res) => {
           (
             payroll_month,
             status,
-            pending_approvals
+            pending_approvals,
+            company_id
           )
-        VALUES ($1, $2, $3)
+        VALUES ($1, $2, $3, $4)
         RETURNING
           id,
           payroll_month,
@@ -245,6 +261,7 @@ router.post("/", async (req, res) => {
         payrollMonth,
         normalizedStatus,
         pendingApprovals,
+        req.user.requestedCompanyId,
       ],
     );
 
@@ -292,7 +309,7 @@ router.put("/:id", async (req, res) => {
     }
 
     const existing =
-      await getPayrollRun(req.params.id);
+      await getPayrollRun(req, req.params.id);
 
     if (!existing) {
       return res.status(404).json({
@@ -410,13 +427,14 @@ router.put("/:id", async (req, res) => {
       });
     }
 
-    values.push(req.params.id);
+    values.push(req.params.id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null);
 
     const result = await pool.query(
       `
         UPDATE payroll_runs
         SET ${updates.join(", ")}
-        WHERE id = $${values.length}
+        WHERE id = $${values.length - 2}
+          AND ($${values.length - 1}::boolean OR company_id = $${values.length})
         RETURNING
           id,
           payroll_month,
@@ -472,7 +490,7 @@ router.delete("/:id", async (req, res) => {
     }
 
     const existing =
-      await getPayrollRun(req.params.id);
+      await getPayrollRun(req, req.params.id);
 
     if (!existing) {
       return res.status(404).json({
@@ -494,6 +512,7 @@ router.delete("/:id", async (req, res) => {
       `
         DELETE FROM payroll_runs
         WHERE id = $1
+          AND ($2::boolean OR company_id = $3)
         RETURNING
           id,
           payroll_month,
@@ -501,7 +520,7 @@ router.delete("/:id", async (req, res) => {
           pending_approvals,
           created_at;
       `,
-      [req.params.id],
+      [req.params.id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
     );
 
     if (!result.rows.length) {
@@ -571,6 +590,7 @@ router.post(
           WHERE
             id = $1
             AND status = 'PENDING'
+            AND ($2::boolean OR company_id = $3)
           RETURNING
             id,
             payroll_month,
@@ -578,12 +598,13 @@ router.post(
             pending_approvals,
             created_at;
         `,
-        [req.params.id],
+        [req.params.id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
       );
 
       if (!result.rows.length) {
         const existing =
           await getPayrollRun(
+            req,
             req.params.id,
           );
 
@@ -652,6 +673,7 @@ router.post(
             id = $1
             AND status = 'PROCESSING'
             AND pending_approvals > 0
+            AND ($2::boolean OR company_id = $3)
           RETURNING
             id,
             payroll_month,
@@ -659,12 +681,13 @@ router.post(
             pending_approvals,
             created_at;
         `,
-        [req.params.id],
+        [req.params.id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
       );
 
       if (!result.rows.length) {
         const existing =
           await getPayrollRun(
+            req,
             req.params.id,
           );
 
@@ -731,6 +754,7 @@ router.post(
             id = $1
             AND status = 'PROCESSING'
             AND pending_approvals = 0
+            AND ($2::boolean OR company_id = $3)
           RETURNING
             id,
             payroll_month,
@@ -738,12 +762,13 @@ router.post(
             pending_approvals,
             created_at;
         `,
-        [req.params.id],
+        [req.params.id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
       );
 
       if (!result.rows.length) {
         const existing =
           await getPayrollRun(
+            req,
             req.params.id,
           );
 

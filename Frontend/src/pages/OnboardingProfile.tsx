@@ -19,6 +19,8 @@ import {
 
 import { Link, useParams } from "react-router-dom";
 
+import { useAuth } from "../context/AuthContext";
+
 import DashboardLayout from "../components/layout/DashboardLayout";
 
 import {
@@ -120,6 +122,19 @@ const steps = [
 
 function OnboardingProfile() {
   const { id } = useParams();
+  const { hasPermission } = useAuth();
+
+  const canViewOnboarding =
+    hasPermission("onboarding.view");
+
+  const canCreateOnboarding =
+    hasPermission("onboarding.create");
+
+  const canUpdateOnboarding =
+    hasPermission("onboarding.update");
+
+  const canDeleteOnboarding =
+    hasPermission("onboarding.delete");
 
   const [record, setRecord] =
     useState<OnboardingDetail | null>(null);
@@ -213,7 +228,7 @@ function OnboardingProfile() {
   ======================================================= */
 
   const load = useCallback(async () => {
-    if (!id) return;
+    if (!canViewOnboarding || !id) return;
 
     try {
       setLoading(true);
@@ -232,7 +247,7 @@ function OnboardingProfile() {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, canViewOnboarding]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -250,7 +265,15 @@ function OnboardingProfile() {
   const run = async (
     name: string,
     action: () => Promise<void>,
+    requiredPermission = "onboarding.update",
   ) => {
+    if (!hasPermission(requiredPermission)) {
+      setError(
+        `You do not have permission to perform this onboarding action.`,
+      );
+      return;
+    }
+
     try {
       setActionLoading(name);
       setError("");
@@ -354,7 +377,7 @@ function OnboardingProfile() {
       setTaskName("");
       setTaskOwner("");
       setTaskDueDate("");
-    });
+    }, "onboarding.create");
   };
 
   /* =======================================================
@@ -380,7 +403,7 @@ function OnboardingProfile() {
       });
 
       setDocumentName("");
-    });
+    }, "onboarding.create");
   };
 
   /* =======================================================
@@ -427,6 +450,13 @@ function OnboardingProfile() {
 
   const confirmDelete = async () => {
     if (!id || !deleteTarget) return;
+
+    if (!canDeleteOnboarding) {
+      setError(
+        "You do not have permission to delete onboarding documents or tasks.",
+      );
+      return;
+    }
 
     const target = deleteTarget;
 
@@ -498,6 +528,40 @@ function OnboardingProfile() {
     : 0;
 
   /* =======================================================
+     ACCESS CONTROL
+  ======================================================= */
+
+  if (!canViewOnboarding) {
+    return (
+      <DashboardLayout>
+        <div className="flex min-h-[520px] items-center justify-center px-6">
+          <div className="max-w-md text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+              <UserRound size={21} />
+            </div>
+
+            <h2 className="text-lg font-bold text-slate-900">
+              Access Restricted
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              You do not have permission to view onboarding records.
+            </p>
+
+            <Link
+              to="/onboarding"
+              className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              <ArrowLeft size={16} />
+              Back to Onboarding
+            </Link>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  /* =======================================================
      LOADING
   ======================================================= */
 
@@ -551,13 +615,15 @@ function OnboardingProfile() {
             Back to Onboarding
           </Link>
 
-          <Link
-            to={`/onboarding/edit/${id}`}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
-          >
-            <Edit size={16} />
-            Edit
-          </Link>
+          {canUpdateOnboarding && (
+            <Link
+              to={`/onboarding/edit/${id}`}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+            >
+              <Edit size={16} />
+              Edit
+            </Link>
+          )}
 
         </div>
 
@@ -746,10 +812,11 @@ function OnboardingProfile() {
 
             {/* ADD DOCUMENT */}
 
-            <form
-              onSubmit={addDocument}
-              className="mt-4 grid gap-2 sm:grid-cols-[1fr_180px_auto]"
-            >
+            {canCreateOnboarding && (
+              <form
+                onSubmit={addDocument}
+                className="mt-4 grid gap-2 sm:grid-cols-[1fr_180px_auto]"
+              >
 
               <input
                 value={documentName}
@@ -813,7 +880,8 @@ function OnboardingProfile() {
                 Add
               </button>
 
-            </form>
+              </form>
+            )}
 
             {/* DOCUMENT LIST */}
 
@@ -874,6 +942,7 @@ function OnboardingProfile() {
                               document.status
                             }
                             disabled={
+                              !canUpdateOnboarding ||
                               deleting ||
                               updating
                             }
@@ -909,24 +978,26 @@ function OnboardingProfile() {
 
                           </select>
 
-                          <button
-                            type="button"
-                            disabled={
-                              !!actionLoading
-                            }
-                            onClick={() =>
-                              setDeleteTarget({
-                                type: "document",
+                          {canDeleteOnboarding && (
+                            <button
+                              type="button"
+                              disabled={
+                                !!actionLoading
+                              }
+                              onClick={() =>
+                                setDeleteTarget({
+                                  type: "document",
                                 id: document.id,
                                 name: document.documentName,
                               })
                             }
                             className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-600 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
                             aria-label={`Delete ${document.documentName}`}
-                            title="Delete document"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                              title="Delete document"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
 
                         </div>
 
@@ -963,10 +1034,11 @@ function OnboardingProfile() {
 
           {/* ADD TASK */}
 
-          <form
-            onSubmit={addTask}
-            className="mt-4 grid gap-2 md:grid-cols-[1fr_180px_160px_auto]"
-          >
+          {canCreateOnboarding && (
+            <form
+              onSubmit={addTask}
+              className="mt-4 grid gap-2 md:grid-cols-[1fr_180px_160px_auto]"
+            >
 
             <input
               value={taskName}
@@ -1022,7 +1094,8 @@ function OnboardingProfile() {
               Add task
             </button>
 
-          </form>
+            </form>
+          )}
 
           {/* TASK LIST */}
 
@@ -1073,6 +1146,7 @@ function OnboardingProfile() {
                             task.status
                           }
                           disabled={
+                            !canUpdateOnboarding ||
                             deleting ||
                             updating
                           }
@@ -1104,24 +1178,26 @@ function OnboardingProfile() {
 
                         </select>
 
-                        <button
-                          type="button"
-                          disabled={
-                            !!actionLoading
-                          }
-                          onClick={() =>
-                            setDeleteTarget({
-                              type: "task",
+                        {canDeleteOnboarding && (
+                          <button
+                            type="button"
+                            disabled={
+                              !!actionLoading
+                            }
+                            onClick={() =>
+                              setDeleteTarget({
+                                type: "task",
                               id: task.id,
                               name: task.taskName,
                             })
                           }
                           className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-600 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
                           aria-label={`Delete ${task.taskName}`}
-                          title="Delete task"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                            title="Delete task"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
 
                       </div>
 
@@ -1171,6 +1247,7 @@ function OnboardingProfile() {
                     "PENDING") as WorkflowStatus
                 }
                 disabled={
+                  !canUpdateOnboarding ||
                   actionLoading ===
                   "assetAllocationStatus"
                 }
@@ -1233,6 +1310,7 @@ function OnboardingProfile() {
                     "PENDING") as WorkflowStatus
                 }
                 disabled={
+                  !canUpdateOnboarding ||
                   actionLoading ===
                   "systemAccessStatus"
                 }
@@ -1334,7 +1412,8 @@ function OnboardingProfile() {
 
           <div className="mt-4 flex flex-wrap gap-3">
 
-            {!record.actualJoiningDate && (
+            {canUpdateOnboarding &&
+              !record.actualJoiningDate && (
               <button
                 type="button"
                 disabled={!!actionLoading}
@@ -1358,7 +1437,8 @@ function OnboardingProfile() {
               </button>
             )}
 
-            {!record.employeeId && (
+            {canCreateOnboarding &&
+              !record.employeeId && (
               <button
                 type="button"
                 disabled={!!actionLoading}
@@ -1373,25 +1453,28 @@ function OnboardingProfile() {
               </button>
             )}
 
-            <button
-              type="button"
-              disabled={
-                !!actionLoading ||
-                !record.employeeId
-              }
-              onClick={() =>
-                setShowCompleteModal(true)
-              }
+            {canUpdateOnboarding && (
+              <button
+                type="button"
+                disabled={
+                  !!actionLoading ||
+                  !record.employeeId
+                }
+                onClick={() =>
+                  setShowCompleteModal(true)
+                }
               className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Complete onboarding
-            </button>
+                Complete onboarding
+              </button>
+            )}
 
           </div>
 
           {/* JOIN DATE */}
 
-          {!record.actualJoiningDate && (
+          {canUpdateOnboarding &&
+            !record.actualJoiningDate && (
             <div
               className="relative mt-4 cursor-pointer"
               onClick={() =>
@@ -1418,7 +1501,8 @@ function OnboardingProfile() {
 
           {/* EMPLOYEE FORM */}
 
-          {showEmployeeForm && (
+          {showEmployeeForm &&
+            canCreateOnboarding && (
             <form
               onSubmit={(event) => {
                 event.preventDefault();
@@ -1448,6 +1532,7 @@ function OnboardingProfile() {
                       false,
                     );
                   },
+                  "onboarding.create",
                 );
               }}
               className="mt-5 flex flex-wrap gap-2"
@@ -1582,7 +1667,8 @@ function OnboardingProfile() {
             COMPLETE ONBOARDING MODAL
         ================================================= */}
 
-        {showCompleteModal && (
+        {showCompleteModal &&
+          canUpdateOnboarding && (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4"
             role="presentation"

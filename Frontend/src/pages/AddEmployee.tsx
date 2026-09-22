@@ -1,3 +1,4 @@
+
 import {
   ArrowLeft,
   CheckCircle2,
@@ -15,6 +16,8 @@ import {
 } from "react-router-dom";
 
 import DashboardLayout from "../components/layout/DashboardLayout";
+
+import { useAuth } from "../context/AuthContext";
 
 import {
   createEmployee,
@@ -130,6 +133,9 @@ const employmentTypeOptions = [
 
 function AddEmployee() {
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+
+  const canCreateEmployees = hasPermission("employees.create");
 
   const [form, setForm] =
     useState<AddEmployeeForm>(
@@ -178,6 +184,11 @@ function AddEmployee() {
   */
 
   useEffect(() => {
+    if (!canCreateEmployees) {
+      setDepartmentsLoading(false);
+      return;
+    }
+
     const loadDepartments =
       async () => {
         try {
@@ -210,7 +221,7 @@ function AddEmployee() {
       };
 
     loadDepartments();
-  }, []);
+  }, [canCreateEmployees]);
 
   /*
   |--------------------------------------------------------------------------
@@ -312,7 +323,8 @@ function AddEmployee() {
 
       if (
         submitting ||
-        success
+        success ||
+        !canCreateEmployees
       ) {
         return;
       }
@@ -414,6 +426,31 @@ function AddEmployee() {
   | Render
   |--------------------------------------------------------------------------
   */
+
+  if (!canCreateEmployees) {
+    return (
+      <DashboardLayout>
+        <div className="flex w-full min-w-0 flex-col gap-6">
+          <Link
+            to="/workforce"
+            className="inline-flex w-fit items-center gap-2.5 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm transition-all duration-200 hover:border-slate-400 hover:bg-slate-50 hover:shadow-md"
+          >
+            <ArrowLeft size={18} strokeWidth={2.2} />
+            Back to Employee Directory
+          </Link>
+
+          <section className="dashboard-card p-6">
+            <h1 className="text-xl font-semibold text-slate-900">
+              Access Restricted
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              You do not have permission to create employee records.
+            </p>
+          </section>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

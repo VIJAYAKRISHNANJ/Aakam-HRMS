@@ -3,6 +3,34 @@ import pool from "../db.js";
 
 const router = express.Router();
 
+const employeeScopeValues = (req) => [
+  req.user.roles.includes("SUPER_ADMINISTRATOR"),
+  req.user.requestedCompanyId ?? null,
+];
+
+const departmentIsInScope = async (req, departmentId) => {
+  if (!departmentId) return true;
+  const result = await pool.query(
+    "SELECT 1 FROM departments WHERE id = $1 AND ($2::boolean OR company_id = $3) LIMIT 1",
+    [Number(departmentId), ...employeeScopeValues(req)],
+  );
+  return result.rows.length > 0;
+};
+
+const addEmployeeScope = (req, values, conditions, alias = "e") => {
+  if (!req.user.roles.includes("SUPER_ADMINISTRATOR")) {
+    values.push(req.user.requestedCompanyId);
+    conditions.push(`${alias}.company_id = $${values.length}`);
+  }
+  if (req.authorization?.ownOnly) {
+    values.push(req.user.employee_id ?? -1);
+    conditions.push(`${alias}.id = $${values.length}`);
+  } else if (req.user.roles.includes("MANAGER") && !req.user.permissions.includes("employees.update")) {
+    values.push(req.user.employee_id ?? -1);
+    conditions.push(`${alias}.reporting_manager_id = $${values.length}`);
+  }
+};
+
 /*
 |--------------------------------------------------------------------------
 | GET /api/employees/:id
@@ -54,10 +82,21 @@ router.get("/:id", async (req, res) => {
           ON d.id = e.department_id
 
         WHERE e.id = $1
+          AND ($2::boolean OR e.company_id = $3)
+          AND ($4::boolean OR e.id = $5)
+          AND ($6::boolean OR e.reporting_manager_id = $7)
 
         LIMIT 1;
       `,
-      [id],
+      [
+        id,
+        req.user.roles.includes("SUPER_ADMINISTRATOR"),
+        req.user.requestedCompanyId ?? null,
+        !req.authorization?.ownOnly,
+        req.user.employee_id ?? -1,
+        !req.user.roles.includes("MANAGER") || req.user.permissions.includes("employees.update"),
+        req.user.employee_id ?? -1,
+      ],
     );
 
     if (result.rows.length === 0) {
@@ -216,6 +255,8 @@ router.get("/", async (req, res) => {
         `e.employment_status = $${values.length}`,
       );
     }
+
+    addEmployeeScope(req, values, conditions);
 
     /*
     |--------------------------------------------------------------------------
@@ -445,6 +486,10 @@ router.post("/", async (req, res) => {
       });
     }
 
+    if (!(await departmentIsInScope(req, departmentId))) {
+      return res.status(404).json({ success: false, message: "Department not found" });
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Create employee
@@ -464,7 +509,8 @@ router.post("/", async (req, res) => {
               department_id,
               joining_date,
               employment_status,
-              employment_type
+              employment_type,
+              company_id
             )
             VALUES (
               $1,
@@ -475,7 +521,8 @@ router.post("/", async (req, res) => {
               $6,
               $7,
               $8,
-              $9
+              $9,
+              $10
             )
             RETURNING
               id,
@@ -500,6 +547,7 @@ router.post("/", async (req, res) => {
             joiningDate,
             employmentStatus,
             employmentType,
+            req.user.requestedCompanyId,
           ],
         );
 
@@ -516,11 +564,12 @@ router.post("/", async (req, res) => {
         await pool.query(
           `
             SELECT name
-            FROM departments
-            WHERE id = $1
-            LIMIT 1;
-          `,
-          [departmentId],
+          FROM departments
+          WHERE id = $1
+            AND ($2::boolean OR company_id = $3)
+          LIMIT 1;
+        `,
+          [departmentId, ...employeeScopeValues(req)],
         );
 
       /*
@@ -680,9 +729,10 @@ router.put("/:id", async (req, res) => {
           SELECT id
           FROM employees
           WHERE id = $1
+            AND ($2::boolean OR company_id = $3)
           LIMIT 1;
         `,
-        [id],
+        [id, ...employeeScopeValues(req)],
       );
 
     if (
@@ -694,6 +744,10 @@ router.put("/:id", async (req, res) => {
         message:
           "Employee not found",
       });
+    }
+
+    if (!(await departmentIsInScope(req, departmentId))) {
+      return res.status(404).json({ success: false, message: "Department not found" });
     }
 
     /*
@@ -738,7 +792,8 @@ router.put("/:id", async (req, res) => {
             joining_date = $7,
             employment_status = $8,
             employment_type = $9
-          WHERE id = $10;
+          WHERE id = $10
+            AND ($11::boolean OR company_id = $12);
         `,
         [
           employeeCode.trim(),
@@ -753,6 +808,7 @@ router.put("/:id", async (req, res) => {
           employmentStatus,
           employmentType,
           id,
+          ...employeeScopeValues(req),
         ],
       );
     } catch (updateError) {
@@ -843,10 +899,11 @@ router.put("/:id", async (req, res) => {
             ON d.id = e.department_id
 
           WHERE e.id = $1
+            AND ($2::boolean OR e.company_id = $3)
 
           LIMIT 1;
         `,
-        [id],
+        [id, ...employeeScopeValues(req)],
       );
 
     const employee =
@@ -956,9 +1013,10 @@ router.delete("/:id", async (req, res) => {
             last_name
           FROM employees
           WHERE id = $1
+            AND ($2::boolean OR company_id = $3)
           LIMIT 1;
         `,
-        [id],
+        [id, ...employeeScopeValues(req)],
       );
 
     if (
@@ -985,9 +1043,10 @@ router.delete("/:id", async (req, res) => {
       await pool.query(
         `
           DELETE FROM employees
-          WHERE id = $1;
+          WHERE id = $1
+            AND ($2::boolean OR company_id = $3);
         `,
-        [id],
+        [id, ...employeeScopeValues(req)],
       );
     } catch (deleteError) {
       /*

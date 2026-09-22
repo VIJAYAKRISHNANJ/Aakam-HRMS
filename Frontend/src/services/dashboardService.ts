@@ -1,7 +1,4 @@
-import axios from "axios";
-
-const API_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+import api from "./api";
 
 /* =========================================================
    DASHBOARD SUMMARY
@@ -22,8 +19,8 @@ interface DashboardSummaryResponse {
 export const getDashboardSummary =
   async (): Promise<DashboardSummary> => {
     const response =
-      await axios.get<DashboardSummaryResponse>(
-        `${API_URL}/dashboard/summary`,
+      await api.get<DashboardSummaryResponse>(
+        "/dashboard/summary",
       );
 
     return response.data.data;
@@ -46,8 +43,8 @@ interface HeadcountResponse {
 export const getHeadcountData =
   async (): Promise<HeadcountPoint[]> => {
     const response =
-      await axios.get<HeadcountResponse>(
-        `${API_URL}/dashboard/headcount`,
+      await api.get<HeadcountResponse>(
+        "/dashboard/headcount",
       );
 
     return response.data.data;
@@ -71,8 +68,8 @@ interface DepartmentResponse {
 export const getDepartmentData =
   async (): Promise<DepartmentPoint[]> => {
     const response =
-      await axios.get<DepartmentResponse>(
-        `${API_URL}/dashboard/departments`,
+      await api.get<DepartmentResponse>(
+        "/dashboard/departments",
       );
 
     return response.data.data;
@@ -100,8 +97,8 @@ interface AttendanceResponse {
 export const getAttendanceData =
   async (): Promise<AttendanceData> => {
     const response =
-      await axios.get<AttendanceResponse>(
-        `${API_URL}/dashboard/attendance`,
+      await api.get<AttendanceResponse>(
+        "/dashboard/attendance",
       );
 
     return response.data.data;
@@ -126,8 +123,8 @@ interface ActivityResponse {
 export const getActivityData =
   async (): Promise<ActivityPoint[]> => {
     const response =
-      await axios.get<ActivityResponse>(
-        `${API_URL}/dashboard/activity`,
+      await api.get<ActivityResponse>(
+        "/dashboard/activity",
       );
 
     return response.data.data;
@@ -162,8 +159,8 @@ interface InsightsResponse {
 export const getDashboardInsights =
   async (): Promise<DashboardInsights> => {
     const response =
-      await axios.get<InsightsResponse>(
-        `${API_URL}/dashboard/insights`,
+      await api.get<InsightsResponse>(
+        "/dashboard/insights",
       );
 
     return response.data.data;

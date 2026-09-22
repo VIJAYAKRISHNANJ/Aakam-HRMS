@@ -1,10 +1,7 @@
+import api from "./api";
 import axios from "axios";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:5000/api";
-
-const API_URL = `${API_BASE_URL}/exits`;
+const API_URL = "/exits";
 
 export const approvalStatuses = [
   "PENDING",
@@ -217,7 +214,7 @@ export const getExits = (
   } = {},
 ): Promise<ExitRecord[]> =>
   request(
-    axios.get<ApiResponse<ExitRecord[]>>(
+    api.get<ApiResponse<ExitRecord[]>>(
       API_URL,
       {
         params: {
@@ -243,7 +240,7 @@ export const getExit = (
   id: number | string,
 ): Promise<ExitRecord> =>
   request(
-    axios.get<ApiResponse<ExitRecord>>(
+    api.get<ApiResponse<ExitRecord>>(
       `${API_URL}/${id}`,
     ),
     "Unable to load this exit record.",
@@ -253,7 +250,7 @@ export const createExit = (
   payload: ExitPayload,
 ): Promise<ExitRecord> =>
   request(
-    axios.post<ApiResponse<ExitRecord>>(
+    api.post<ApiResponse<ExitRecord>>(
       API_URL,
       payload,
     ),
@@ -265,7 +262,7 @@ export const updateExit = (
   payload: ExitPayload,
 ): Promise<ExitRecord> =>
   request(
-    axios.put<ApiResponse<ExitRecord>>(
+    api.put<ApiResponse<ExitRecord>>(
       `${API_URL}/${id}`,
       payload,
     ),
@@ -276,9 +273,9 @@ export const getExitChecklist = (
   id: number | string,
 ): Promise<ExitChecklistItem[]> =>
   request(
-    axios.get<
-      ApiResponse<ExitChecklistItem[]>
-    >(`${API_URL}/${id}/checklist`),
+    api.get<ApiResponse<ExitChecklistItem[]>>(
+      `${API_URL}/${id}/checklist`,
+    ),
     "Unable to load exit checklist.",
   );
 
@@ -287,9 +284,7 @@ export const createExitChecklist = (
   payload: ChecklistPayload,
 ): Promise<ExitChecklistItem> =>
   request(
-    axios.post<
-      ApiResponse<ExitChecklistItem>
-    >(
+    api.post<ApiResponse<ExitChecklistItem>>(
       `${API_URL}/${id}/checklist`,
       payload,
     ),
@@ -302,9 +297,7 @@ export const updateExitChecklist = (
   payload: ChecklistPayload,
 ): Promise<ExitChecklistItem> =>
   request(
-    axios.put<
-      ApiResponse<ExitChecklistItem>
-    >(
+    api.put<ApiResponse<ExitChecklistItem>>(
       `${API_URL}/${id}/checklist/${itemId}`,
       payload,
     ),
@@ -315,9 +308,9 @@ export const getExitSettlement = (
   id: number | string,
 ): Promise<ExitSettlement | null> =>
   request(
-    axios.get<
-      ApiResponse<ExitSettlement | null>
-    >(`${API_URL}/${id}/settlement`),
+    api.get<ApiResponse<ExitSettlement | null>>(
+      `${API_URL}/${id}/settlement`,
+    ),
     "Unable to load exit settlement.",
   );
 
@@ -326,9 +319,7 @@ export const updateExitSettlement = (
   payload: SettlementPayload,
 ): Promise<ExitSettlement> =>
   request(
-    axios.put<
-      ApiResponse<ExitSettlement>
-    >(
+    api.put<ApiResponse<ExitSettlement>>(
       `${API_URL}/${id}/settlement`,
       payload,
     ),
@@ -339,7 +330,7 @@ export const getExitDocuments = (
   id: number | string,
 ): Promise<ExitDocument[]> =>
   request(
-    axios.get<ApiResponse<ExitDocument[]>>(
+    api.get<ApiResponse<ExitDocument[]>>(
       `${API_URL}/${id}/documents`,
     ),
     "Unable to load exit documents.",
@@ -350,7 +341,7 @@ export const createExitDocument = (
   payload: DocumentPayload,
 ): Promise<ExitDocument> =>
   request(
-    axios.post<ApiResponse<ExitDocument>>(
+    api.post<ApiResponse<ExitDocument>>(
       `${API_URL}/${id}/documents`,
       payload,
     ),
@@ -363,7 +354,7 @@ export const updateExitDocument = (
   payload: DocumentPayload,
 ): Promise<ExitDocument> =>
   request(
-    axios.put<ApiResponse<ExitDocument>>(
+    api.put<ApiResponse<ExitDocument>>(
       `${API_URL}/${id}/documents/${documentId}`,
       payload,
     ),

@@ -19,6 +19,7 @@ import {
 } from "react-router-dom";
 
 import DashboardLayout from "../components/layout/DashboardLayout";
+import { useAuth } from "../context/AuthContext";
 
 import {
   getEmployeeById,
@@ -252,22 +253,34 @@ function EmployeeProfile() {
   const { id } =
     useParams<{ id: string }>();
 
-  const [
-    employee,
-    setEmployee,
-  ] = useState<Employee | null>(
-    null,
-  );
+  const { user, hasPermission } =
+    useAuth();
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
+  const canViewEmployees =
+    hasPermission("employees.view");
 
-  const [
-    error,
-    setError,
-  ] = useState("");
+  const canViewOwnEmployee =
+    hasPermission("employees.view.own") &&
+    !!user?.employeeId &&
+    !!id &&
+    String(user.employeeId) ===
+      String(id);
+
+  const canViewProfile =
+    canViewEmployees ||
+    canViewOwnEmployee;
+
+  const canUpdateEmployees =
+    hasPermission("employees.update");
+
+  const [employee, setEmployee] =
+    useState<Employee | null>(null);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState("");
 
   /*
   |--------------------------------------------------------------------------
@@ -278,6 +291,13 @@ function EmployeeProfile() {
   useEffect(() => {
     const loadEmployee =
       async () => {
+        if (!canViewProfile) {
+          setEmployee(null);
+          setLoading(false);
+          setError("");
+          return;
+        }
+
         if (!id) {
           setError(
             "Employee ID is missing.",
@@ -294,6 +314,25 @@ function EmployeeProfile() {
 
           const data =
             await getEmployeeById(id);
+
+          /*
+           * Frontend self-service guard:
+           * even when the user has employees.view.own,
+           * only their own employee record is accepted.
+           * The backend remains authoritative.
+           */
+          if (
+            !canViewEmployees &&
+            canViewOwnEmployee &&
+            String(data.id) !==
+              String(user?.employeeId)
+          ) {
+            setEmployee(null);
+            setError(
+              "You are not authorized to view this employee profile.",
+            );
+            return;
+          }
 
           setEmployee(data);
         } catch (
@@ -313,7 +352,69 @@ function EmployeeProfile() {
       };
 
     loadEmployee();
-  }, [id]);
+  }, [
+    id,
+    canViewProfile,
+    canViewEmployees,
+    canViewOwnEmployee,
+    user?.employeeId,
+  ]);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Access Restricted
+  |--------------------------------------------------------------------------
+  */
+
+  if (!canViewProfile) {
+    return (
+      <DashboardLayout>
+
+        <div className="flex min-h-[520px] items-center justify-center px-6">
+
+          <div className="max-w-md text-center">
+
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+              <User size={21} />
+            </div>
+
+            <h2 className="text-lg font-bold text-slate-900">
+              Access Restricted
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              You do not have permission to view employee profiles.
+            </p>
+
+            <Link
+              to="/workforce"
+              className="
+                mt-5
+                inline-flex
+                items-center
+                gap-2
+                rounded-xl
+                bg-slate-900
+                px-4
+                py-2.5
+                text-sm
+                font-semibold
+                text-white
+                transition
+                hover:bg-slate-800
+              "
+            >
+              <ArrowLeft size={16} />
+              Back to Workforce
+            </Link>
+
+          </div>
+
+        </div>
+
+      </DashboardLayout>
+    );
+  }
 
   /*
   |--------------------------------------------------------------------------
@@ -414,10 +515,6 @@ function EmployeeProfile() {
 
       <div className="w-full min-w-0 space-y-5">
 
-        {/* =================================================
-            BACK TO EMPLOYEE DIRECTORY
-        ================================================= */}
-
         <div>
 
           <Link
@@ -456,17 +553,11 @@ function EmployeeProfile() {
 
         </div>
 
-        {/* =================================================
-            EMPLOYEE HEADER
-        ================================================= */}
-
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
 
           <div className="h-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-teal-500" />
 
           <div className="flex flex-col gap-5 px-5 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
-
-            {/* Employee Identity */}
 
             <div className="flex min-w-0 items-center gap-4">
 
@@ -535,10 +626,6 @@ function EmployeeProfile() {
 
             </div>
 
-            {/* =================================================
-                HEADER ACTIONS
-            ================================================= */}
-
             <div className="flex shrink-0 items-center gap-2">
 
               <Link
@@ -571,30 +658,32 @@ function EmployeeProfile() {
 
               </Link>
 
-              <Link
-                to={`/workforce/employees/${employee.id}/edit`}
-                className="
-                  inline-flex
-                  items-center
-                  gap-2
-                  rounded-xl
-                  bg-teal-700
-                  px-4
-                  py-2.5
-                  text-sm
-                  font-semibold
-                  text-white
-                  shadow-sm
-                  transition
-                  hover:bg-teal-800
-                "
-              >
+              {canUpdateEmployees && (
+                <Link
+                  to={`/workforce/employees/${employee.id}/edit`}
+                  className="
+                    inline-flex
+                    items-center
+                    gap-2
+                    rounded-xl
+                    bg-teal-700
+                    px-4
+                    py-2.5
+                    text-sm
+                    font-semibold
+                    text-white
+                    shadow-sm
+                    transition
+                    hover:bg-teal-800
+                  "
+                >
 
-                <Pencil size={15} />
+                  <Pencil size={15} />
 
-                Edit Employee
+                  Edit Employee
 
-              </Link>
+                </Link>
+              )}
 
             </div>
 
@@ -602,15 +691,7 @@ function EmployeeProfile() {
 
         </section>
 
-        {/* =================================================
-            INFORMATION GRID
-        ================================================= */}
-
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-
-          {/* =================================================
-              PERSONAL INFORMATION
-          ================================================= */}
 
           <SectionCard
             icon={<User size={18} />}
@@ -656,10 +737,6 @@ function EmployeeProfile() {
             </div>
 
           </SectionCard>
-
-          {/* =================================================
-              EMPLOYMENT
-          ================================================= */}
 
           <SectionCard
             icon={
@@ -718,10 +795,6 @@ function EmployeeProfile() {
 
           </SectionCard>
 
-          {/* =================================================
-              ORGANIZATION
-          ================================================= */}
-
           <SectionCard
             icon={<Users size={18} />}
             title="Organization"
@@ -759,10 +832,6 @@ function EmployeeProfile() {
 
           </SectionCard>
 
-          {/* =================================================
-              RECORD INFORMATION
-          ================================================= */}
-
           <SectionCard
             icon={
               <CalendarDays
@@ -782,11 +851,6 @@ function EmployeeProfile() {
                 )}
               />
 
-              {/* IMPORTANT:
-                  employee.id = database Employee ID
-                  employee.employeeCode = employee code
-              */}
-
               <InfoItem
                 label="Employee ID"
                 value={
@@ -800,10 +864,6 @@ function EmployeeProfile() {
           </SectionCard>
 
         </div>
-
-        {/* =================================================
-            PROFILE FOOTER
-        ================================================= */}
 
         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
 

@@ -4,6 +4,7 @@ import pool from "../db.js";
 
 import {
   authenticate,
+  canonicalizeRole,
 } from "../middleware/auth.middleware.js";
 
 import {
@@ -200,7 +201,7 @@ const buildAuthResponse = (user) => {
   const sanitizedUser =
     mapUserProfile(user);
 
-  const roles = user.roles ?? [];
+  const roles = [...new Set((user.roles ?? []).map(canonicalizeRole).filter(Boolean))];
 
   const permissions =
     user.permissions ?? [];

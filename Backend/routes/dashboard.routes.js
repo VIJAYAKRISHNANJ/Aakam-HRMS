@@ -3,41 +3,79 @@ import pool from "../db.js";
 
 const router = express.Router();
 
+const isPlatform = (req) =>
+  req.user.roles.includes("SUPER_ADMINISTRATOR");
+
+const isCompanyDashboardRole = (req) =>
+  req.user.roles.some((role) =>
+    [
+      "SUPER_ADMINISTRATOR",
+      "COMPANY_ADMINISTRATOR",
+      "HR_ADMINISTRATOR",
+    ].includes(role),
+  );
+
+// These legacy widgets aggregate workforce, payroll, attendance, and
+// recruitment data together. Until role-specific widget contracts exist, do
+// not expose a blended company dashboard to narrower roles.
+router.use((req, res, next) => {
+  if (!isCompanyDashboardRole(req)) {
+    return res.status(403).json({
+      success: false,
+      message: "Dashboard access is not available for this role",
+    });
+  }
+
+  next();
+});
+
+const dashboardValues = (req) => [
+  isPlatform(req),
+  req.user.requestedCompanyId ?? null,
+];
+
 /* =========================================================
    DASHBOARD SUMMARY
 ========================================================= */
 
 router.get("/summary", async (req, res) => {
   try {
-    const result = await pool.query(`
+    const result = await pool.query(
+      `
       SELECT
         (
           SELECT COUNT(*)
           FROM employees
           WHERE employment_status = 'ACTIVE'
+            AND ($1::boolean OR company_id = $2)
         ) AS total_employees,
 
         (
           SELECT COUNT(*)
           FROM employees
           WHERE employment_status = 'ACTIVE'
-          AND joining_date >= DATE_TRUNC('month', CURRENT_DATE)
-          AND joining_date < DATE_TRUNC('month', CURRENT_DATE)
-            + INTERVAL '1 month'
+            AND ($1::boolean OR company_id = $2)
+            AND joining_date >= DATE_TRUNC('month', CURRENT_DATE)
+            AND joining_date < DATE_TRUNC('month', CURRENT_DATE)
+              + INTERVAL '1 month'
         ) AS new_joiners,
 
         (
           SELECT COUNT(*)
           FROM job_positions
           WHERE status = 'OPEN'
+            AND ($1::boolean OR company_id = $2)
         ) AS open_positions,
 
         (
           SELECT COUNT(*)
           FROM leave_requests
           WHERE status = 'PENDING'
+            AND ($1::boolean OR company_id = $2)
         ) AS pending_leave;
-    `);
+      `,
+      dashboardValues(req),
+    );
 
     const row = result.rows[0];
 
@@ -89,12 +127,13 @@ router.get("/headcount", async (req, res) => {
           - INTERVAL '1 day'
         )
         AND e.employment_status = 'ACTIVE'
+        AND ($1::boolean OR e.company_id = $2)
 
       GROUP BY m.month_start
       ORDER BY m.month_start;
     `;
 
-    const result = await pool.query(query);
+    const result = await pool.query(query, dashboardValues(req));
 
     res.json({
       success: true,
@@ -130,12 +169,15 @@ router.get("/departments", async (req, res) => {
       LEFT JOIN employees e
         ON e.department_id = d.id
         AND e.employment_status = 'ACTIVE'
+        AND ($1::boolean OR e.company_id = $2)
+
+      WHERE ($1::boolean OR d.company_id = $2)
 
       GROUP BY d.id, d.name
       ORDER BY d.id;
     `;
 
-    const result = await pool.query(query);
+    const result = await pool.query(query, dashboardValues(req));
 
     res.json({
       success: true,
@@ -187,15 +229,17 @@ router.get("/attendance", async (req, res) => {
 
       FROM attendance_records
 
-      WHERE attendance_date = (
-        SELECT MAX(attendance_date)
-        FROM attendance_records
-      )
+      WHERE ($1::boolean OR company_id = $2)
+        AND attendance_date = (
+          SELECT MAX(attendance_date)
+          FROM attendance_records
+          WHERE ($1::boolean OR company_id = $2)
+        )
 
       GROUP BY attendance_date;
     `;
 
-    const result = await pool.query(query);
+    const result = await pool.query(query, dashboardValues(req));
 
     if (result.rows.length === 0) {
       return res.json({
@@ -261,7 +305,6 @@ router.get("/activity", async (req, res) => {
 
         SELECT
           'EMPLOYEE' AS activity_type,
-
           'New employee joined' AS title,
 
           CONCAT(
@@ -275,6 +318,8 @@ router.get("/activity", async (req, res) => {
 
         FROM employees e
 
+        WHERE ($1::boolean OR e.company_id = $2)
+
 
         UNION ALL
 
@@ -285,7 +330,6 @@ router.get("/activity", async (req, res) => {
 
         SELECT
           'LEAVE' AS activity_type,
-
           'Leave request submitted' AS title,
 
           CONCAT(
@@ -304,6 +348,9 @@ router.get("/activity", async (req, res) => {
         JOIN employees e
           ON e.id = lr.employee_id
 
+        WHERE ($1::boolean OR lr.company_id = $2)
+          AND ($1::boolean OR e.company_id = $2)
+
 
         UNION ALL
 
@@ -314,7 +361,6 @@ router.get("/activity", async (req, res) => {
 
         SELECT
           'CANDIDATE' AS activity_type,
-
           'Candidate added' AS title,
 
           CONCAT(
@@ -326,6 +372,8 @@ router.get("/activity", async (req, res) => {
 
         FROM candidates c
 
+        WHERE ($1::boolean OR c.company_id = $2)
+
 
         UNION ALL
 
@@ -336,7 +384,6 @@ router.get("/activity", async (req, res) => {
 
         SELECT
           'PAYROLL' AS activity_type,
-
           'Payroll processing started' AS title,
 
           CONCAT(
@@ -350,6 +397,8 @@ router.get("/activity", async (req, res) => {
 
         FROM payroll_runs pr
 
+        WHERE ($1::boolean OR pr.company_id = $2)
+
       ) AS activities
 
       ORDER BY activity_time DESC
@@ -357,7 +406,10 @@ router.get("/activity", async (req, res) => {
       LIMIT 6;
     `;
 
-    const result = await pool.query(query);
+    const result = await pool.query(
+      query,
+      dashboardValues(req),
+    );
 
     res.json({
       success: true,
@@ -384,7 +436,8 @@ router.get("/activity", async (req, res) => {
 
 router.get("/insights", async (req, res) => {
   try {
-    const result = await pool.query(`
+    const result = await pool.query(
+      `
       SELECT
 
         /* -----------------------------------------------
@@ -394,6 +447,7 @@ router.get("/insights", async (req, res) => {
         (
           SELECT COUNT(*)
           FROM candidates
+          WHERE ($1::boolean OR company_id = $2)
         ) AS candidate_count,
 
 
@@ -405,6 +459,7 @@ router.get("/insights", async (req, res) => {
           SELECT COUNT(*)
           FROM job_positions
           WHERE status = 'OPEN'
+            AND ($1::boolean OR company_id = $2)
         ) AS open_position_count,
 
 
@@ -416,6 +471,7 @@ router.get("/insights", async (req, res) => {
           SELECT COALESCE(SUM(openings), 0)
           FROM job_positions
           WHERE status = 'OPEN'
+            AND ($1::boolean OR company_id = $2)
         ) AS total_openings,
 
 
@@ -427,6 +483,7 @@ router.get("/insights", async (req, res) => {
           SELECT COUNT(*)
           FROM leave_requests
           WHERE status = 'PENDING'
+            AND ($1::boolean OR company_id = $2)
         ) AS pending_leave_count,
 
 
@@ -438,6 +495,7 @@ router.get("/insights", async (req, res) => {
           SELECT COALESCE(SUM(pending_approvals), 0)
           FROM payroll_runs
           WHERE status IN ('PROCESSING', 'PENDING')
+            AND ($1::boolean OR company_id = $2)
         ) AS pending_payroll_approvals,
 
 
@@ -449,12 +507,13 @@ router.get("/insights", async (req, res) => {
           SELECT COUNT(*)
           FROM employees
           WHERE employment_status = 'ACTIVE'
+            AND ($1::boolean OR company_id = $2)
         ) AS active_employee_count,
 
 
         /* -----------------------------------------------
            ATTENDANCE EXCEPTIONS
-           
+
            An exception is:
            1. ABSENT employee
            OR
@@ -464,19 +523,23 @@ router.get("/insights", async (req, res) => {
         (
           SELECT COUNT(*)
           FROM attendance_records
-          WHERE attendance_date = (
-            SELECT MAX(attendance_date)
-            FROM attendance_records
-          )
-          AND (
-            status = 'ABSENT'
-            OR (
-              status = 'PRESENT'
-              AND check_in > TIME '09:15'
+          WHERE ($1::boolean OR company_id = $2)
+            AND attendance_date = (
+              SELECT MAX(attendance_date)
+              FROM attendance_records
+              WHERE ($1::boolean OR company_id = $2)
             )
-          )
+            AND (
+              status = 'ABSENT'
+              OR (
+                status = 'PRESENT'
+                AND check_in > TIME '09:15'
+              )
+            )
         ) AS attendance_exception_count;
-    `);
+      `,
+      dashboardValues(req),
+    );
 
     const row = result.rows[0];
 
@@ -513,23 +576,28 @@ router.get("/insights", async (req, res) => {
           {
             title: "Recruitment pipeline",
 
-            value: `${candidateCount} candidates in pipeline`,
+            value:
+              `${candidateCount} candidates in pipeline`,
 
-            detail: `${openPositionCount} open positions currently available`,
+            detail:
+              `${openPositionCount} open positions currently available`,
           },
 
           {
             title: "Workforce overview",
 
-            value: `${activeEmployeeCount} active employees`,
+            value:
+              `${activeEmployeeCount} active employees`,
 
-            detail: `${totalOpenings} openings across current job positions`,
+            detail:
+              `${totalOpenings} openings across current job positions`,
           },
 
           {
             title: "Payroll readiness",
 
-            value: `${pendingPayrollApprovals} approvals pending`,
+            value:
+              `${pendingPayrollApprovals} approvals pending`,
 
             detail:
               "Pending payroll approvals requiring attention",
@@ -538,8 +606,6 @@ router.get("/insights", async (req, res) => {
 
         /* =================================================
            UPCOMING ACTIONS
-           
-           ALL 5 ARE NOW DATABASE-BACKED
         ================================================= */
 
         actions: [

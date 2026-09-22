@@ -1,8 +1,4 @@
-import axios from "axios";
-
-const API_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:5000/api";
+import api from "./api";
 
 /*
 |--------------------------------------------------------------------------
@@ -208,9 +204,9 @@ export const getOnboardings = async (
   } = {},
 ): Promise<OnboardingRecord[]> => {
   const response =
-    await axios.get<
+    await api.get<
       ApiResponse<OnboardingRecord[]>
-    >(API_URL + "/onboarding", {
+    >("/onboarding", {
       params: {
         search:
           filters.search ||
@@ -233,9 +229,9 @@ export const getOnboarding = async (
   id: number | string,
 ): Promise<OnboardingDetail> => {
   const response =
-    await axios.get<
+    await api.get<
       ApiResponse<OnboardingDetail>
-    >(`${API_URL}/onboarding/${id}`);
+    >(`/onboarding/${id}`);
 
   return response.data.data;
 };
@@ -248,9 +244,9 @@ export const createOnboarding = async (
   payload: OnboardingPayload,
 ): Promise<OnboardingRecord> => {
   const response =
-    await axios.post<
+    await api.post<
       ApiResponse<OnboardingRecord>
-    >(`${API_URL}/onboarding`, payload);
+    >("/onboarding", payload);
 
   return response.data.data;
 };
@@ -264,10 +260,10 @@ export const updateOnboarding = async (
   payload: OnboardingPayload,
 ): Promise<OnboardingRecord> => {
   const response =
-    await axios.put<
+    await api.put<
       ApiResponse<OnboardingRecord>
     >(
-      `${API_URL}/onboarding/${id}`,
+      `/onboarding/${id}`,
       payload,
     );
 
@@ -281,8 +277,8 @@ export const updateOnboarding = async (
 export const deleteOnboarding = async (
   id: number | string,
 ): Promise<void> => {
-  await axios.delete(
-    `${API_URL}/onboarding/${id}`,
+  await api.delete(
+    `/onboarding/${id}`,
   );
 };
 
@@ -294,57 +290,60 @@ export const deleteOnboarding = async (
 | GET /api/onboarding/:id/tasks
 */
 
-export const getOnboardingTasks = async (
-  id: number | string,
-): Promise<OnboardingTask[]> => {
-  const response =
-    await axios.get<
-      ApiResponse<OnboardingTask[]>
-    >(
-      `${API_URL}/onboarding/${id}/tasks`,
-    );
+export const getOnboardingTasks =
+  async (
+    id: number | string,
+  ): Promise<OnboardingTask[]> => {
+    const response =
+      await api.get<
+        ApiResponse<OnboardingTask[]>
+      >(
+        `/onboarding/${id}/tasks`,
+      );
 
-  return response.data.data;
-};
+    return response.data.data;
+  };
 
 /*
 | POST /api/onboarding/:id/tasks
 */
 
-export const createOnboardingTask = async (
-  id: number | string,
-  payload: TaskPayload,
-): Promise<OnboardingTask> => {
-  const response =
-    await axios.post<
-      ApiResponse<OnboardingTask>
-    >(
-      `${API_URL}/onboarding/${id}/tasks`,
-      payload,
-    );
+export const createOnboardingTask =
+  async (
+    id: number | string,
+    payload: TaskPayload,
+  ): Promise<OnboardingTask> => {
+    const response =
+      await api.post<
+        ApiResponse<OnboardingTask>
+      >(
+        `/onboarding/${id}/tasks`,
+        payload,
+      );
 
-  return response.data.data;
-};
+    return response.data.data;
+  };
 
 /*
 | PUT /api/onboarding/:id/tasks/:taskId
 */
 
-export const updateOnboardingTask = async (
-  id: number | string,
-  taskId: number,
-  payload: TaskPayload,
-): Promise<OnboardingTask> => {
-  const response =
-    await axios.put<
-      ApiResponse<OnboardingTask>
-    >(
-      `${API_URL}/onboarding/${id}/tasks/${taskId}`,
-      payload,
-    );
+export const updateOnboardingTask =
+  async (
+    id: number | string,
+    taskId: number,
+    payload: TaskPayload,
+  ): Promise<OnboardingTask> => {
+    const response =
+      await api.put<
+        ApiResponse<OnboardingTask>
+      >(
+        `/onboarding/${id}/tasks/${taskId}`,
+        payload,
+      );
 
-  return response.data.data;
-};
+    return response.data.data;
+  };
 
 /*
 |--------------------------------------------------------------------------
@@ -352,14 +351,15 @@ export const updateOnboardingTask = async (
 |--------------------------------------------------------------------------
 */
 
-export const deleteOnboardingTask = async (
-  id: number | string,
-  taskId: number,
-): Promise<void> => {
-  await axios.delete(
-    `${API_URL}/onboarding/${id}/tasks/${taskId}`,
-  );
-};
+export const deleteOnboardingTask =
+  async (
+    id: number | string,
+    taskId: number,
+  ): Promise<void> => {
+    await api.delete(
+      `/onboarding/${id}/tasks/${taskId}`,
+    );
+  };
 
 /* =========================================================
    DOCUMENTS
@@ -374,10 +374,10 @@ export const getOnboardingDocuments =
     id: number | string,
   ): Promise<OnboardingDocument[]> => {
     const response =
-      await axios.get<
+      await api.get<
         ApiResponse<OnboardingDocument[]>
       >(
-        `${API_URL}/onboarding/${id}/documents`,
+        `/onboarding/${id}/documents`,
       );
 
     return response.data.data;
@@ -393,10 +393,10 @@ export const createOnboardingDocument =
     payload: DocumentPayload,
   ): Promise<OnboardingDocument> => {
     const response =
-      await axios.post<
+      await api.post<
         ApiResponse<OnboardingDocument>
       >(
-        `${API_URL}/onboarding/${id}/documents`,
+        `/onboarding/${id}/documents`,
         payload,
       );
 
@@ -414,10 +414,10 @@ export const updateOnboardingDocument =
     payload: DocumentPayload,
   ): Promise<OnboardingDocument> => {
     const response =
-      await axios.put<
+      await api.put<
         ApiResponse<OnboardingDocument>
       >(
-        `${API_URL}/onboarding/${id}/documents/${documentId}`,
+        `/onboarding/${id}/documents/${documentId}`,
         payload,
       );
 
@@ -435,8 +435,8 @@ export const deleteOnboardingDocument =
     id: number | string,
     documentId: number,
   ): Promise<void> => {
-    await axios.delete(
-      `${API_URL}/onboarding/${id}/documents/${documentId}`,
+    await api.delete(
+      `/onboarding/${id}/documents/${documentId}`,
     );
   };
 
@@ -448,22 +448,23 @@ export const deleteOnboardingDocument =
 | POST /api/onboarding/:id/join
 */
 
-export const joinOnboarding = async (
-  id: number | string,
-  actualJoiningDate?: string,
-): Promise<OnboardingRecord> => {
-  const response =
-    await axios.post<
-      ApiResponse<OnboardingRecord>
-    >(
-      `${API_URL}/onboarding/${id}/join`,
-      {
-        actualJoiningDate,
-      },
-    );
+export const joinOnboarding =
+  async (
+    id: number | string,
+    actualJoiningDate?: string,
+  ): Promise<OnboardingRecord> => {
+    const response =
+      await api.post<
+        ApiResponse<OnboardingRecord>
+      >(
+        `/onboarding/${id}/join`,
+        {
+          actualJoiningDate,
+        },
+      );
 
-  return response.data.data;
-};
+    return response.data.data;
+  };
 
 /*
 | POST /api/onboarding/:id/create-employee
@@ -475,13 +476,13 @@ export const createOnboardingEmployee =
     payload: EmployeePayload,
   ) => {
     const response =
-      await axios.post<
+      await api.post<
         ApiResponse<{
           employee: unknown;
           onboarding: OnboardingRecord;
         }>
       >(
-        `${API_URL}/onboarding/${id}/create-employee`,
+        `/onboarding/${id}/create-employee`,
         payload,
       );
 
@@ -492,18 +493,19 @@ export const createOnboardingEmployee =
 | POST /api/onboarding/:id/complete
 */
 
-export const completeOnboarding = async (
-  id: number | string,
-): Promise<OnboardingRecord> => {
-  const response =
-    await axios.post<
-      ApiResponse<OnboardingRecord>
-    >(
-      `${API_URL}/onboarding/${id}/complete`,
-    );
+export const completeOnboarding =
+  async (
+    id: number | string,
+  ): Promise<OnboardingRecord> => {
+    const response =
+      await api.post<
+        ApiResponse<OnboardingRecord>
+      >(
+        `/onboarding/${id}/complete`,
+      );
 
-  return response.data.data;
-};
+    return response.data.data;
+  };
 
 /* =========================================================
    ERROR HANDLING
@@ -513,20 +515,29 @@ export const getOnboardingErrorMessage = (
   error: unknown,
   fallback: string,
 ): string => {
-  if (axios.isAxiosError(error)) {
-    const message =
-      error.response?.data?.message;
-
-    if (
-      typeof message === "string" &&
-      message.trim()
-    ) {
-      return message;
+  const response = (
+    error as {
+      response?: {
+        data?: {
+          message?: unknown;
+        };
+        status?: number;
+      };
     }
+  )?.response;
 
-    if (error.response?.status === 404) {
-      return "Onboarding record not found.";
-    }
+  const message =
+    response?.data?.message;
+
+  if (
+    typeof message === "string" &&
+    message.trim()
+  ) {
+    return message;
+  }
+
+  if (response?.status === 404) {
+    return "Onboarding record not found.";
   }
 
   if (

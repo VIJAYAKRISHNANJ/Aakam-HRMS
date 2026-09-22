@@ -24,9 +24,10 @@ router.get("/:id", async (req, res) => {
           created_at
         FROM departments
         WHERE id = $1
+          AND ($2::boolean OR company_id = $3)
         LIMIT 1;
       `,
-      [id],
+      [id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
     );
 
     if (result.rows.length === 0) {
@@ -49,9 +50,10 @@ router.get("/:id", async (req, res) => {
         `
           SELECT COUNT(*) AS employee_count
           FROM employees
-          WHERE department_id = $1;
+          WHERE department_id = $1
+            AND ($2::boolean OR company_id = $3);
         `,
-        [id],
+        [id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
       );
 
     res.json({
@@ -127,6 +129,11 @@ router.get("/", async (req, res) => {
       `);
     }
 
+    if (!req.user.roles.includes("SUPER_ADMINISTRATOR")) {
+      values.push(req.user.requestedCompanyId);
+      conditions.push(`d.company_id = $${values.length}`);
+    }
+
     /*
     |--------------------------------------------------------------------------
     | WHERE
@@ -161,6 +168,7 @@ router.get("/", async (req, res) => {
 
           LEFT JOIN employees e
             ON e.department_id = d.id
+            AND ($${values.length + 1}::boolean OR e.company_id = $${values.length + 2})
 
           ${whereClause}
 
@@ -173,7 +181,7 @@ router.get("/", async (req, res) => {
           ORDER BY
             d.name ASC;
         `,
-        values,
+        [...values, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
       );
 
     /*
@@ -288,11 +296,13 @@ router.post("/", async (req, res) => {
           `
             INSERT INTO departments (
               name,
-              code
+              code,
+              company_id
             )
             VALUES (
               $1,
-              $2
+              $2,
+              $3
             )
             RETURNING
               id,
@@ -303,6 +313,7 @@ router.post("/", async (req, res) => {
           [
             departmentName,
             departmentCode,
+            req.user.requestedCompanyId,
           ],
         );
 
@@ -458,9 +469,10 @@ router.put("/:id", async (req, res) => {
             id
           FROM departments
           WHERE id = $1
+            AND ($2::boolean OR company_id = $3)
           LIMIT 1;
         `,
-        [id],
+        [id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
       );
 
     if (
@@ -489,6 +501,7 @@ router.put("/:id", async (req, res) => {
               name = $1,
               code = $2
             WHERE id = $3
+              AND ($4::boolean OR company_id = $5)
             RETURNING
               id,
               name,
@@ -499,6 +512,8 @@ router.put("/:id", async (req, res) => {
             departmentName,
             departmentCode,
             id,
+            req.user.roles.includes("SUPER_ADMINISTRATOR"),
+            req.user.requestedCompanyId ?? null,
           ],
         );
 
@@ -516,9 +531,10 @@ router.put("/:id", async (req, res) => {
           `
             SELECT COUNT(*) AS employee_count
             FROM employees
-            WHERE department_id = $1;
+            WHERE department_id = $1
+              AND ($2::boolean OR company_id = $3);
           `,
-          [id],
+          [id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
         );
 
       res.json({

@@ -1,14 +1,10 @@
-import axios from "axios";
+import api from "./api";
 
-const API_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:5000/api";
-
-/**
- * |--------------------------------------------------------------------------
- * | Department
- * |--------------------------------------------------------------------------
- */
+/*
+|--------------------------------------------------------------------------
+| Department
+|--------------------------------------------------------------------------
+*/
 
 export interface Department {
   id: number;
@@ -18,22 +14,22 @@ export interface Department {
   employeeCount: number;
 }
 
-/**
- * |--------------------------------------------------------------------------
- * | Payload
- * |--------------------------------------------------------------------------
- */
+/*
+|--------------------------------------------------------------------------
+| Payload
+|--------------------------------------------------------------------------
+*/
 
 export interface DepartmentPayload {
   name: string;
   code: string;
 }
 
-/**
- * |--------------------------------------------------------------------------
- * | API Response
- * |--------------------------------------------------------------------------
- */
+/*
+|--------------------------------------------------------------------------
+| API Response
+|--------------------------------------------------------------------------
+*/
 
 interface DepartmentResponse {
   success: boolean;
@@ -50,71 +46,71 @@ interface DepartmentsResponse {
   message?: string;
 }
 
-/**
- * |--------------------------------------------------------------------------
- * | Get Departments
- * |--------------------------------------------------------------------------
- */
+/*
+|--------------------------------------------------------------------------
+| Get Departments
+|--------------------------------------------------------------------------
+*/
 
 export const getDepartments = async (): Promise<
   Department[]
 > => {
   const response =
-    await axios.get<DepartmentsResponse>(
-      `${API_URL}/departments`,
+    await api.get<DepartmentsResponse>(
+      "/departments",
     );
 
   return response.data.data.departments;
 };
 
-/**
- * |--------------------------------------------------------------------------
- * | Get Department By ID
- * |--------------------------------------------------------------------------
- */
+/*
+|--------------------------------------------------------------------------
+| Get Department By ID
+|--------------------------------------------------------------------------
+*/
 
 export const getDepartmentById = async (
   departmentId: number | string,
 ): Promise<Department> => {
   const response =
-    await axios.get<DepartmentResponse>(
-      `${API_URL}/departments/${departmentId}`,
+    await api.get<DepartmentResponse>(
+      `/departments/${departmentId}`,
     );
 
   return response.data.data;
 };
 
-/**
- * |--------------------------------------------------------------------------
- * | Create Department
- * |--------------------------------------------------------------------------
- */
+/*
+|--------------------------------------------------------------------------
+| Create Department
+|--------------------------------------------------------------------------
+*/
 
 export const createDepartment = async (
   payload: DepartmentPayload,
 ): Promise<Department> => {
   const response =
-    await axios.post<DepartmentResponse>(
-      `${API_URL}/departments`,
+    await api.post<DepartmentResponse>(
+      "/departments",
       payload,
     );
 
   return response.data.data;
 };
 
-/**
- * |--------------------------------------------------------------------------
- * | Update Department
- * |--------------------------------------------------------------------------
- */
+/*
+|--------------------------------------------------------------------------
+| Update Department
+|--------------------------------------------------------------------------
+*/
 
 export const updateDepartment = async (
   departmentId: number | string,
   payload: DepartmentPayload,
 ): Promise<Department> => {
   const response =
-    await axios.put<DepartmentResponse>(
-      `${API_URL}/departments/${departmentId}`,
+    await api.put<DepartmentResponse>(
+      `/departments/${departmentId}`,
       payload,
     );
 

@@ -12,6 +12,8 @@ import {
   type FormEvent,
 } from "react";
 
+import { useAuth } from "../context/AuthContext";
+
 import {
   Link,
   useNavigate,
@@ -39,6 +41,9 @@ const initialForm: CreateBranchPayload = {
 
 function AddBranch() {
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+
+  const canCreateBranches = hasPermission("branches.create");
 
   const [form, setForm] =
     useState<CreateBranchPayload>(
@@ -67,6 +72,13 @@ function AddBranch() {
   */
 
   useEffect(() => {
+    if (!canCreateBranches) {
+      setCompanies([]);
+      setLoadingCompanies(false);
+      setError("");
+      return;
+    }
+
     const loadCompanies = async () => {
       try {
         setLoadingCompanies(true);
@@ -91,7 +103,7 @@ function AddBranch() {
     };
 
     loadCompanies();
-  }, []);
+  }, [canCreateBranches]);
 
   /*
   |--------------------------------------------------------------------------
@@ -139,7 +151,7 @@ function AddBranch() {
   ) => {
     event.preventDefault();
 
-    if (loading) {
+    if (loading || !canCreateBranches) {
       return;
     }
 
@@ -241,6 +253,50 @@ function AddBranch() {
       setLoading(false);
     }
   };
+
+  if (!canCreateBranches) {
+    return (
+      <DashboardLayout>
+        <div className="flex min-h-[60vh] w-full items-center justify-center">
+          <section className="w-full max-w-lg rounded-xl border border-red-200 bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
+              <Building2 size={24} className="text-red-600" />
+            </div>
+
+            <h1 className="mt-4 text-xl font-semibold text-slate-900">
+              Access Restricted
+            </h1>
+
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              You do not have permission to create company branches.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => navigate("/organization/branches")}
+              className="
+                mt-6
+                inline-flex
+                items-center
+                justify-center
+                rounded-lg
+                bg-teal-700
+                px-4
+                py-2.5
+                text-sm
+                font-semibold
+                text-white
+                transition
+                hover:bg-teal-800
+              "
+            >
+              Back to Branches
+            </button>
+          </section>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

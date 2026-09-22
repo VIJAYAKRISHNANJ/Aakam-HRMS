@@ -1,6 +1,9 @@
-import axios from "axios";
+import api from "./api";
+import { isAxiosError } from "axios";
 
-export type ClientStatus = "ACTIVE" | "INACTIVE";
+export type ClientStatus =
+  | "ACTIVE"
+  | "INACTIVE";
 
 export interface Client {
   id: number;
@@ -41,17 +44,13 @@ interface ApiResponse<T> {
   total?: number;
 }
 
-const API_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:5000/api";
-
 export const getClients = async (): Promise<
   Client[]
 > => {
   const response =
-    await axios.get<
-      ApiResponse<Client[]>
-    >(`${API_URL}/clients`);
+    await api.get<ApiResponse<Client[]>>(
+      "/clients",
+    );
 
   if (!response.data.success) {
     throw new Error(
@@ -67,8 +66,8 @@ export const getClient = async (
   id: number | string,
 ): Promise<Client> => {
   const response =
-    await axios.get<ApiResponse<Client>>(
-      `${API_URL}/clients/${id}`,
+    await api.get<ApiResponse<Client>>(
+      `/clients/${id}`,
     );
 
   if (!response.data.success) {
@@ -85,8 +84,8 @@ export const createClient = async (
   payload: CreateClientPayload,
 ): Promise<Client> => {
   const response =
-    await axios.post<ApiResponse<Client>>(
-      `${API_URL}/clients`,
+    await api.post<ApiResponse<Client>>(
+      "/clients",
       payload,
     );
 
@@ -105,8 +104,8 @@ export const updateClient = async (
   payload: UpdateClientPayload,
 ): Promise<Client> => {
   const response =
-    await axios.put<ApiResponse<Client>>(
-      `${API_URL}/clients/${id}`,
+    await api.put<ApiResponse<Client>>(
+      `/clients/${id}`,
       payload,
     );
 
@@ -124,8 +123,8 @@ export const deleteClient = async (
   id: number | string,
 ): Promise<void> => {
   const response =
-    await axios.delete<ApiResponse<null>>(
-      `${API_URL}/clients/${id}`,
+    await api.delete<ApiResponse<null>>(
+      `/clients/${id}`,
     );
 
   if (!response.data.success) {
@@ -140,7 +139,7 @@ export const getClientErrorMessage = (
   error: unknown,
   fallback: string,
 ): string => {
-  if (axios.isAxiosError(error)) {
+  if (isAxiosError(error)) {
     const message =
       error.response?.data?.message;
 

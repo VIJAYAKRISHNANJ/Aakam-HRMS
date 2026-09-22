@@ -3,6 +3,8 @@ import pool from "../db.js";
 import {
   authenticate,
   authorizePermissions,
+  verifyCompanyScope,
+  isSuperAdmin,
 } from "../middleware/auth.middleware.js";
 import { getPasswordExpiryDate, hashPassword } from "../utils/auth.js";
 
@@ -52,6 +54,7 @@ const getEmployeeById = async (employeeId) => {
         e.first_name,
         e.last_name,
         e.email,
+        e.company_id,
         e.department_id,
         d.name AS department_name,
         e.employment_status
@@ -169,7 +172,22 @@ const writeAuditLog = async ({ userId, action, entityId, details }) => {
   );
 };
 
-router.use(authenticate);
+router.use(authenticate, verifyCompanyScope);
+
+const userIsInScope = async (req, userId) => {
+  if (isSuperAdmin(req.user)) return true;
+  const result = await pool.query(
+    "SELECT 1 FROM users WHERE id = $1 AND company_id = $2 LIMIT 1;",
+    [userId, req.user.requestedCompanyId],
+  );
+  return result.rows.length > 0;
+};
+
+const canAssignRole = (req, role) =>
+  isSuperAdmin(req.user) || role.name !== "SUPER_ADMINISTRATOR";
+
+const canManageUser = (req, user) =>
+  isSuperAdmin(req.user) || !(user.roles ?? []).some((role) => role.name === "SUPER_ADMINISTRATOR");
 
 router.get("/", authorizePermissions("users.view"), async (req, res) => {
   try {
@@ -177,6 +195,11 @@ router.get("/", authorizePermissions("users.view"), async (req, res) => {
     const { search = "", role = "", active = "", employeeId = "" } = req.query;
     const values = [];
     const conditions = [];
+
+    if (!isSuperAdmin(req.user)) {
+      values.push(req.user.requestedCompanyId);
+      conditions.push(`u.company_id = $${values.length}`);
+    }
 
     if (search.trim()) {
       values.push(`%${search.trim()}%`);
@@ -290,7 +313,7 @@ router.get("/:id", authorizePermissions("users.view"), async (req, res) => {
     }
 
     const user = await getUserById(req.params.id);
-    if (!user) {
+    if (!user || !(await userIsInScope(req, req.params.id))) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
@@ -337,12 +360,12 @@ router.post("/", authorizePermissions("users.create"), async (req, res) => {
     }
 
     const employee = await getEmployeeById(employeeId);
-    if (!employee) {
+    if (!employee || (!isSuperAdmin(req.user) && employee.company_id !== req.user.requestedCompanyId)) {
       return res.status(404).json({ success: false, message: "Employee not found" });
     }
 
     const role = await getRoleById(roleId);
-    if (!role) {
+    if (!role || !canAssignRole(req, role)) {
       return res.status(404).json({ success: false, message: "Role not found" });
     }
 
@@ -405,12 +428,13 @@ router.post("/", authorizePermissions("users.create"), async (req, res) => {
             first_name,
             last_name,
             employee_id,
+            company_id,
             is_active,
             password_changed_at,
             password_expires_at,
             updated_at
           )
-          VALUES ($1, $2, $3, $4, $5, $6, TRUE, CURRENT_TIMESTAMP, $7, CURRENT_TIMESTAMP)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, CURRENT_TIMESTAMP, $8, CURRENT_TIMESTAMP)
           RETURNING id;
         `,
         [
@@ -420,6 +444,7 @@ router.post("/", authorizePermissions("users.create"), async (req, res) => {
           resolvedFirstName,
           resolvedLastName,
           Number(employeeId),
+          req.user.requestedCompanyId,
           passwordExpiresAt,
         ],
       );
@@ -480,7 +505,7 @@ router.put("/:id", authorizePermissions("users.update"), async (req, res) => {
     }
 
     const existingUser = await getUserById(req.params.id);
-    if (!existingUser) {
+    if (!existingUser || !canManageUser(req, existingUser) || !(await userIsInScope(req, req.params.id))) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
@@ -591,13 +616,14 @@ router.put("/:id", authorizePermissions("users.update"), async (req, res) => {
     }
 
     updates.push("updated_at = CURRENT_TIMESTAMP");
-    values.push(req.params.id);
+    values.push(req.params.id, isSuperAdmin(req.user), req.user.requestedCompanyId ?? null);
 
     await pool.query(
       `
         UPDATE users
         SET ${updates.join(", ")}
-        WHERE id = $${values.length};
+        WHERE id = $${values.length - 2}
+          AND ($${values.length - 1}::boolean OR company_id = $${values.length});
       `,
       values,
     );
@@ -637,7 +663,7 @@ router.patch("/:id/status", authorizePermissions("users.update"), async (req, re
     }
 
     const existingUser = await getUserById(req.params.id);
-    if (!existingUser) {
+    if (!existingUser || !canManageUser(req, existingUser) || !(await userIsInScope(req, req.params.id))) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
@@ -646,9 +672,10 @@ router.patch("/:id/status", authorizePermissions("users.update"), async (req, re
         UPDATE users
         SET is_active = $2,
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = $1;
+        WHERE id = $1
+          AND ($3::boolean OR company_id = $4);
       `,
-      [req.params.id, isActive],
+      [req.params.id, isActive, isSuperAdmin(req.user), req.user.requestedCompanyId ?? null],
     );
 
     await writeAuditLog({
@@ -670,7 +697,7 @@ router.patch("/:id/status", authorizePermissions("users.update"), async (req, re
   }
 });
 
-router.patch("/:id/role", authorizePermissions("users.update"), async (req, res) => {
+router.patch("/:id/role", authorizePermissions("users.role"), async (req, res) => {
   try {
     if (!isValidId(req.params.id)) {
       return res.status(400).json({ success: false, message: "Invalid user ID" });
@@ -686,12 +713,12 @@ router.patch("/:id/role", authorizePermissions("users.update"), async (req, res)
     }
 
     const existingUser = await getUserById(req.params.id);
-    if (!existingUser) {
+    if (!existingUser || !canManageUser(req, existingUser) || !(await userIsInScope(req, req.params.id))) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
     const role = await getRoleById(roleId);
-    if (!role) {
+    if (!role || !canAssignRole(req, role)) {
       return res.status(404).json({ success: false, message: "Role not found" });
     }
 
@@ -749,7 +776,7 @@ router.post("/:id/reset-password", authorizePermissions("users.update"), async (
     }
 
     const existingUser = await getUserById(req.params.id);
-    if (!existingUser) {
+    if (!existingUser || !canManageUser(req, existingUser) || !(await userIsInScope(req, req.params.id))) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
@@ -765,9 +792,10 @@ router.post("/:id/reset-password", authorizePermissions("users.update"), async (
             password_changed_at = CURRENT_TIMESTAMP,
             password_expires_at = $3,
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = $1;
+        WHERE id = $1
+          AND ($4::boolean OR company_id = $5);
       `,
-      [req.params.id, passwordHash, passwordExpiresAt],
+      [req.params.id, passwordHash, passwordExpiresAt, isSuperAdmin(req.user), req.user.requestedCompanyId ?? null],
     );
 
     await writeAuditLog({

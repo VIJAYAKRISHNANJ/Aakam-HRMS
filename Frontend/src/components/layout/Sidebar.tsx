@@ -15,31 +15,71 @@ import {
   X,
 } from "lucide-react";
 
-import { NavLink } from "react-router-dom";
+import {
+  NavLink,
+} from "react-router-dom";
+
+import {
+  useAuth,
+} from "../../context/AuthContext";
 
 interface SidebarProps {
   open: boolean;
   onClose: () => void;
 }
 
+type Role =
+  | "SUPER_ADMINISTRATOR"
+  | "COMPANY_ADMINISTRATOR"
+  | "HR_ADMINISTRATOR"
+  | "RECRUITER"
+  | "PAYROLL_ADMINISTRATOR"
+  | "MANAGER"
+  | "EMPLOYEE"
+  | "CLIENT_USER";
+
 interface NavItem {
   label: string;
   icon: React.ElementType;
   path: string;
   matchPaths?: string[];
+  roles: Role[];
 }
+
+const ALL_ROLES: Role[] = [
+  "SUPER_ADMINISTRATOR",
+  "COMPANY_ADMINISTRATOR",
+  "HR_ADMINISTRATOR",
+  "RECRUITER",
+  "PAYROLL_ADMINISTRATOR",
+  "MANAGER",
+  "EMPLOYEE",
+  "CLIENT_USER",
+];
 
 const navItems: NavItem[] = [
   {
     label: "Dashboard",
     icon: LayoutDashboard,
     path: "/dashboard",
+    roles: [
+      "SUPER_ADMINISTRATOR",
+      "COMPANY_ADMINISTRATOR",
+      "HR_ADMINISTRATOR",
+    ],
   },
 
   {
     label: "Workforce",
     icon: Users,
     path: "/workforce",
+    roles: [
+      "SUPER_ADMINISTRATOR",
+      "COMPANY_ADMINISTRATOR",
+      "HR_ADMINISTRATOR",
+      "MANAGER",
+      "EMPLOYEE",
+    ],
   },
 
   {
@@ -51,73 +91,156 @@ const navItems: NavItem[] = [
       "/organization/branches",
       "/organization/departments",
     ],
+    roles: [
+      "SUPER_ADMINISTRATOR",
+      "COMPANY_ADMINISTRATOR",
+      "HR_ADMINISTRATOR",
+    ],
   },
 
   {
     label: "Recruitment",
     icon: BriefcaseBusiness,
     path: "/recruitment",
+    roles: [
+      "SUPER_ADMINISTRATOR",
+      "COMPANY_ADMINISTRATOR",
+      "HR_ADMINISTRATOR",
+      "RECRUITER",
+      "CLIENT_USER",
+    ],
   },
 
   {
     label: "Clients",
     icon: Building2,
     path: "/clients",
+    roles: [
+      "SUPER_ADMINISTRATOR",
+      "COMPANY_ADMINISTRATOR",
+      "HR_ADMINISTRATOR",
+      "RECRUITER",
+      "CLIENT_USER",
+    ],
   },
 
   {
     label: "Onboarding",
     icon: UserPlus,
     path: "/onboarding",
+    roles: [
+      "SUPER_ADMINISTRATOR",
+      "COMPANY_ADMINISTRATOR",
+      "HR_ADMINISTRATOR",
+    ],
   },
 
   {
     label: "Payroll",
     icon: WalletCards,
     path: "/payroll",
+    roles: [
+      "SUPER_ADMINISTRATOR",
+      "COMPANY_ADMINISTRATOR",
+      "HR_ADMINISTRATOR",
+      "PAYROLL_ADMINISTRATOR",
+    ],
   },
 
   {
     label: "Performance",
     icon: Sparkles,
     path: "/performance",
+    roles: [
+      "SUPER_ADMINISTRATOR",
+      "COMPANY_ADMINISTRATOR",
+      "HR_ADMINISTRATOR",
+      "MANAGER",
+      "EMPLOYEE",
+    ],
   },
 
   {
     label: "Training",
     icon: GraduationCap,
     path: "/training",
+    roles: [
+      "SUPER_ADMINISTRATOR",
+      "COMPANY_ADMINISTRATOR",
+      "HR_ADMINISTRATOR",
+      "MANAGER",
+      "EMPLOYEE",
+    ],
   },
 
   {
     label: "Reports",
     icon: BarChart3,
     path: "/reports",
+    roles: [
+      "SUPER_ADMINISTRATOR",
+      "COMPANY_ADMINISTRATOR",
+      "HR_ADMINISTRATOR",
+    ],
   },
 
   {
     label: "Notifications",
     icon: Bell,
     path: "/notifications",
+    roles: ALL_ROLES,
   },
 
   {
     label: "Settings",
     icon: Settings,
     path: "/settings",
+    roles: ALL_ROLES,
   },
 
   {
     label: "Exit",
     icon: LogOut,
     path: "/exits",
+    roles: [
+      "SUPER_ADMINISTRATOR",
+      "COMPANY_ADMINISTRATOR",
+      "HR_ADMINISTRATOR",
+      "MANAGER",
+      "EMPLOYEE",
+    ],
   },
 ];
+
+const normalizeRole = (
+  role: string,
+): string =>
+  role
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_");
 
 function Sidebar({
   open,
   onClose,
 }: SidebarProps) {
+  const {
+    roles,
+  } = useAuth();
+
+  const normalizedRoles = roles.map(
+    normalizeRole,
+  );
+
+  const visibleNavItems =
+    navItems.filter((item) =>
+      item.roles.some((role) =>
+        normalizedRoles.includes(
+          normalizeRole(role),
+        ),
+      ),
+    );
+
   return (
     <>
       {/* =====================================================
@@ -193,7 +316,6 @@ function Sidebar({
                 </span>
               </p>
             </div>
-
           </div>
 
           {/* Mobile close */}
@@ -210,16 +332,12 @@ function Sidebar({
 
         {/* ===================================================
             NAVIGATION
-
-            The navigation fills the remaining sidebar height.
-            Items are distributed evenly so there is no large
-            empty area at the bottom.
         =================================================== */}
 
         <nav className="min-h-0 flex-1 px-3 pb-4 pt-1">
           <div className="flex h-full flex-col justify-between">
 
-            {navItems.map(
+            {visibleNavItems.map(
               (item) => (
                 <NavLink
                   key={item.label}
@@ -302,7 +420,7 @@ function Sidebar({
                       item.matchPaths
                         ? customMatch
                         : currentPath ===
-                          item.path ||
+                            item.path ||
                           currentPath.startsWith(
                             `${item.path}/`,
                           );

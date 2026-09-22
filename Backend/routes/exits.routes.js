@@ -149,8 +149,14 @@ const exitSelect = `
   LEFT JOIN departments d ON d.id = e.department_id
 `;
 
-const getExitRecord = async (id, client = pool) => {
-  const result = await client.query(`${exitSelect} WHERE er.id = $1 LIMIT 1;`, [id]);
+const getExitRecord = async (req, id, client = pool) => {
+  const scope = [id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null, req.user.employee_id ?? -1];
+  const managerScope = req.user.roles.includes("MANAGER") && !req.user.roles.includes("HR_ADMINISTRATOR");
+  const ownScope = req.user.roles.includes("EMPLOYEE") && !req.user.roles.includes("HR_ADMINISTRATOR");
+  const result = await client.query(`${exitSelect} WHERE er.id = $1
+    AND ($2::boolean OR er.company_id = $3)
+    AND (NOT $4::boolean OR e.reporting_manager_id = $5)
+    AND (NOT $6::boolean OR er.employee_id = $5) LIMIT 1;`, [...scope.slice(0, 3), managerScope, req.user.employee_id ?? -1, ownScope]);
   return result.rows[0];
 };
 
@@ -167,8 +173,8 @@ const getRelatedData = async (id, client = pool) => {
   };
 };
 
-const getMappedExit = async (id, client = pool) => {
-  const record = await getExitRecord(id, client);
+const getMappedExit = async (req, id, client = pool) => {
+  const record = await getExitRecord(req, id, client);
   if (!record) return null;
   const related = await getRelatedData(id, client);
   return mapExit(record, related.checklist, related.settlement, related.documents);
@@ -225,13 +231,16 @@ router.get("/", async (req, res) => {
     const { employeeId = "", status = "", approvalStatus = "", exitReason = "", startDate = "", endDate = "" } = req.query;
     const values = [];
     const conditions = [];
-    if (employeeId) { if (!isValidId(employeeId)) return res.status(400).json({ success: false, message: "Invalid employee ID" }); values.push(Number(employeeId)); conditions.push(`er.employee_id = $${values.length}`); }
+    if (employeeId && !req.user.roles.includes("EMPLOYEE")) { if (!isValidId(employeeId)) return res.status(400).json({ success: false, message: "Invalid employee ID" }); values.push(Number(employeeId)); conditions.push(`er.employee_id = $${values.length}`); }
     if (status) { const normalized = String(status).toUpperCase(); if (!EXIT_STATUSES.includes(normalized)) return res.status(400).json({ success: false, message: "Invalid exit status" }); values.push(normalized); conditions.push(`er.exit_status = $${values.length}`); }
     if (approvalStatus) { const normalized = String(approvalStatus).toUpperCase(); if (!APPROVAL_STATUSES.includes(normalized)) return res.status(400).json({ success: false, message: "Invalid approval status" }); values.push(normalized); conditions.push(`er.approval_status = $${values.length}`); }
     if (exitReason) { values.push(`%${String(exitReason).trim()}%`); conditions.push(`er.exit_reason ILIKE $${values.length}`); }
     if (startDate) { if (!isValidDate(startDate)) return res.status(400).json({ success: false, message: "Invalid startDate" }); values.push(startDate); conditions.push(`er.resignation_date >= $${values.length}`); }
     if (endDate) { if (!isValidDate(endDate)) return res.status(400).json({ success: false, message: "Invalid endDate" }); values.push(endDate); conditions.push(`er.resignation_date <= $${values.length}`); }
     if (startDate && endDate && startDate > endDate) return res.status(400).json({ success: false, message: "startDate cannot be after endDate" });
+    if (!req.user.roles.includes("SUPER_ADMINISTRATOR")) { values.push(req.user.requestedCompanyId); conditions.push(`er.company_id = $${values.length}`); }
+    if (req.user.roles.includes("EMPLOYEE")) { values.push(req.user.employee_id ?? -1); conditions.push(`er.employee_id = $${values.length}`); }
+    if (req.user.roles.includes("MANAGER") && !req.user.roles.includes("HR_ADMINISTRATOR")) { values.push(req.user.employee_id ?? -1); conditions.push(`e.reporting_manager_id = $${values.length}`); }
     const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     const result = await pool.query(`${exitSelect} ${whereClause} ORDER BY er.created_at DESC, er.id DESC;`, values);
     const mapped = await Promise.all(result.rows.map(async (record) => { const related = await getRelatedData(record.id); return mapExit(record, related.checklist, related.settlement, related.documents); }));
@@ -245,7 +254,7 @@ router.get("/", async (req, res) => {
 router.get("/:id/checklist", async (req, res) => {
   try {
     if (!isValidId(req.params.id)) return res.status(400).json({ success: false, message: "Invalid exit ID" });
-    if (!(await getExitRecord(req.params.id))) return res.status(404).json({ success: false, message: "Exit record not found" });
+    if (!(await getExitRecord(req, req.params.id))) return res.status(404).json({ success: false, message: "Exit record not found" });
     const result = await pool.query("SELECT id, exit_id, item_type, status, owner, completed_date, remarks, created_at, updated_at FROM exit_checklist_items WHERE exit_id = $1 ORDER BY id;", [req.params.id]);
     res.json({ success: true, data: result.rows.map(mapChecklistItem), total: result.rows.length });
   } catch (error) {
@@ -257,7 +266,7 @@ router.get("/:id/checklist", async (req, res) => {
 router.post("/:id/checklist", async (req, res) => {
   try {
     if (!isValidId(req.params.id)) return res.status(400).json({ success: false, message: "Invalid exit ID" });
-    if (!(await getExitRecord(req.params.id))) return res.status(404).json({ success: false, message: "Exit record not found" });
+    if (!(await getExitRecord(req, req.params.id))) return res.status(404).json({ success: false, message: "Exit record not found" });
     const { itemType, item_type: itemTypeSnake, status = "PENDING", owner = null, completedDate = null, completed_date: completedDateSnake, remarks = null } = req.body;
     const fields = { itemType: itemType ?? itemTypeSnake, status, completedDate: completedDate ?? completedDateSnake };
     const validationError = validateChecklist(fields);
@@ -274,7 +283,7 @@ router.post("/:id/checklist", async (req, res) => {
 router.put("/:id/checklist/:itemId", async (req, res) => {
   try {
     if (!isValidId(req.params.id) || !isValidId(req.params.itemId)) return res.status(400).json({ success: false, message: "Invalid exit or checklist item ID" });
-    if (!(await getExitRecord(req.params.id))) return res.status(404).json({ success: false, message: "Exit record not found" });
+    if (!(await getExitRecord(req, req.params.id))) return res.status(404).json({ success: false, message: "Exit record not found" });
     const existing = await pool.query("SELECT id FROM exit_checklist_items WHERE id = $1 AND exit_id = $2 LIMIT 1;", [req.params.itemId, req.params.id]);
     if (!existing.rows.length) return res.status(404).json({ success: false, message: "Exit checklist item not found" });
     const { itemType, item_type: itemTypeSnake, status, owner, completedDate, completed_date: completedDateSnake, remarks } = req.body;
@@ -303,7 +312,7 @@ router.put("/:id/checklist/:itemId", async (req, res) => {
 router.get("/:id/settlement", async (req, res) => {
   try {
     if (!isValidId(req.params.id)) return res.status(400).json({ success: false, message: "Invalid exit ID" });
-    if (!(await getExitRecord(req.params.id))) return res.status(404).json({ success: false, message: "Exit record not found" });
+    if (!(await getExitRecord(req, req.params.id))) return res.status(404).json({ success: false, message: "Exit record not found" });
     const result = await pool.query("SELECT id, exit_id, status, settlement_date, payable_amount, deductions, net_settlement, remarks, created_at, updated_at FROM exit_settlements WHERE exit_id = $1 LIMIT 1;", [req.params.id]);
     res.json({ success: true, data: mapSettlement(result.rows[0]) });
   } catch (error) {
@@ -315,7 +324,7 @@ router.get("/:id/settlement", async (req, res) => {
 router.put("/:id/settlement", async (req, res) => {
   try {
     if (!isValidId(req.params.id)) return res.status(400).json({ success: false, message: "Invalid exit ID" });
-    if (!(await getExitRecord(req.params.id))) return res.status(404).json({ success: false, message: "Exit record not found" });
+    if (!(await getExitRecord(req, req.params.id))) return res.status(404).json({ success: false, message: "Exit record not found" });
     const currentResult = await pool.query("SELECT id, exit_id, status, settlement_date, payable_amount, deductions, net_settlement, remarks, created_at, updated_at FROM exit_settlements WHERE exit_id = $1 LIMIT 1;", [req.params.id]);
     const current = currentResult.rows[0];
     const { status, settlementDate, settlement_date: settlementDateSnake, payableAmount, payable_amount: payableAmountSnake, deductions, netSettlement, net_settlement: netSettlementSnake, remarks } = req.body;
@@ -366,7 +375,7 @@ router.put("/:id/settlement", async (req, res) => {
 router.get("/:id/documents", async (req, res) => {
   try {
     if (!isValidId(req.params.id)) return res.status(400).json({ success: false, message: "Invalid exit ID" });
-    if (!(await getExitRecord(req.params.id))) return res.status(404).json({ success: false, message: "Exit record not found" });
+    if (!(await getExitRecord(req, req.params.id))) return res.status(404).json({ success: false, message: "Exit record not found" });
     const result = await pool.query("SELECT id, exit_id, document_type, status, document_date, reference, remarks, created_at, updated_at FROM exit_documents WHERE exit_id = $1 ORDER BY id;", [req.params.id]);
     res.json({ success: true, data: result.rows.map(mapDocument), total: result.rows.length });
   } catch (error) {
@@ -378,7 +387,7 @@ router.get("/:id/documents", async (req, res) => {
 router.post("/:id/documents", async (req, res) => {
   try {
     if (!isValidId(req.params.id)) return res.status(400).json({ success: false, message: "Invalid exit ID" });
-    if (!(await getExitRecord(req.params.id))) return res.status(404).json({ success: false, message: "Exit record not found" });
+    if (!(await getExitRecord(req, req.params.id))) return res.status(404).json({ success: false, message: "Exit record not found" });
     const { documentType, document_type: documentTypeSnake, status = "PENDING", documentDate, document_date: documentDateSnake, reference = null, remarks = null } = req.body;
     const fields = { documentType: documentType ?? documentTypeSnake, status, documentDate: documentDate ?? documentDateSnake };
     const validationError = validateDocument(fields);
@@ -395,6 +404,7 @@ router.post("/:id/documents", async (req, res) => {
 router.put("/:id/documents/:documentId", async (req, res) => {
   try {
     if (!isValidId(req.params.id) || !isValidId(req.params.documentId)) return res.status(400).json({ success: false, message: "Invalid exit or document ID" });
+    if (!(await getExitRecord(req, req.params.id))) return res.status(404).json({ success: false, message: "Exit record not found" });
     const existing = await pool.query("SELECT id FROM exit_documents WHERE id = $1 AND exit_id = $2 LIMIT 1;", [req.params.documentId, req.params.id]);
     if (!existing.rows.length) return res.status(404).json({ success: false, message: "Exit document not found" });
     const { documentType, document_type: documentTypeSnake, status, documentDate, document_date: documentDateSnake, reference, remarks } = req.body;
@@ -423,7 +433,7 @@ router.put("/:id/documents/:documentId", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     if (!isValidId(req.params.id)) return res.status(400).json({ success: false, message: "Invalid exit ID" });
-    const exit = await getMappedExit(req.params.id);
+    const exit = await getMappedExit(req, req.params.id);
     if (!exit) return res.status(404).json({ success: false, message: "Exit record not found" });
     res.json({ success: true, data: exit });
   } catch (error) {
@@ -442,15 +452,16 @@ router.post("/", async (req, res) => {
     if (validationError) return res.status(400).json({ success: false, message: validationError });
 
     await client.query("BEGIN");
-    const employee = await client.query("SELECT id FROM employees WHERE id = $1 LIMIT 1;", [fields.employeeId]);
+    const requestedEmployeeId = req.user.roles.includes("EMPLOYEE") ? req.user.employee_id : fields.employeeId;
+    const employee = await client.query("SELECT id FROM employees WHERE id = $1 AND ($2::boolean OR company_id = $3) AND (NOT $4::boolean OR reporting_manager_id = $5) LIMIT 1;", [requestedEmployeeId, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null, req.user.roles.includes("MANAGER") && !req.user.roles.includes("HR_ADMINISTRATOR"), req.user.employee_id ?? -1]);
     if (!employee.rows.length) { await client.query("ROLLBACK"); return res.status(404).json({ success: false, message: "Employee not found" }); }
-    const result = await client.query("INSERT INTO exit_records (employee_id, resignation_date, exit_reason, notice_period, last_working_date, approval_status, exit_status, remarks) VALUES ($1, $2, $3, $4, $5, 'PENDING', 'RESIGNATION_SUBMITTED', $6) RETURNING id;", [fields.employeeId, fields.resignationDate, fields.exitReason.trim(), normalizedNoticePeriod, fields.lastWorkingDate, remarks?.trim() || null]);
+    const result = await client.query("INSERT INTO exit_records (employee_id, resignation_date, exit_reason, notice_period, last_working_date, approval_status, exit_status, remarks, company_id) VALUES ($1, $2, $3, $4, $5, 'PENDING', 'RESIGNATION_SUBMITTED', $6, $7) RETURNING id;", [requestedEmployeeId, fields.resignationDate, fields.exitReason.trim(), normalizedNoticePeriod, fields.lastWorkingDate, remarks?.trim() || null, req.user.requestedCompanyId]);
     const exitId = result.rows[0].id;
     for (const item of checklistItems) await client.query("INSERT INTO exit_checklist_items (exit_id, item_type) VALUES ($1, $2);", [exitId, item.itemType]);
     await client.query("INSERT INTO exit_settlements (exit_id) VALUES ($1);", [exitId]);
     for (const documentType of DOCUMENT_TYPES) await client.query("INSERT INTO exit_documents (exit_id, document_type) VALUES ($1, $2);", [exitId, documentType]);
     await client.query("COMMIT");
-    res.status(201).json({ success: true, message: "Exit record created successfully", data: await getMappedExit(exitId) });
+    res.status(201).json({ success: true, message: "Exit record created successfully", data: await getMappedExit(req, exitId) });
   } catch (error) {
     await client.query("ROLLBACK");
     if (error.code === "23505") return res.status(409).json({ success: false, message: "An active exit record already exists for this employee" });
@@ -462,7 +473,7 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
   try {
     if (!isValidId(req.params.id)) return res.status(400).json({ success: false, message: "Invalid exit ID" });
-    const existing = await getExitRecord(req.params.id);
+    const existing = await getExitRecord(req, req.params.id);
     if (!existing) return res.status(404).json({ success: false, message: "Exit record not found" });
     const { employeeId, employee_id: employeeIdSnake, resignationDate, resignation_date: resignationDateSnake, exitReason, exit_reason: exitReasonSnake, noticePeriod, notice_period: noticePeriodSnake, lastWorkingDate, last_working_date: lastWorkingDateSnake, approvalStatus, approval_status: approvalStatusSnake, exitStatus, exit_status: exitStatusSnake, remarks } = req.body;
     const fields = { employeeId: employeeId ?? employeeIdSnake, resignationDate: resignationDate ?? resignationDateSnake, exitReason: exitReason ?? exitReasonSnake, noticePeriod: noticePeriod === undefined && noticePeriodSnake === undefined ? undefined : Number(noticePeriod ?? noticePeriodSnake), lastWorkingDate: lastWorkingDate ?? lastWorkingDateSnake, approvalStatus: approvalStatus ?? approvalStatusSnake, exitStatus: exitStatus ?? exitStatusSnake };
@@ -483,7 +494,7 @@ router.put("/:id", async (req, res) => {
     const updates = [];
     const values = [];
     const addUpdate = (column, value) => { values.push(value); updates.push(`${column} = $${values.length}`); };
-    if (fields.employeeId !== undefined) { const employee = await pool.query("SELECT id FROM employees WHERE id = $1 LIMIT 1;", [fields.employeeId]); if (!employee.rows.length) return res.status(404).json({ success: false, message: "Employee not found" }); addUpdate("employee_id", fields.employeeId); }
+    if (fields.employeeId !== undefined) { const scopedEmployeeId = req.user.roles.includes("EMPLOYEE") ? req.user.employee_id : fields.employeeId; const employee = await pool.query("SELECT id FROM employees WHERE id = $1 AND ($2::boolean OR company_id = $3) AND (NOT $4::boolean OR reporting_manager_id = $5) LIMIT 1;", [scopedEmployeeId, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null, req.user.roles.includes("MANAGER") && !req.user.roles.includes("HR_ADMINISTRATOR"), req.user.employee_id ?? -1]); if (!employee.rows.length) return res.status(404).json({ success: false, message: "Employee not found" }); addUpdate("employee_id", scopedEmployeeId); }
     if (fields.resignationDate !== undefined) addUpdate("resignation_date", fields.resignationDate);
     if (fields.exitReason !== undefined) addUpdate("exit_reason", fields.exitReason.trim());
     if (fields.noticePeriod !== undefined) addUpdate("notice_period", fields.noticePeriod);
@@ -492,9 +503,9 @@ router.put("/:id", async (req, res) => {
     if (fields.exitStatus !== undefined) addUpdate("exit_status", fields.exitStatus.toUpperCase());
     if (remarks !== undefined) addUpdate("remarks", remarks?.trim() || null);
     if (!updates.length) return res.status(400).json({ success: false, message: "At least one field is required" });
-    updates.push("updated_at = CURRENT_TIMESTAMP"); values.push(req.params.id);
-    await pool.query(`UPDATE exit_records SET ${updates.join(", ")} WHERE id = $${values.length};`, values);
-    res.json({ success: true, message: "Exit record updated successfully", data: await getMappedExit(req.params.id) });
+    updates.push("updated_at = CURRENT_TIMESTAMP"); values.push(req.params.id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null, req.user.roles.includes("EMPLOYEE"), req.user.employee_id ?? -1);
+    await pool.query(`UPDATE exit_records SET ${updates.join(", ")} WHERE id = $${values.length - 4} AND ($${values.length - 3}::boolean OR company_id = $${values.length - 2}) AND (NOT $${values.length - 1}::boolean OR employee_id = $${values.length});`, values);
+    res.json({ success: true, message: "Exit record updated successfully", data: await getMappedExit(req, req.params.id) });
   } catch (error) {
     if (error.code === "23505") return res.status(409).json({ success: false, message: "An active exit record already exists for this employee" });
     console.error("Exit update error:", error);
