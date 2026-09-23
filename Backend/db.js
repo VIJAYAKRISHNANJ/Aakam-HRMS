@@ -28,9 +28,11 @@ pool
       current_setting('search_path') AS search_path,
       inet_server_addr()::text AS server_address,
       inet_server_port() AS server_port,
+
       to_regclass('public.users')::text AS public_users,
       to_regclass('users')::text AS resolved_users,
       to_regclass(current_user || '.users')::text AS user_schema_users,
+
       EXISTS (
         SELECT 1
         FROM information_schema.columns
@@ -38,6 +40,15 @@ pool
           AND table_name = 'users'
           AND column_name = 'company_id'
       ) AS public_users_company_id,
+
+      EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'users'
+          AND column_name = 'client_id'
+      ) AS public_users_client_id,
+
       EXISTS (
         SELECT 1
         FROM pg_catalog.pg_attribute a
@@ -50,7 +61,21 @@ pool
           AND a.attname = 'company_id'
           AND a.attnum > 0
           AND NOT a.attisdropped
-      ) AS pg_catalog_users_company_id
+      ) AS pg_catalog_users_company_id,
+
+      EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_attribute a
+        JOIN pg_catalog.pg_class c
+          ON c.oid = a.attrelid
+        JOIN pg_catalog.pg_namespace n
+          ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public'
+          AND c.relname = 'users'
+          AND a.attname = 'client_id'
+          AND a.attnum > 0
+          AND NOT a.attisdropped
+      ) AS pg_catalog_users_client_id
   `)
   .then(({ rows }) => {
     console.log("Database connection diagnostic:", rows[0]);
