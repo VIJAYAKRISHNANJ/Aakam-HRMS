@@ -1,9 +1,6 @@
-const express = require("express");
-const { pool } = require("../db");
-const {
-  authenticateToken,
-  authorizePermissions,
-} = require("../middleware/auth.middleware");
+import express from "express";
+import pool from "../db.js";
+import { authorizePermissions } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
@@ -23,8 +20,6 @@ const addReviewScope = (req, values, conditions) => {
     conditions.push(`pr.reviewer_id = $${values.length}`);
   }
 };
-
-router.use(authenticateToken);
 
 router.use("/:id", async (req, res, next) => {
   const reviewId = Number(req.params.id);
@@ -699,6 +694,7 @@ router.post(
     }
   },
 );
+
 router.put(
   "/:id",
   authorizePermissions("performance.update"),
@@ -987,7 +983,6 @@ router.put(
     }
   },
 );
-
 router.delete(
   "/:id",
   authorizePermissions("performance.delete"),
@@ -1407,4 +1402,4 @@ router.get(
   },
 );
 
-module.exports = router;
+export default router;
