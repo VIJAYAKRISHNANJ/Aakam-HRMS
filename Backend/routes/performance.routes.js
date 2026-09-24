@@ -1,974 +1,869 @@
-import express from "express";
-import pool from "../db.js";
+const express = require("express");
+const { pool } = require("../db");
+const {
+  authenticateToken,
+  authorizePermissions,
+} = require("../middleware/auth.middleware");
 
 const router = express.Router();
 
 const addReviewScope = (req, values, conditions) => {
-  if (!req.user.roles.includes("SUPER_ADMINISTRATOR")) {
-    values.push(req.user.requestedCompanyId ?? -1);
+  if (req.user.role !== "SUPER_ADMINISTRATOR") {
+    values.push(req.user.requestedCompanyId);
     conditions.push(`pr.company_id = $${values.length}`);
   }
-  if (req.authorization?.ownOnly) {
-    values.push(req.user.employee_id ?? -1);
+
+  if (req.user.role === "EMPLOYEE") {
+    values.push(req.user.employee_id);
     conditions.push(`pr.employee_id = $${values.length}`);
-  } else if (req.user.roles.includes("MANAGER") && !req.user.roles.includes("HR_ADMINISTRATOR")) {
-    values.push(req.user.employee_id ?? -1);
-    conditions.push(`e.reporting_manager_id = $${values.length}`);
+  }
+
+  if (req.user.role === "MANAGER") {
+    values.push(req.user.employee_id);
+    conditions.push(`pr.reviewer_id = $${values.length}`);
   }
 };
 
-// Authorize the parent review before any direct or nested goal operation.
-// This makes a goal ID insufficient to cross an employee/team/tenant boundary.
+router.use(authenticateToken);
+
 router.use("/:id", async (req, res, next) => {
-  if (!/^\d+$/.test(String(req.params.id))) return next();
+  const reviewId = Number(req.params.id);
+
+  if (!Number.isInteger(reviewId) || reviewId <= 0) {
+    return res.status(400).json({ message: "Invalid review ID" });
+  }
+
   try {
-    const values = [Number(req.params.id)];
+    const values = [reviewId];
     const conditions = ["pr.id = $1"];
+
     addReviewScope(req, values, conditions);
-    const allowed = await pool.query(
-      `SELECT 1 FROM performance_reviews pr JOIN employees e ON e.id = pr.employee_id WHERE ${conditions.join(" AND ")} LIMIT 1`,
+
+    const result = await pool.query(
+      `
+        SELECT pr.id
+        FROM performance_reviews pr
+        WHERE ${conditions.join(" AND ")}
+        LIMIT 1
+      `,
       values,
     );
-    if (!allowed.rows.length) return res.status(404).json({ success: false, message: "Performance review not found" });
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Performance review not found" });
+    }
+
     next();
   } catch (error) {
-    console.error("Performance scope authorization error:", error);
-    res.status(500).json({ success: false, message: "Failed to authorize performance review access" });
+    console.error("Performance review scope error:", error);
+    return res.status(500).json({
+      message: "Failed to validate performance review access",
+    });
   }
 });
-
-const REVIEW_STATUSES = [
-  "DRAFT",
-  "IN_REVIEW",
-  "COMPLETED",
-];
-
-const GOAL_STATUSES = [
-  "NOT_STARTED",
-  "IN_PROGRESS",
-  "COMPLETED",
-];
-
-const isValidId = (value) =>
-  /^\d+$/.test(String(value)) &&
-  Number(value) > 0;
-
-const isValidDate = (value) => {
-  if (
-    typeof value !== "string" ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(value)
-  ) {
-    return false;
-  }
-
-  const date = new Date(
-    `${value}T00:00:00Z`,
-  );
-
-  return (
-    !Number.isNaN(date.getTime()) &&
-    date.toISOString().slice(0, 10) ===
-      value
-  );
-};
-
-const isValidRating = (value) =>
-  Number.isInteger(value) &&
-  value >= 1 &&
-  value <= 5;
-
-const formatDateOnly = (value) => {
-  if (!(value instanceof Date)) {
-    return value;
-  }
-
-  const year = value.getFullYear();
-
-  const month = String(
-    value.getMonth() + 1,
-  ).padStart(2, "0");
-
-  const day = String(
-    value.getDate(),
-  ).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-};
-
-/* ============================================================
-   GOAL MAPPER
-============================================================ */
-
-const mapGoal = (goal) => ({
-  id: Number(goal.id),
-
-  performanceReviewId:
-    Number(
-      goal.performance_review_id,
-    ),
-
-  title: goal.title,
-
-  description:
-    goal.description,
-
-  target:
-    goal.target,
-
-  status:
-    goal.status,
-
-  createdAt:
-    goal.created_at,
-
-  updatedAt:
-    goal.updated_at,
-});
-
-/* ============================================================
-   REVIEW MAPPER
-============================================================ */
-
-const mapReview = (review) => ({
-  id: Number(review.id),
-
-  employeeId:
-    Number(review.employee_id),
-
-  employeeCode:
-    review.employee_code,
-
-  employeeName:
-    `${review.first_name} ${
-      review.last_name ?? ""
-    }`.trim(),
-
-  departmentId:
-    review.department_id
-      ? Number(
-          review.department_id,
-        )
-      : null,
-
-  department:
-    review.department_name ??
-    "Unassigned",
-
-  reviewerId:
-    review.reviewer_id
-      ? Number(
-          review.reviewer_id,
-        )
-      : null,
-
-  reviewerName:
-    review.reviewer_id
-      ? `${review.reviewer_first_name} ${
-          review.reviewer_last_name ??
-          ""
-        }`.trim()
-      : null,
-
-  reviewPeriodStart:
-    formatDateOnly(
-      review.review_period_start,
-    ),
-
-  reviewPeriodEnd:
-    formatDateOnly(
-      review.review_period_end,
-    ),
-
-  rating:
-    review.rating === null
-      ? null
-      : Number(review.rating),
-
-  status:
-    review.status,
-
-  goals:
-    (review.goals ?? []).map(
-      mapGoal,
-    ),
-
-  createdAt:
-    review.created_at,
-
-  updatedAt:
-    review.updated_at,
-});
-
-/* ============================================================
-   REVIEW SELECT
-============================================================ */
-
-const reviewSelect = `
-  SELECT
-    pr.id,
-    pr.employee_id,
-    e.employee_code,
-    e.first_name,
-    e.last_name,
-    e.department_id,
-    d.name AS department_name,
-    pr.reviewer_id,
-    reviewer.first_name AS reviewer_first_name,
-    reviewer.last_name AS reviewer_last_name,
-    pr.review_period_start,
-    pr.review_period_end,
-    pr.rating,
-    pr.status,
-    pr.created_at,
-    pr.updated_at,
-
-    COALESCE(
-      JSON_AGG(
-        JSON_BUILD_OBJECT(
-          'id', pg.id,
-          'performance_review_id',
-            pg.performance_review_id,
-          'title', pg.title,
-          'description', pg.description,
-          'target', pg.target,
-          'status', pg.status,
-          'created_at', pg.created_at,
-          'updated_at', pg.updated_at
-        )
-        ORDER BY pg.id
-      )
-      FILTER (
-        WHERE pg.id IS NOT NULL
-      ),
-      '[]'::json
-    ) AS goals
-
-  FROM performance_reviews pr
-
-  INNER JOIN employees e
-    ON e.id = pr.employee_id
-
-  LEFT JOIN departments d
-    ON d.id = e.department_id
-
-  LEFT JOIN employees reviewer
-    ON reviewer.id = pr.reviewer_id
-
-  LEFT JOIN performance_goals pg
-    ON pg.performance_review_id = pr.id
-`;
-
-const reviewGroup = `
-  GROUP BY
-    pr.id,
-    e.employee_code,
-    e.first_name,
-    e.last_name,
-    e.department_id,
-    d.name,
-    reviewer.first_name,
-    reviewer.last_name
-`;
-
-/* ============================================================
-   GET SINGLE REVIEW
-============================================================ */
-
-const getReview = async (
-  id,
-) => {
-  const result =
-    await pool.query(
-      `${reviewSelect}
-       WHERE pr.id = $1
-       ${reviewGroup};`,
-      [id],
-    );
-
-  return result.rows[0];
-};
-
-/* ============================================================
-   VALIDATE REVIEW
-============================================================ */
-
-const validateReview = (
-  {
-    employeeId,
-    reviewerId,
-    reviewPeriodStart,
-    reviewPeriodEnd,
-    rating,
-    status,
-  },
-  partial = false,
-) => {
-  if (
-    (!partial ||
-      employeeId !== undefined) &&
-    !isValidId(employeeId)
-  ) {
-    return "Valid employee ID is required";
-  }
-
-  if (
-    reviewerId !== undefined &&
-    reviewerId !== null &&
-    !isValidId(reviewerId)
-  ) {
-    return "Reviewer ID must be valid";
-  }
-
-  if (
-    (!partial ||
-      reviewPeriodStart !==
-        undefined) &&
-    !isValidDate(
-      reviewPeriodStart,
-    )
-  ) {
-    return "Review period start must be a valid date in YYYY-MM-DD format";
-  }
-
-  if (
-    (!partial ||
-      reviewPeriodEnd !==
-        undefined) &&
-    !isValidDate(
-      reviewPeriodEnd,
-    )
-  ) {
-    return "Review period end must be a valid date in YYYY-MM-DD format";
-  }
-
-  if (
-    reviewPeriodStart !==
-      undefined &&
-    reviewPeriodEnd !==
-      undefined &&
-    isValidDate(
-      reviewPeriodStart,
-    ) &&
-    isValidDate(
-      reviewPeriodEnd,
-    ) &&
-    reviewPeriodStart >
-      reviewPeriodEnd
-  ) {
-    return "Review period start cannot be after the end date";
-  }
-
-  if (
-    rating !== undefined &&
-    rating !== null &&
-    !isValidRating(rating)
-  ) {
-    return "Rating must be an integer from 1 to 5";
-  }
-
-  if (
-    status !== undefined &&
-    (
-      typeof status !==
-        "string" ||
-      !REVIEW_STATUSES.includes(
-        status.toUpperCase(),
-      )
-    )
-  ) {
-    return "Invalid performance review status";
-  }
-
-  return null;
-};
-
-/* ============================================================
-   VALIDATE GOAL
-============================================================ */
-
-const validateGoal = (
-  {
-    title,
-    status,
-  },
-  partial = false,
-) => {
-  if (
-    (!partial ||
-      title !== undefined) &&
-    (
-      typeof title !==
-        "string" ||
-      !title.trim()
-    )
-  ) {
-    return "Goal title is required";
-  }
-
-  if (
-    status !== undefined &&
-    (
-      typeof status !==
-        "string" ||
-      !GOAL_STATUSES.includes(
-        status.toUpperCase(),
-      )
-    )
-  ) {
-    return "Invalid goal status";
-  }
-
-  return null;
-};
-
-/* ============================================================
-   LIST REVIEWS
-============================================================ */
 
 router.get(
   "/",
+  authorizePermissions("performance.view"),
   async (req, res) => {
     try {
-      const {
-        employeeId = "",
-        departmentId = "",
-        status = "",
-        reviewPeriodStart = "",
-        reviewPeriodEnd = "",
-      } = req.query;
-
       const values = [];
       const conditions = [];
 
-      if (employeeId) {
-        if (
-          !isValidId(
-            employeeId,
-          )
-        ) {
+      if (req.user.role !== "SUPER_ADMINISTRATOR") {
+        values.push(req.user.requestedCompanyId);
+        conditions.push(`pr.company_id = $${values.length}`);
+      }
+
+      if (req.user.role === "EMPLOYEE") {
+        values.push(req.user.employee_id);
+        conditions.push(`pr.employee_id = $${values.length}`);
+      }
+
+      if (req.user.role === "MANAGER") {
+        values.push(req.user.employee_id);
+        conditions.push(`pr.reviewer_id = $${values.length}`);
+      }
+
+      if (req.query.employeeId) {
+        const employeeId = Number(req.query.employeeId);
+
+        if (!Number.isInteger(employeeId) || employeeId <= 0) {
           return res.status(400).json({
-            success: false,
-            message:
-              "Invalid employee ID",
+            message: "Invalid employee ID",
           });
         }
 
-        values.push(
-          Number(employeeId),
-        );
-
-        conditions.push(
-          `pr.employee_id = $${values.length}`,
-        );
+        values.push(employeeId);
+        conditions.push(`pr.employee_id = $${values.length}`);
       }
 
-      if (departmentId) {
-        if (
-          !isValidId(
-            departmentId,
-          )
-        ) {
-          return res.status(400).json({
-            success: false,
-            message:
-              "Invalid department ID",
-          });
-        }
-
-        values.push(
-          Number(departmentId),
-        );
-
-        conditions.push(
-          `e.department_id = $${values.length}`,
-        );
+      if (req.query.status) {
+        values.push(String(req.query.status));
+        conditions.push(`pr.status = $${values.length}`);
       }
 
-      if (status) {
-        const normalizedStatus =
-          status.toUpperCase();
-
-        if (
-          !REVIEW_STATUSES.includes(
-            normalizedStatus,
-          )
-        ) {
-          return res.status(400).json({
-            success: false,
-            message:
-              "Invalid performance review status",
-          });
-        }
-
-        values.push(
-          normalizedStatus,
-        );
-
-        conditions.push(
-          `pr.status = $${values.length}`,
-        );
+      if (req.query.reviewType) {
+        values.push(String(req.query.reviewType));
+        conditions.push(`pr.review_type = $${values.length}`);
       }
 
-      if (
-        reviewPeriodStart
-      ) {
-        if (
-          !isValidDate(
-            reviewPeriodStart,
-          )
-        ) {
-          return res.status(400).json({
-            success: false,
-            message:
-              "Invalid review period start",
-          });
-        }
-
-        values.push(
-          reviewPeriodStart,
-        );
-
-        conditions.push(
-          `pr.review_period_start = $${values.length}`,
-        );
+      if (req.query.startDate) {
+        values.push(String(req.query.startDate));
+        conditions.push(`pr.review_date >= $${values.length}`);
       }
 
-      if (
-        reviewPeriodEnd
-      ) {
-        if (
-          !isValidDate(
-            reviewPeriodEnd,
-          )
-        ) {
-          return res.status(400).json({
-            success: false,
-            message:
-              "Invalid review period end",
-          });
-        }
-
-        values.push(
-          reviewPeriodEnd,
-        );
-
-        conditions.push(
-          `pr.review_period_end = $${values.length}`,
-        );
+      if (req.query.endDate) {
+        values.push(String(req.query.endDate));
+        conditions.push(`pr.review_date <= $${values.length}`);
       }
-
-      addReviewScope(req, values, conditions);
 
       const whereClause =
-        conditions.length
-          ? `WHERE ${conditions.join(
-              " AND ",
-            )}`
-          : "";
+        conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-      const result =
-        await pool.query(
-          `${reviewSelect}
-           ${whereClause}
-           ${reviewGroup}
-           ORDER BY
-             pr.review_period_end DESC,
-             pr.id DESC;`,
-          values,
-        );
-
-      res.json({
-        success: true,
-        data:
-          result.rows.map(
-            mapReview,
-          ),
-        total:
-          result.rows.length,
-      });
-    } catch (error) {
-      console.error(
-        "Performance list error:",
-        error,
+      const result = await pool.query(
+        `
+          SELECT
+            pr.*,
+            e.employee_code,
+            e.first_name AS employee_first_name,
+            e.last_name AS employee_last_name,
+            e.email AS employee_email,
+            d.name AS department_name,
+            reviewer.first_name AS reviewer_first_name,
+            reviewer.last_name AS reviewer_last_name
+          FROM performance_reviews pr
+          LEFT JOIN employees e
+            ON e.id = pr.employee_id
+          LEFT JOIN departments d
+            ON d.id = e.department_id
+          LEFT JOIN employees reviewer
+            ON reviewer.id = pr.reviewer_id
+          ${whereClause}
+          ORDER BY pr.review_date DESC, pr.id DESC
+        `,
+        values,
       );
 
-      res.status(500).json({
-        success: false,
-        message:
-          "Failed to load performance reviews",
+      return res.json(result.rows);
+    } catch (error) {
+      console.error("Failed to list performance reviews:", error);
+      return res.status(500).json({
+        message: "Failed to load performance reviews",
       });
     }
   },
 );
 
-/* ============================================================
-   GET REVIEW
-============================================================ */
+router.get(
+  "/summary",
+  authorizePermissions("performance.view"),
+  async (req, res) => {
+    try {
+      const values = [];
+      const conditions = [];
+
+      if (req.user.role !== "SUPER_ADMINISTRATOR") {
+        values.push(req.user.requestedCompanyId);
+        conditions.push(`pr.company_id = $${values.length}`);
+      }
+
+      if (req.user.role === "EMPLOYEE") {
+        values.push(req.user.employee_id);
+        conditions.push(`pr.employee_id = $${values.length}`);
+      }
+
+      if (req.user.role === "MANAGER") {
+        values.push(req.user.employee_id);
+        conditions.push(`pr.reviewer_id = $${values.length}`);
+      }
+
+      const whereClause =
+        conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+      const result = await pool.query(
+        `
+          SELECT
+            COUNT(*)::INTEGER AS total_reviews,
+            COUNT(*) FILTER (
+              WHERE pr.status = 'COMPLETED'
+            )::INTEGER AS completed_reviews,
+            COUNT(*) FILTER (
+              WHERE pr.status = 'DRAFT'
+            )::INTEGER AS draft_reviews,
+            COUNT(*) FILTER (
+              WHERE pr.status = 'IN_PROGRESS'
+            )::INTEGER AS in_progress_reviews,
+            ROUND(
+              AVG(pr.overall_rating)::NUMERIC,
+              2
+            ) AS average_rating
+          FROM performance_reviews pr
+          ${whereClause}
+        `,
+        values,
+      );
+
+      return res.json(result.rows[0]);
+    } catch (error) {
+      console.error("Failed to load performance summary:", error);
+      return res.status(500).json({
+        message: "Failed to load performance summary",
+      });
+    }
+  },
+);
+
+router.get(
+  "/employees",
+  authorizePermissions("performance.view"),
+  async (req, res) => {
+    try {
+      const values = [];
+      const conditions = ["e.employment_status = 'ACTIVE'"];
+
+      if (req.user.role !== "SUPER_ADMINISTRATOR") {
+        values.push(req.user.requestedCompanyId);
+        conditions.push(`e.company_id = $${values.length}`);
+      }
+
+      if (req.user.role === "EMPLOYEE") {
+        values.push(req.user.employee_id);
+        conditions.push(`e.id = $${values.length}`);
+      }
+
+      if (req.user.role === "MANAGER") {
+        values.push(req.user.employee_id);
+        conditions.push(`e.reporting_manager_id = $${values.length}`);
+      }
+
+      const whereClause = `WHERE ${conditions.join(" AND ")}`;
+
+      const result = await pool.query(
+        `
+          SELECT
+            e.id,
+            e.employee_code,
+            e.first_name,
+            e.last_name,
+            e.email,
+            e.designation,
+            e.department_id,
+            d.name AS department_name
+          FROM employees e
+          LEFT JOIN departments d
+            ON d.id = e.department_id
+          ${whereClause}
+          ORDER BY e.first_name, e.last_name
+        `,
+        values,
+      );
+
+      return res.json(result.rows);
+    } catch (error) {
+      console.error("Failed to load performance employees:", error);
+      return res.status(500).json({
+        message: "Failed to load employees",
+      });
+    }
+  },
+);
+
+router.get(
+  "/reviewers",
+  authorizePermissions("performance.view"),
+  async (req, res) => {
+    try {
+      const values = [];
+      const conditions = ["e.employment_status = 'ACTIVE'"];
+
+      if (req.user.role !== "SUPER_ADMINISTRATOR") {
+        values.push(req.user.requestedCompanyId);
+        conditions.push(`e.company_id = $${values.length}`);
+      }
+
+      const result = await pool.query(
+        `
+          SELECT
+            e.id,
+            e.employee_code,
+            e.first_name,
+            e.last_name,
+            e.email,
+            e.designation
+          FROM employees e
+          ${conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""}
+          ORDER BY e.first_name, e.last_name
+        `,
+        values,
+      );
+
+      return res.json(result.rows);
+    } catch (error) {
+      console.error("Failed to load performance reviewers:", error);
+      return res.status(500).json({
+        message: "Failed to load reviewers",
+      });
+    }
+  },
+);
 
 router.get(
   "/:id",
+  authorizePermissions("performance.view"),
   async (req, res) => {
     try {
-      if (
-        !isValidId(
-          req.params.id,
-        )
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Invalid performance review ID",
-        });
-      }
+      const reviewId = Number(req.params.id);
 
-      const review =
-        await getReview(
-          req.params.id,
-        );
+      const values = [reviewId];
+      const conditions = ["pr.id = $1"];
 
-      if (!review) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Performance review not found",
-        });
-      }
+      addReviewScope(req, values, conditions);
 
-      res.json({
-        success: true,
-        data:
-          mapReview(review),
-      });
-    } catch (error) {
-      console.error(
-        "Performance detail error:",
-        error,
+      const result = await pool.query(
+        `
+          SELECT
+            pr.*,
+            e.employee_code,
+            e.first_name AS employee_first_name,
+            e.last_name AS employee_last_name,
+            e.email AS employee_email,
+            e.designation AS employee_designation,
+            e.department_id,
+            d.name AS department_name,
+            reviewer.employee_code AS reviewer_employee_code,
+            reviewer.first_name AS reviewer_first_name,
+            reviewer.last_name AS reviewer_last_name,
+            reviewer.email AS reviewer_email
+          FROM performance_reviews pr
+          LEFT JOIN employees e
+            ON e.id = pr.employee_id
+          LEFT JOIN departments d
+            ON d.id = e.department_id
+          LEFT JOIN employees reviewer
+            ON reviewer.id = pr.reviewer_id
+          WHERE ${conditions.join(" AND ")}
+          LIMIT 1
+        `,
+        values,
       );
 
-      res.status(500).json({
-        success: false,
-        message:
-          "Failed to load performance review",
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          message: "Performance review not found",
+        });
+      }
+
+      return res.json(result.rows[0]);
+    } catch (error) {
+      console.error("Failed to load performance review:", error);
+      return res.status(500).json({
+        message: "Failed to load performance review",
       });
     }
   },
 );
 
-/* ============================================================
-   CREATE REVIEW
-============================================================ */
+router.get(
+  "/:id/goals",
+  authorizePermissions("performance.view"),
+  async (req, res) => {
+    try {
+      const reviewId = Number(req.params.id);
+
+      const result = await pool.query(
+        `
+          SELECT
+            pg.*,
+            e.employee_code,
+            e.first_name,
+            e.last_name
+          FROM performance_goals pg
+          LEFT JOIN employees e
+            ON e.id = pg.employee_id
+          WHERE pg.performance_review_id = $1
+          ORDER BY pg.created_at DESC, pg.id DESC
+        `,
+        [reviewId],
+      );
+
+      return res.json(result.rows);
+    } catch (error) {
+      console.error("Failed to load performance goals:", error);
+      return res.status(500).json({
+        message: "Failed to load performance goals",
+      });
+    }
+  },
+);
 
 router.post(
   "/",
+  authorizePermissions("performance.create"),
   async (req, res) => {
+    const client = await pool.connect();
+
     try {
       const {
         employeeId,
-        reviewerId = null,
-        reviewPeriodStart,
-        reviewPeriodEnd,
-        rating = null,
-        status = "DRAFT",
+        reviewerId,
+        reviewType,
+        reviewDate,
+        periodStart,
+        periodEnd,
+        status,
+        overallRating,
+        strengths,
+        areasForImprovement,
+        comments,
+        goals,
       } = req.body;
 
-      const normalizedStatus =
-        typeof status ===
-        "string"
-          ? status.toUpperCase()
-          : status;
+      const normalizedEmployeeId = Number(employeeId);
+      const normalizedReviewerId = reviewerId
+        ? Number(reviewerId)
+        : null;
 
-      const validationError =
-        validateReview({
-          employeeId,
-          reviewerId,
-          reviewPeriodStart,
-          reviewPeriodEnd,
-          rating,
-          status:
-            normalizedStatus,
-        });
-
-      if (validationError) {
+      if (
+        !Number.isInteger(normalizedEmployeeId) ||
+        normalizedEmployeeId <= 0
+      ) {
         return res.status(400).json({
-          success: false,
-          message:
-            validationError,
+          message: "Valid employee ID is required",
         });
       }
 
-      const employee =
-        await pool.query(
+      if (
+        normalizedReviewerId !== null &&
+        (!Number.isInteger(normalizedReviewerId) ||
+          normalizedReviewerId <= 0)
+      ) {
+        return res.status(400).json({
+          message: "Invalid reviewer ID",
+        });
+      }
+
+      await client.query("BEGIN");
+
+      const employeeValues = [normalizedEmployeeId];
+      const employeeConditions = ["e.id = $1"];
+
+      if (req.user.role !== "SUPER_ADMINISTRATOR") {
+        employeeValues.push(req.user.requestedCompanyId);
+        employeeConditions.push(
+          `e.company_id = $${employeeValues.length}`,
+        );
+      }
+
+      const employeeResult = await client.query(
+        `
+          SELECT
+            e.id,
+            e.company_id
+          FROM employees e
+          WHERE ${employeeConditions.join(" AND ")}
+          LIMIT 1
+        `,
+        employeeValues,
+      );
+
+      if (employeeResult.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({
+          message: "Employee not found or outside your company scope",
+        });
+      }
+
+      const employeeCompanyId = employeeResult.rows[0].company_id;
+
+      if (!employeeCompanyId) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          message: "Employee is not assigned to a company",
+        });
+      }
+
+      let reviewerEmployee = null;
+
+      if (normalizedReviewerId !== null) {
+        const reviewerValues = [normalizedReviewerId];
+        const reviewerConditions = ["e.id = $1"];
+
+        if (req.user.role !== "SUPER_ADMINISTRATOR") {
+          reviewerValues.push(req.user.requestedCompanyId);
+          reviewerConditions.push(
+            `e.company_id = $${reviewerValues.length}`,
+          );
+        }
+
+        const reviewerResult = await client.query(
           `
-            SELECT id
-            FROM employees
-            WHERE id = $1
-            LIMIT 1;
+            SELECT
+              e.id,
+              e.company_id
+            FROM employees e
+            WHERE ${reviewerConditions.join(" AND ")}
+            LIMIT 1
           `,
-          [employeeId],
+          reviewerValues,
         );
 
-      if (
-        !employee.rows.length
-      ) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Employee not found",
-        });
+        if (reviewerResult.rows.length === 0) {
+          await client.query("ROLLBACK");
+          return res.status(404).json({
+            message: "Reviewer not found or outside your company scope",
+          });
+        }
+
+        reviewerEmployee = reviewerResult.rows[0];
       }
 
-      if (
-        reviewerId !== null
-      ) {
-        const reviewer =
-          await pool.query(
-            `
-              SELECT id
-              FROM employees
-              WHERE id = $1
-              LIMIT 1;
-            `,
-            [reviewerId],
-          );
+      const insertValues = [
+        normalizedEmployeeId,
+        normalizedReviewerId,
+        reviewType || null,
+        reviewDate || null,
+        periodStart || null,
+        periodEnd || null,
+        status || "DRAFT",
+        overallRating ?? null,
+        strengths || null,
+        areasForImprovement || null,
+        comments || null,
+        employeeCompanyId,
+      ];
 
-        if (
-          !reviewer.rows.length
-        ) {
-          return res.status(404).json({
-            success: false,
-            message:
-              "Reviewer not found",
-          });
+      const insertResult = await client.query(
+        `
+          INSERT INTO performance_reviews (
+            employee_id,
+            reviewer_id,
+            review_type,
+            review_date,
+            period_start,
+            period_end,
+            status,
+            overall_rating,
+            strengths,
+            areas_for_improvement,
+            comments,
+            company_id
+          )
+          VALUES (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            $9,
+            $10,
+            $11,
+            $12
+          )
+          RETURNING id
+        `,
+        insertValues,
+      );
+
+      const reviewId = insertResult.rows[0].id;
+
+      if (Array.isArray(goals)) {
+        for (const goal of goals) {
+          if (!goal || typeof goal !== "object") {
+            continue;
+          }
+
+          await client.query(
+            `
+              INSERT INTO performance_goals (
+                performance_review_id,
+                employee_id,
+                title,
+                description,
+                target_date,
+                status,
+                progress,
+                notes
+              )
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            `,
+            [
+              reviewId,
+              normalizedEmployeeId,
+              goal.title || null,
+              goal.description || null,
+              goal.targetDate || null,
+              goal.status || "NOT_STARTED",
+              goal.progress ?? 0,
+              goal.notes || null,
+            ],
+          );
         }
       }
 
-      const result =
-        await pool.query(
-          `
-            INSERT INTO performance_reviews
-            (
-              employee_id,
-              reviewer_id,
-              review_period_start,
-              review_period_end,
-              rating,
-              status
-            )
-            VALUES
-            (
-              $1,
-              $2,
-              $3,
-              $4,
-              $5,
-              $6
-            )
-            RETURNING id;
-          `,
-          [
-            employeeId,
-            reviewerId,
-            reviewPeriodStart,
-            reviewPeriodEnd,
-            rating,
-            normalizedStatus,
-          ],
-        );
+      await client.query("COMMIT");
 
-      res.status(201).json({
-        success: true,
-        message:
-          "Performance review created successfully",
-        data:
-          mapReview(
-            await getReview(
-              result.rows[0].id,
-            ),
-          ),
+      return res.status(201).json({
+        message: "Performance review created successfully",
+        id: reviewId,
       });
     } catch (error) {
-      if (
-        error.code ===
-        "23505"
-      ) {
-        return res.status(409).json({
-          success: false,
-          message:
-            "A performance review already exists for this employee and review period",
-        });
-      }
+      await client.query("ROLLBACK");
 
-      console.error(
-        "Performance creation error:",
-        error,
-      );
+      console.error("Failed to create performance review:", error);
 
-      res.status(500).json({
-        success: false,
-        message:
-          "Failed to create performance review",
+      return res.status(500).json({
+        message: "Failed to create performance review",
       });
+    } finally {
+      client.release();
     }
   },
 );
 
-/* ============================================================
-   UPDATE REVIEW
-============================================================ */
-
-router.put(
-  "/:id",
+router.post(
+  "/:id/goals",
+  authorizePermissions("performance.update"),
   async (req, res) => {
     try {
-      if (
-        !isValidId(
-          req.params.id,
-        )
-      ) {
+      const reviewId = Number(req.params.id);
+      const {
+        title,
+        description,
+        targetDate,
+        status,
+        progress,
+        notes,
+      } = req.body;
+
+      if (!title || !String(title).trim()) {
         return res.status(400).json({
-          success: false,
-          message:
-            "Invalid performance review ID",
+          message: "Goal title is required",
         });
       }
 
-      const existing =
-        await getReview(
-          req.params.id,
-        );
+      const reviewResult = await pool.query(
+        `
+          SELECT employee_id
+          FROM performance_reviews
+          WHERE id = $1
+          LIMIT 1
+        `,
+        [reviewId],
+      );
 
-      if (!existing) {
+      if (reviewResult.rows.length === 0) {
         return res.status(404).json({
-          success: false,
-          message:
-            "Performance review not found",
+          message: "Performance review not found",
+        });
+      }
+
+      const employeeId = reviewResult.rows[0].employee_id;
+
+      const result = await pool.query(
+        `
+          INSERT INTO performance_goals (
+            performance_review_id,
+            employee_id,
+            title,
+            description,
+            target_date,
+            status,
+            progress,
+            notes
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          RETURNING *
+        `,
+        [
+          reviewId,
+          employeeId,
+          String(title).trim(),
+          description || null,
+          targetDate || null,
+          status || "NOT_STARTED",
+          progress ?? 0,
+          notes || null,
+        ],
+      );
+
+      return res.status(201).json(result.rows[0]);
+    } catch (error) {
+      console.error("Failed to create performance goal:", error);
+      return res.status(500).json({
+        message: "Failed to create performance goal",
+      });
+    }
+  },
+);
+router.put(
+  "/:id",
+  authorizePermissions("performance.update"),
+  async (req, res) => {
+    const client = await pool.connect();
+
+    try {
+      const reviewId = Number(req.params.id);
+
+      if (!Number.isInteger(reviewId) || reviewId <= 0) {
+        return res.status(400).json({
+          message: "Invalid review ID",
         });
       }
 
       const {
         employeeId,
         reviewerId,
-        reviewPeriodStart,
-        reviewPeriodEnd,
-        rating,
+        reviewType,
+        reviewDate,
+        periodStart,
+        periodEnd,
         status,
+        overallRating,
+        strengths,
+        areasForImprovement,
+        comments,
       } = req.body;
 
-      const normalizedStatus =
-        typeof status ===
-        "string"
-          ? status.toUpperCase()
-          : status;
+      const normalizedEmployeeId =
+        employeeId !== undefined && employeeId !== null
+          ? Number(employeeId)
+          : null;
 
-      const validationError =
-        validateReview(
-          {
-            employeeId,
-            reviewerId,
-            reviewPeriodStart,
-            reviewPeriodEnd,
-            rating,
-            status:
-              normalizedStatus,
-          },
-          true,
+      const normalizedReviewerId =
+        reviewerId !== undefined &&
+        reviewerId !== null &&
+        reviewerId !== ""
+          ? Number(reviewerId)
+          : null;
+
+      if (
+        normalizedEmployeeId !== null &&
+        (!Number.isInteger(normalizedEmployeeId) ||
+          normalizedEmployeeId <= 0)
+      ) {
+        return res.status(400).json({
+          message: "Invalid employee ID",
+        });
+      }
+
+      if (
+        normalizedReviewerId !== null &&
+        (!Number.isInteger(normalizedReviewerId) ||
+          normalizedReviewerId <= 0)
+      ) {
+        return res.status(400).json({
+          message: "Invalid reviewer ID",
+        });
+      }
+
+      await client.query("BEGIN");
+
+      const existingValues = [reviewId];
+      const existingConditions = ["pr.id = $1"];
+
+      addReviewScope(req, existingValues, existingConditions);
+
+      const existingResult = await client.query(
+        `
+          SELECT
+            pr.id,
+            pr.employee_id,
+            pr.reviewer_id,
+            pr.company_id
+          FROM performance_reviews pr
+          WHERE ${existingConditions.join(" AND ")}
+          LIMIT 1
+        `,
+        existingValues,
+      );
+
+      if (existingResult.rows.length === 0) {
+        await client.query("ROLLBACK");
+
+        return res.status(404).json({
+          message: "Performance review not found",
+        });
+      }
+
+      const existingReview = existingResult.rows[0];
+
+      let updatedEmployeeCompanyId = null;
+
+      if (normalizedEmployeeId !== null) {
+        const employeeValues = [normalizedEmployeeId];
+        const employeeConditions = ["e.id = $1"];
+
+        if (req.user.role !== "SUPER_ADMINISTRATOR") {
+          employeeValues.push(req.user.requestedCompanyId);
+          employeeConditions.push(
+            `e.company_id = $${employeeValues.length}`,
+          );
+        }
+
+        const employeeResult = await client.query(
+          `
+            SELECT
+              e.id,
+              e.company_id
+            FROM employees e
+            WHERE ${employeeConditions.join(" AND ")}
+            LIMIT 1
+          `,
+          employeeValues,
         );
 
-      if (validationError) {
-        return res.status(400).json({
-          success: false,
-          message:
-            validationError,
-        });
-      }
+        if (employeeResult.rows.length === 0) {
+          await client.query("ROLLBACK");
 
-      if (
-        existing.status ===
-          "COMPLETED" &&
-        status !== undefined
-      ) {
-        return res.status(409).json({
-          success: false,
-          message:
-            "Completed performance reviews cannot change status",
-        });
-      }
-
-      if (
-        normalizedStatus ===
-          "DRAFT" &&
-        existing.status ===
-          "IN_REVIEW"
-      ) {
-        return res.status(409).json({
-          success: false,
-          message:
-            "A review in progress cannot return to draft",
-        });
-      }
-
-      if (
-        normalizedStatus ===
-          "COMPLETED" &&
-        existing.status !==
-          "IN_REVIEW"
-      ) {
-        return res.status(409).json({
-          success: false,
-          message:
-            "Only reviews in progress can be completed",
-        });
-      }
-
-      if (
-        employeeId !==
-        undefined
-      ) {
-        const employee =
-          await pool.query(
-            `
-              SELECT id
-              FROM employees
-              WHERE id = $1
-              LIMIT 1;
-            `,
-            [employeeId],
-          );
-
-        if (
-          !employee.rows.length
-        ) {
           return res.status(404).json({
-            success: false,
-            message:
-              "Employee not found",
+            message: "Employee not found or outside your company scope",
+          });
+        }
+
+        updatedEmployeeCompanyId =
+          employeeResult.rows[0].company_id;
+
+        if (!updatedEmployeeCompanyId) {
+          await client.query("ROLLBACK");
+
+          return res.status(400).json({
+            message: "Employee is not assigned to a company",
           });
         }
       }
 
-      if (
-        reviewerId !==
-          undefined &&
-        reviewerId !== null
-      ) {
-        const reviewer =
-          await pool.query(
-            `
-              SELECT id
-              FROM employees
-              WHERE id = $1
-              LIMIT 1;
-            `,
-            [reviewerId],
-          );
+      if (normalizedReviewerId !== null) {
+        const reviewerValues = [normalizedReviewerId];
+        const reviewerConditions = ["e.id = $1"];
 
-        if (
-          !reviewer.rows.length
-        ) {
+        if (req.user.role !== "SUPER_ADMINISTRATOR") {
+          reviewerValues.push(req.user.requestedCompanyId);
+          reviewerConditions.push(
+            `e.company_id = $${reviewerValues.length}`,
+          );
+        }
+
+        const reviewerResult = await client.query(
+          `
+            SELECT
+              e.id,
+              e.company_id
+            FROM employees e
+            WHERE ${reviewerConditions.join(" AND ")}
+            LIMIT 1
+          `,
+          reviewerValues,
+        );
+
+        if (reviewerResult.rows.length === 0) {
+          await client.query("ROLLBACK");
+
           return res.status(404).json({
-            success: false,
-            message:
-              "Reviewer not found",
+            message: "Reviewer not found or outside your company scope",
           });
         }
       }
@@ -976,752 +871,540 @@ router.put(
       const updates = [];
       const values = [];
 
-      const addUpdate = (
-        column,
-        value,
-      ) => {
+      const addUpdate = (expression, value) => {
         values.push(value);
-
-        updates.push(
-          `${column} = $${values.length}`,
-        );
+        updates.push(`${expression} = $${values.length}`);
       };
 
-      if (
-        employeeId !==
-        undefined
-      ) {
+      if (normalizedEmployeeId !== null) {
+        addUpdate("employee_id", normalizedEmployeeId);
+      }
+
+      if (reviewerId !== undefined) {
+        addUpdate("reviewer_id", normalizedReviewerId);
+      }
+
+      if (reviewType !== undefined) {
+        addUpdate("review_type", reviewType || null);
+      }
+
+      if (reviewDate !== undefined) {
+        addUpdate("review_date", reviewDate || null);
+      }
+
+      if (periodStart !== undefined) {
+        addUpdate("period_start", periodStart || null);
+      }
+
+      if (periodEnd !== undefined) {
+        addUpdate("period_end", periodEnd || null);
+      }
+
+      if (status !== undefined) {
+        addUpdate("status", status || null);
+      }
+
+      if (overallRating !== undefined) {
+        addUpdate("overall_rating", overallRating ?? null);
+      }
+
+      if (strengths !== undefined) {
+        addUpdate("strengths", strengths || null);
+      }
+
+      if (areasForImprovement !== undefined) {
         addUpdate(
-          "employee_id",
-          employeeId,
+          "areas_for_improvement",
+          areasForImprovement || null,
         );
       }
 
-      if (
-        reviewerId !==
-        undefined
-      ) {
-        addUpdate(
-          "reviewer_id",
-          reviewerId,
-        );
+      if (comments !== undefined) {
+        addUpdate("comments", comments || null);
       }
 
       if (
-        reviewPeriodStart !==
-        undefined
+        req.user.role === "SUPER_ADMINISTRATOR" &&
+        updatedEmployeeCompanyId
       ) {
-        addUpdate(
-          "review_period_start",
-          reviewPeriodStart,
-        );
+        addUpdate("company_id", updatedEmployeeCompanyId);
       }
 
-      if (
-        reviewPeriodEnd !==
-        undefined
-      ) {
-        addUpdate(
-          "review_period_end",
-          reviewPeriodEnd,
-        );
-      }
+      if (updates.length === 0) {
+        await client.query("ROLLBACK");
 
-      if (
-        rating !==
-        undefined
-      ) {
-        addUpdate(
-          "rating",
-          rating,
-        );
-      }
-
-      if (
-        normalizedStatus !==
-        undefined
-      ) {
-        addUpdate(
-          "status",
-          normalizedStatus,
-        );
-      }
-
-      if (!updates.length) {
         return res.status(400).json({
-          success: false,
-          message:
-            "At least one field is required",
+          message: "No fields provided for update",
         });
       }
 
-      updates.push(
-        "updated_at = CURRENT_TIMESTAMP",
-      );
+      values.push(reviewId);
+      const reviewIdParameter = `$${values.length}`;
 
-      values.push(
-        req.params.id,
-      );
+      let whereClause = `id = ${reviewIdParameter}`;
 
-      await pool.query(
+      if (req.user.role !== "SUPER_ADMINISTRATOR") {
+        values.push(req.user.requestedCompanyId);
+        whereClause += ` AND company_id = $${values.length}`;
+      }
+
+      const updateResult = await client.query(
         `
           UPDATE performance_reviews
-          SET ${updates.join(
-            ", ",
-          )}
-          WHERE id = $${values.length};
+          SET
+            ${updates.join(", ")},
+            updated_at = CURRENT_TIMESTAMP
+          WHERE ${whereClause}
+          RETURNING *
         `,
         values,
       );
 
-      res.json({
-        success: true,
-        message:
-          "Performance review updated successfully",
-        data:
-          mapReview(
-            await getReview(
-              req.params.id,
-            ),
-          ),
-      });
-    } catch (error) {
-      if (
-        error.code ===
-        "23505"
-      ) {
-        return res.status(409).json({
-          success: false,
-          message:
-            "A performance review already exists for this employee and review period",
+      if (updateResult.rows.length === 0) {
+        await client.query("ROLLBACK");
+
+        return res.status(404).json({
+          message: "Performance review not found",
         });
       }
 
-      console.error(
-        "Performance update error:",
-        error,
-      );
+      await client.query("COMMIT");
 
-      res.status(500).json({
-        success: false,
-        message:
-          "Failed to update performance review",
+      return res.json({
+        message: "Performance review updated successfully",
+        review: updateResult.rows[0],
       });
+    } catch (error) {
+      await client.query("ROLLBACK");
+
+      console.error("Failed to update performance review:", error);
+
+      return res.status(500).json({
+        message: "Failed to update performance review",
+      });
+    } finally {
+      client.release();
     }
   },
 );
-
-/* ============================================================
-   DELETE REVIEW
-============================================================ */
 
 router.delete(
   "/:id",
+  authorizePermissions("performance.delete"),
   async (req, res) => {
+    const client = await pool.connect();
+
     try {
-      if (
-        !isValidId(
-          req.params.id,
-        )
-      ) {
+      const reviewId = Number(req.params.id);
+
+      if (!Number.isInteger(reviewId) || reviewId <= 0) {
         return res.status(400).json({
-          success: false,
-          message:
-            "Invalid performance review ID",
+          message: "Invalid review ID",
         });
       }
 
-      const existing =
-        await getReview(
-          req.params.id,
-        );
+      await client.query("BEGIN");
 
-      if (!existing) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Performance review not found",
-        });
-      }
+      const values = [reviewId];
+      const conditions = ["pr.id = $1"];
 
-      const result =
-        await pool.query(
-          `
-            DELETE FROM performance_reviews
-            WHERE id = $1
-            RETURNING id;
-          `,
-          [req.params.id],
-        );
+      addReviewScope(req, values, conditions);
 
-      if (
-        !result.rows.length
-      ) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Performance review not found",
-        });
-      }
-
-      res.json({
-        success: true,
-        message:
-          "Performance review deleted successfully",
-        data:
-          mapReview(
-            existing,
-          ),
-      });
-    } catch (error) {
-      console.error(
-        "Performance delete error:",
-        error,
+      const existingResult = await client.query(
+        `
+          SELECT pr.id
+          FROM performance_reviews pr
+          WHERE ${conditions.join(" AND ")}
+          LIMIT 1
+        `,
+        values,
       );
 
-      res.status(500).json({
-        success: false,
-        message:
-          "Failed to delete performance review",
+      if (existingResult.rows.length === 0) {
+        await client.query("ROLLBACK");
+
+        return res.status(404).json({
+          message: "Performance review not found",
+        });
+      }
+
+      await client.query(
+        `
+          DELETE FROM performance_goals
+          WHERE performance_review_id = $1
+        `,
+        [reviewId],
+      );
+
+      const deleteValues = [reviewId];
+      let deleteWhere = "id = $1";
+
+      if (req.user.role !== "SUPER_ADMINISTRATOR") {
+        deleteValues.push(req.user.requestedCompanyId);
+        deleteWhere += ` AND company_id = $${deleteValues.length}`;
+      }
+
+      const deleteResult = await client.query(
+        `
+          DELETE FROM performance_reviews
+          WHERE ${deleteWhere}
+          RETURNING id
+        `,
+        deleteValues,
+      );
+
+      if (deleteResult.rows.length === 0) {
+        await client.query("ROLLBACK");
+
+        return res.status(404).json({
+          message: "Performance review not found",
+        });
+      }
+
+      await client.query("COMMIT");
+
+      return res.json({
+        message: "Performance review deleted successfully",
       });
+    } catch (error) {
+      await client.query("ROLLBACK");
+
+      console.error("Failed to delete performance review:", error);
+
+      return res.status(500).json({
+        message: "Failed to delete performance review",
+      });
+    } finally {
+      client.release();
     }
   },
 );
-
-/* ============================================================
-   LIST GOALS
-============================================================ */
-
-router.get(
-  "/:id/goals",
-  async (req, res) => {
-    try {
-      if (
-        !isValidId(
-          req.params.id,
-        )
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Invalid performance review ID",
-        });
-      }
-
-      const review =
-        await getReview(
-          req.params.id,
-        );
-
-      if (!review) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Performance review not found",
-        });
-      }
-
-      const result =
-        await pool.query(
-          `
-            SELECT
-              id,
-              performance_review_id,
-              title,
-              description,
-              target,
-              status,
-              created_at,
-              updated_at
-            FROM performance_goals
-            WHERE performance_review_id = $1
-            ORDER BY id ASC;
-          `,
-          [req.params.id],
-        );
-
-      res.json({
-        success: true,
-        data:
-          result.rows.map(
-            mapGoal,
-          ),
-        total:
-          result.rows.length,
-      });
-    } catch (error) {
-      console.error(
-        "Performance goal list error:",
-        error,
-      );
-
-      res.status(500).json({
-        success: false,
-        message:
-          "Failed to load performance goals",
-      });
-    }
-  },
-);
-
-/* ============================================================
-   CREATE GOAL
-============================================================ */
-
-router.post(
-  "/:id/goals",
-  async (req, res) => {
-    try {
-      if (
-        !isValidId(
-          req.params.id,
-        )
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Invalid performance review ID",
-        });
-      }
-
-      if (
-        !(
-          await getReview(
-            req.params.id,
-          )
-        )
-      ) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Performance review not found",
-        });
-      }
-
-      const {
-        title,
-        description = null,
-        target = null,
-        status = "NOT_STARTED",
-      } = req.body;
-
-      const normalizedStatus =
-        typeof status ===
-        "string"
-          ? status.toUpperCase()
-          : status;
-
-      const validationError =
-        validateGoal({
-          title,
-          status:
-            normalizedStatus,
-        });
-
-      if (validationError) {
-        return res.status(400).json({
-          success: false,
-          message:
-            validationError,
-        });
-      }
-
-      const result =
-        await pool.query(
-          `
-            INSERT INTO performance_goals
-            (
-              performance_review_id,
-              title,
-              description,
-              target,
-              status
-            )
-            VALUES
-            (
-              $1,
-              $2,
-              $3,
-              $4,
-              $5
-            )
-            RETURNING
-              id,
-              performance_review_id,
-              title,
-              description,
-              target,
-              status,
-              created_at,
-              updated_at;
-          `,
-          [
-            req.params.id,
-            title.trim(),
-            description?.trim() ||
-              null,
-            target?.trim() ||
-              null,
-            normalizedStatus,
-          ],
-        );
-
-      res.status(201).json({
-        success: true,
-        message:
-          "Performance goal created successfully",
-        data:
-          mapGoal(
-            result.rows[0],
-          ),
-      });
-    } catch (error) {
-      if (
-        error.code ===
-        "23505"
-      ) {
-        return res.status(409).json({
-          success: false,
-          message:
-            "A goal with this title already exists for this review",
-        });
-      }
-
-      console.error(
-        "Performance goal creation error:",
-        error,
-      );
-
-      res.status(500).json({
-        success: false,
-        message:
-          "Failed to create performance goal",
-      });
-    }
-  },
-);
-
-/* ============================================================
-   UPDATE GOAL
-============================================================ */
 
 router.put(
   "/:id/goals/:goalId",
+  authorizePermissions("performance.update"),
   async (req, res) => {
     try {
+      const reviewId = Number(req.params.id);
+      const goalId = Number(req.params.goalId);
+
       if (
-        !isValidId(
-          req.params.id,
-        ) ||
-        !isValidId(
-          req.params.goalId,
-        )
+        !Number.isInteger(reviewId) ||
+        reviewId <= 0 ||
+        !Number.isInteger(goalId) ||
+        goalId <= 0
       ) {
         return res.status(400).json({
-          success: false,
-          message:
-            "Invalid performance or goal ID",
-        });
-      }
-
-      const existing =
-        await pool.query(
-          `
-            SELECT id
-            FROM performance_goals
-            WHERE id = $1
-              AND performance_review_id = $2
-            LIMIT 1;
-          `,
-          [
-            req.params.goalId,
-            req.params.id,
-          ],
-        );
-
-      if (
-        !existing.rows.length
-      ) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Performance goal not found",
+          message: "Invalid review or goal ID",
         });
       }
 
       const {
         title,
         description,
-        target,
+        targetDate,
         status,
+        progress,
+        notes,
       } = req.body;
-
-      const normalizedStatus =
-        typeof status ===
-        "string"
-          ? status.toUpperCase()
-          : status;
-
-      const validationError =
-        validateGoal(
-          {
-            title,
-            status:
-              normalizedStatus,
-          },
-          true,
-        );
-
-      if (validationError) {
-        return res.status(400).json({
-          success: false,
-          message:
-            validationError,
-        });
-      }
 
       const updates = [];
       const values = [];
 
-      const addUpdate = (
-        column,
-        value,
-      ) => {
+      const addUpdate = (expression, value) => {
         values.push(value);
-
-        updates.push(
-          `${column} = $${values.length}`,
-        );
+        updates.push(`${expression} = $${values.length}`);
       };
 
-      if (
-        title !==
-        undefined
-      ) {
-        addUpdate(
-          "title",
-          title.trim(),
-        );
+      if (title !== undefined) {
+        addUpdate("title", title || null);
       }
 
-      if (
-        description !==
-        undefined
-      ) {
-        addUpdate(
-          "description",
-          description?.trim() ||
-            null,
-        );
+      if (description !== undefined) {
+        addUpdate("description", description || null);
       }
 
-      if (
-        target !==
-        undefined
-      ) {
-        addUpdate(
-          "target",
-          target?.trim() ||
-            null,
-        );
+      if (targetDate !== undefined) {
+        addUpdate("target_date", targetDate || null);
       }
 
-      if (
-        normalizedStatus !==
-        undefined
-      ) {
-        addUpdate(
-          "status",
-          normalizedStatus,
-        );
+      if (status !== undefined) {
+        addUpdate("status", status || null);
       }
 
-      if (!updates.length) {
+      if (progress !== undefined) {
+        addUpdate("progress", progress ?? 0);
+      }
+
+      if (notes !== undefined) {
+        addUpdate("notes", notes || null);
+      }
+
+      if (updates.length === 0) {
         return res.status(400).json({
-          success: false,
-          message:
-            "At least one field is required",
+          message: "No fields provided for update",
         });
       }
 
-      updates.push(
-        "updated_at = CURRENT_TIMESTAMP",
+      values.push(goalId);
+      const goalIdParameter = `$${values.length}`;
+
+      values.push(reviewId);
+      const reviewIdParameter = `$${values.length}`;
+
+      const result = await pool.query(
+        `
+          UPDATE performance_goals
+          SET
+            ${updates.join(", ")},
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${goalIdParameter}
+            AND performance_review_id = ${reviewIdParameter}
+          RETURNING *
+        `,
+        values,
       );
 
-      values.push(
-        req.params.goalId,
-      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          message: "Performance goal not found",
+        });
+      }
 
-      const result =
-        await pool.query(
-          `
-            UPDATE performance_goals
-            SET ${updates.join(
-              ", ",
-            )}
-            WHERE id = $${values.length}
-            RETURNING
-              id,
-              performance_review_id,
-              title,
-              description,
-              target,
-              status,
-              created_at,
-              updated_at;
-          `,
-          values,
-        );
-
-      res.json({
-        success: true,
-        message:
-          "Performance goal updated successfully",
-        data:
-          mapGoal(
-            result.rows[0],
-          ),
+      return res.json({
+        message: "Performance goal updated successfully",
+        goal: result.rows[0],
       });
     } catch (error) {
-      if (
-        error.code ===
-        "23505"
-      ) {
-        return res.status(409).json({
-          success: false,
-          message:
-            "A goal with this title already exists for this review",
-        });
-      }
+      console.error("Failed to update performance goal:", error);
 
-      console.error(
-        "Performance goal update error:",
-        error,
-      );
-
-      res.status(500).json({
-        success: false,
-        message:
-          "Failed to update performance goal",
+      return res.status(500).json({
+        message: "Failed to update performance goal",
       });
     }
   },
 );
-
-/* ============================================================
-   DELETE GOAL
-============================================================ */
 
 router.delete(
   "/:id/goals/:goalId",
+  authorizePermissions("performance.update"),
   async (req, res) => {
     try {
+      const reviewId = Number(req.params.id);
+      const goalId = Number(req.params.goalId);
+
       if (
-        !isValidId(
-          req.params.id,
-        ) ||
-        !isValidId(
-          req.params.goalId,
-        )
+        !Number.isInteger(reviewId) ||
+        reviewId <= 0 ||
+        !Number.isInteger(goalId) ||
+        goalId <= 0
       ) {
         return res.status(400).json({
-          success: false,
-          message:
-            "Invalid performance or goal ID",
+          message: "Invalid review or goal ID",
         });
       }
 
-      const existing =
-        await pool.query(
-          `
-            SELECT
-              id,
-              performance_review_id,
-              title,
-              description,
-              target,
-              status,
-              created_at,
-              updated_at
-            FROM performance_goals
-            WHERE id = $1
-              AND performance_review_id = $2
-            LIMIT 1;
-          `,
-          [
-            req.params.goalId,
-            req.params.id,
-          ],
-        );
-
-      if (
-        !existing.rows.length
-      ) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Performance goal not found",
-        });
-      }
-
-      const result =
-        await pool.query(
-          `
-            DELETE FROM performance_goals
-            WHERE id = $1
-              AND performance_review_id = $2
-            RETURNING
-              id,
-              performance_review_id,
-              title,
-              description,
-              target,
-              status,
-              created_at,
-              updated_at;
-          `,
-          [
-            req.params.goalId,
-            req.params.id,
-          ],
-        );
-
-      if (
-        !result.rows.length
-      ) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Performance goal not found",
-        });
-      }
-
-      res.json({
-        success: true,
-        message:
-          "Performance goal deleted successfully",
-        data:
-          mapGoal(
-            result.rows[0],
-          ),
-      });
-    } catch (error) {
-      console.error(
-        "Performance goal delete error:",
-        error,
+      const result = await pool.query(
+        `
+          DELETE FROM performance_goals
+          WHERE id = $1
+            AND performance_review_id = $2
+          RETURNING id
+        `,
+        [goalId, reviewId],
       );
 
-      res.status(500).json({
-        success: false,
-        message:
-          "Failed to delete performance goal",
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          message: "Performance goal not found",
+        });
+      }
+
+      return res.json({
+        message: "Performance goal deleted successfully",
+      });
+    } catch (error) {
+      console.error("Failed to delete performance goal:", error);
+
+      return res.status(500).json({
+        message: "Failed to delete performance goal",
       });
     }
   },
 );
 
-/* ============================================================
-   EXPORT
-============================================================ */
+router.get(
+  "/analytics/ratings",
+  authorizePermissions("performance.view"),
+  async (req, res) => {
+    try {
+      const values = [];
+      const conditions = [];
 
-export default router;
+      if (req.user.role !== "SUPER_ADMINISTRATOR") {
+        values.push(req.user.requestedCompanyId);
+        conditions.push(`pr.company_id = $${values.length}`);
+      }
+
+      if (req.user.role === "EMPLOYEE") {
+        values.push(req.user.employee_id);
+        conditions.push(`pr.employee_id = $${values.length}`);
+      }
+
+      if (req.user.role === "MANAGER") {
+        values.push(req.user.employee_id);
+        conditions.push(`pr.reviewer_id = $${values.length}`);
+      }
+
+      const whereClause =
+        conditions.length > 0
+          ? `WHERE ${conditions.join(" AND ")}`
+          : "";
+
+      const result = await pool.query(
+        `
+          SELECT
+            pr.overall_rating,
+            COUNT(*)::INTEGER AS count
+          FROM performance_reviews pr
+          ${whereClause}
+          GROUP BY pr.overall_rating
+          ORDER BY pr.overall_rating
+        `,
+        values,
+      );
+
+      return res.json(result.rows);
+    } catch (error) {
+      console.error(
+        "Failed to load performance rating analytics:",
+        error,
+      );
+
+      return res.status(500).json({
+        message: "Failed to load performance rating analytics",
+      });
+    }
+  },
+);
+
+router.get(
+  "/analytics/departments",
+  authorizePermissions("performance.view"),
+  async (req, res) => {
+    try {
+      const values = [];
+      const conditions = [];
+
+      if (req.user.role !== "SUPER_ADMINISTRATOR") {
+        values.push(req.user.requestedCompanyId);
+        conditions.push(`pr.company_id = $${values.length}`);
+      }
+
+      if (req.user.role === "EMPLOYEE") {
+        values.push(req.user.employee_id);
+        conditions.push(`pr.employee_id = $${values.length}`);
+      }
+
+      if (req.user.role === "MANAGER") {
+        values.push(req.user.employee_id);
+        conditions.push(`pr.reviewer_id = $${values.length}`);
+      }
+
+      const whereClause =
+        conditions.length > 0
+          ? `WHERE ${conditions.join(" AND ")}`
+          : "";
+
+      const result = await pool.query(
+        `
+          SELECT
+            d.id AS department_id,
+            d.name AS department_name,
+            COUNT(pr.id)::INTEGER AS review_count,
+            ROUND(
+              AVG(pr.overall_rating)::NUMERIC,
+              2
+            ) AS average_rating
+          FROM performance_reviews pr
+          INNER JOIN employees e
+            ON e.id = pr.employee_id
+          LEFT JOIN departments d
+            ON d.id = e.department_id
+          ${whereClause}
+          GROUP BY d.id, d.name
+          ORDER BY d.name
+        `,
+        values,
+      );
+
+      return res.json(result.rows);
+    } catch (error) {
+      console.error(
+        "Failed to load performance department analytics:",
+        error,
+      );
+
+      return res.status(500).json({
+        message: "Failed to load performance department analytics",
+      });
+    }
+  },
+);
+
+router.get(
+  "/analytics/status",
+  authorizePermissions("performance.view"),
+  async (req, res) => {
+    try {
+      const values = [];
+      const conditions = [];
+
+      if (req.user.role !== "SUPER_ADMINISTRATOR") {
+        values.push(req.user.requestedCompanyId);
+        conditions.push(`pr.company_id = $${values.length}`);
+      }
+
+      if (req.user.role === "EMPLOYEE") {
+        values.push(req.user.employee_id);
+        conditions.push(`pr.employee_id = $${values.length}`);
+      }
+
+      if (req.user.role === "MANAGER") {
+        values.push(req.user.employee_id);
+        conditions.push(`pr.reviewer_id = $${values.length}`);
+      }
+
+      const whereClause =
+        conditions.length > 0
+          ? `WHERE ${conditions.join(" AND ")}`
+          : "";
+
+      const result = await pool.query(
+        `
+          SELECT
+            pr.status,
+            COUNT(*)::INTEGER AS count
+          FROM performance_reviews pr
+          ${whereClause}
+          GROUP BY pr.status
+          ORDER BY pr.status
+        `,
+        values,
+      );
+
+      return res.json(result.rows);
+    } catch (error) {
+      console.error(
+        "Failed to load performance status analytics:",
+        error,
+      );
+
+      return res.status(500).json({
+        message: "Failed to load performance status analytics",
+      });
+    }
+  },
+);
+
+module.exports = router;

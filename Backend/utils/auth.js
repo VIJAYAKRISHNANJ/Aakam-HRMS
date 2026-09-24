@@ -266,6 +266,18 @@ export const mapUserProfile = (
         )
       : null,
 
+  /*
+   * Backend authorization routes historically use employee_id.
+   * Keep the camelCase employeeId for the frontend while also exposing
+   * the snake_case alias used by server-side authorization/scoping.
+   */
+  employee_id:
+    user.employee_id
+      ? Number(
+          user.employee_id,
+        )
+      : null,
+
   employeeCode:
     user.employee_code ??
     null,
