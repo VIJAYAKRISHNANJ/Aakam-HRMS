@@ -437,7 +437,6 @@ function Performance() {
             xl:grid-cols-4
           "
         >
-
           {summary.map(
             ([
               title,
@@ -455,7 +454,6 @@ function Performance() {
                   p-5
                 "
               >
-
                 <div
                   className="
                     flex
@@ -463,7 +461,6 @@ function Performance() {
                     justify-between
                   "
                 >
-
                   <p className="text-sm text-slate-500">
                     {title}
                   </p>
@@ -483,7 +480,6 @@ function Performance() {
                       size={18}
                     />
                   </span>
-
                 </div>
 
                 <p
@@ -496,11 +492,9 @@ function Performance() {
                 >
                   {value}
                 </p>
-
               </div>
             ),
           )}
-
         </div>
 
         {/* ====================================================
@@ -516,7 +510,6 @@ function Performance() {
             p-4
           "
         >
-
           <div
             className="
               grid
@@ -524,7 +517,6 @@ function Performance() {
               md:grid-cols-[minmax(0,1fr)_200px]
             "
           >
-
             <SearchInput
               value={
                 search
@@ -562,7 +554,6 @@ function Performance() {
                 focus:ring-teal-600/20
               "
             >
-
               <option value="">
                 All statuses
               </option>
@@ -578,11 +569,8 @@ function Performance() {
               <option value="COMPLETED">
                 Completed
               </option>
-
             </select>
-
           </div>
-
         </section>
 
         {/* ====================================================
@@ -629,9 +617,7 @@ function Performance() {
               bg-white
             "
           >
-
             <div className="overflow-x-auto">
-
               <table
                 className="
                   w-full
@@ -640,7 +626,6 @@ function Performance() {
                   text-sm
                 "
               >
-
                 {/* ==================================================
                     TABLE HEADER
                 ================================================== */}
@@ -656,9 +641,7 @@ function Performance() {
                     text-slate-500
                   "
                 >
-
                   <tr>
-
                     {[
                       "Employee",
                       "Department",
@@ -687,9 +670,7 @@ function Performance() {
                         </th>
                       ),
                     )}
-
                   </tr>
-
                 </thead>
 
                 {/* ==================================================
@@ -702,7 +683,6 @@ function Performance() {
                     divide-slate-100
                   "
                 >
-
                   {filtered.map(
                     (
                       review,
@@ -719,7 +699,6 @@ function Performance() {
                         {/* EMPLOYEE */}
 
                         <td className="px-5 py-4">
-
                           <p className="font-semibold text-slate-800">
                             {
                               review.employeeName
@@ -732,7 +711,6 @@ function Performance() {
                               ""
                             }
                           </p>
-
                         </td>
 
                         {/* DEPARTMENT */}
@@ -779,7 +757,6 @@ function Performance() {
                         {/* STATUS */}
 
                         <td className="px-5 py-4">
-
                           <span
                             className={`
                               inline-flex
@@ -802,21 +779,17 @@ function Performance() {
                               )
                             }
                           </span>
-
                         </td>
 
                         {/* GOALS */}
 
                         <td className="px-5 py-4 text-slate-600">
-                          {
-                            review.goals.length
-                          }
+                          {review.goals?.length ?? 0}
                         </td>
 
                         {/* ACTIONS */}
 
                         <td className="px-5 py-4">
-
                           <div
                             className="
                               flex
@@ -848,13 +821,11 @@ function Performance() {
                                 hover:text-teal-700
                               "
                             >
-
                               <Edit
                                 size={14}
                               />
 
                               Edit
-
                             </Link>
 
                             {/* DELETE */}
@@ -884,29 +855,20 @@ function Performance() {
                                 hover:bg-red-50
                               "
                             >
-
                               <Trash2
                                 size={14}
                               />
 
                               Delete
-
                             </button>
-
                           </div>
-
                         </td>
-
                       </tr>
                     ),
                   )}
-
                 </tbody>
-
               </table>
-
             </div>
-
           </div>
         )}
 
@@ -927,7 +889,6 @@ function Performance() {
               px-4
             "
           >
-
             <div
               className="
                 w-full
@@ -952,9 +913,7 @@ function Performance() {
                   gap-4
                 "
               >
-
                 <div>
-
                   <h2
                     id="delete-performance-title"
                     className="
@@ -988,7 +947,6 @@ function Performance() {
                     This will also remove all goals linked to this review.
                     This action cannot be undone.
                   </p>
-
                 </div>
 
                 <button
@@ -1017,7 +975,6 @@ function Performance() {
                     size={18}
                   />
                 </button>
-
               </div>
 
               {/* MODAL ACTIONS */}
@@ -1030,7 +987,6 @@ function Performance() {
                   gap-3
                 "
               >
-
                 <button
                   type="button"
                   disabled={
@@ -1085,7 +1041,6 @@ function Performance() {
                     disabled:opacity-60
                   "
                 >
-
                   <Trash2
                     size={15}
                   />
@@ -1093,16 +1048,11 @@ function Performance() {
                   {deleting
                     ? "Deleting..."
                     : "Delete Review"}
-
                 </button>
-
               </div>
-
             </div>
-
           </div>
         )}
-
       </div>
     </DashboardLayout>
   );

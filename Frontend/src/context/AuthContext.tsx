@@ -34,7 +34,6 @@ interface AuthContextValue {
   user: AuthUser | null;
   roles: string[];
   permissions: string[];
-
   isAuthenticated: boolean;
   isLoading: boolean;
 
@@ -103,6 +102,16 @@ function normalizePermissions(
         .toLowerCase(),
     )
     .filter(Boolean);
+}
+
+function isSuperAdministrator(
+  roles: readonly string[],
+): boolean {
+  return roles.some(
+    (role) =>
+      normalizeRole(role) ===
+      "SUPER_ADMINISTRATOR",
+  );
 }
 
 export function AuthProvider({
@@ -175,11 +184,6 @@ export function AuthProvider({
           nextPermissions,
         );
 
-        /*
-         * Keep local storage synchronized
-         * with the authoritative /auth/me
-         * response.
-         */
         localStorage.setItem(
           "aakam_hrms_user",
           JSON.stringify(
@@ -226,11 +230,6 @@ export function AuthProvider({
         setIsLoading(true);
 
         try {
-          /*
-           * authService.login() already defines
-           * the correct request and response
-           * contract.
-           */
           const response =
             await loginRequest(
               payload,
@@ -249,14 +248,12 @@ export function AuthProvider({
               response.data.permissions,
             );
 
-          /*
-           * saveAuthData expects the complete
-           * LoginResponse.
-           */
           saveAuthData(response);
 
           setUser(nextUser);
+
           setRoles(nextRoles);
+
           setPermissions(
             nextPermissions,
           );
@@ -274,10 +271,6 @@ export function AuthProvider({
       try {
         await logoutRequest();
       } catch (error) {
-        /*
-         * Clear the local session even if the
-         * server logout request fails.
-         */
         console.error(
           "Logout request failed:",
           error,
@@ -339,17 +332,35 @@ export function AuthProvider({
       [roles],
     );
 
+  /*
+   * SUPER_ADMINISTRATOR has unrestricted
+   * frontend access.
+   *
+   * This is intentionally role-based rather
+   * than permission-string-based so the admin
+   * is not affected by legacy/new permission
+   * naming differences between modules.
+   */
+
   const can =
     useCallback(
       (
         permission: string,
       ): boolean => {
+        if (
+          isSuperAdministrator(
+            roles,
+          )
+        ) {
+          return true;
+        }
+
         return hasPermission(
           permissions,
           permission,
         );
       },
-      [permissions],
+      [permissions, roles],
     );
 
   const canAny =
@@ -357,12 +368,20 @@ export function AuthProvider({
       (
         requiredPermissions: string[],
       ): boolean => {
+        if (
+          isSuperAdministrator(
+            roles,
+          )
+        ) {
+          return true;
+        }
+
         return hasAnyPermission(
           permissions,
           requiredPermissions,
         );
       },
-      [permissions],
+      [permissions, roles],
     );
 
   const canAll =
@@ -370,19 +389,29 @@ export function AuthProvider({
       (
         requiredPermissions: string[],
       ): boolean => {
+        if (
+          isSuperAdministrator(
+            roles,
+          )
+        ) {
+          return true;
+        }
+
         return hasAllPermissions(
           permissions,
           requiredPermissions,
         );
       },
-      [permissions],
+      [permissions, roles],
     );
 
   const contextValue =
     useMemo<AuthContextValue>(
       () => ({
         user,
+
         roles,
+
         permissions,
 
         isAuthenticated:
@@ -394,14 +423,19 @@ export function AuthProvider({
         isLoading,
 
         login,
+
         logout,
+
         refreshUser,
 
         hasRole,
+
         hasAnyRole,
 
         hasPermission: can,
+
         hasAnyPermission: canAny,
+
         hasAllPermissions: canAll,
       }),
       [

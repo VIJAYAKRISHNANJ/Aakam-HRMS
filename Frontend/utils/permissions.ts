@@ -1,5 +1,6 @@
 /**
  * Aakam HRMS
+ *
  * Frontend permission definitions and authorization helpers.
  *
  * Frontend permissions control UI visibility only.
@@ -23,6 +24,7 @@ export const PERMISSIONS = {
   ROLES_CREATE: "roles.create",
   ROLES_UPDATE: "roles.update",
   ROLES_DELETE: "roles.delete",
+
   PERMISSIONS_VIEW: "permissions.view",
 
   COMPANY_VIEW: "company.view",

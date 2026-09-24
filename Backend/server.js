@@ -78,8 +78,7 @@ protectedResource("/api/dashboard", "dashboard", dashboardRoutes);
 | Employees / Workforce
 |--------------------------------------------------------------------------
 */
-
-protectedResource("/api/employees", "employees", employeeRoutes);
+protectedResource("/api/employees", "workforce", employeeRoutes);
 
 /*
 |--------------------------------------------------------------------------

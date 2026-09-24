@@ -775,7 +775,7 @@ router.get(
               b.branch_code,
               b.branch_name,
               COALESCE(
-                b.city,
+                b.location,
                 b.address
               ) AS location
 
@@ -887,6 +887,171 @@ router.get(
   },
 );
 
+/* =========================================================
+   DEPARTMENT REPORT
+
+   Company/HR/Super Admin -> company-wide
+   Manager                -> direct reports only
+========================================================= */
+
+router.get(
+  "/departments",
+  async (req, res) => {
+    if (
+      !assertReportAccess(
+        req,
+        res,
+        [
+          ROLE.SUPER_ADMIN,
+          ROLE.COMPANY_ADMIN,
+          ROLE.HR_ADMIN,
+          ROLE.MANAGER,
+        ],
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const parsed =
+        parseFilters(
+          req.query,
+          [
+            "date",
+            "departmentId",
+          ],
+        );
+
+      if (parsed.error) {
+        return res.status(400).json({
+          success: false,
+          message: parsed.error,
+        });
+      }
+
+      const { filters } = parsed;
+
+      const values = [];
+      const conditions = [];
+
+      addTenantScope(
+        req,
+        values,
+        conditions,
+        "d.company_id",
+      );
+
+      if (filters.departmentId) {
+        values.push(
+          filters.departmentId,
+        );
+
+        conditions.push(
+          `d.id = $${values.length}`,
+        );
+      }
+
+      if (filters.startDate) {
+        values.push(filters.startDate);
+
+        conditions.push(
+          `e.joining_date >= $${values.length}`,
+        );
+      }
+
+      if (filters.endDate) {
+        values.push(filters.endDate);
+
+        conditions.push(
+          `e.joining_date <= $${values.length}`,
+        );
+      }
+
+      addEmployeeVisibilityScope(
+        req,
+        values,
+        conditions,
+        "e",
+      );
+
+      const result =
+        await pool.query(
+          `
+            SELECT
+              d.id,
+              d.name,
+              d.code,
+
+              COUNT(e.id) AS total_employees,
+
+              COUNT(e.id)
+                FILTER (
+                  WHERE e.employment_status = 'ACTIVE'
+                ) AS active_employees,
+
+              COUNT(e.id)
+                FILTER (
+                  WHERE e.employment_status <> 'ACTIVE'
+                ) AS inactive_employees
+
+            FROM departments d
+
+            LEFT JOIN employees e
+              ON e.department_id = d.id
+              AND e.company_id = d.company_id
+
+            ${withWhere(conditions)}
+
+            GROUP BY
+              d.id,
+              d.name,
+              d.code
+
+            ORDER BY d.name;
+          `,
+          values,
+        );
+
+      res.json({
+        success: true,
+
+        data: result.rows.map(
+          (row) => ({
+            id: Number(row.id),
+            name: row.name,
+            code: row.code,
+
+            totalEmployees:
+              Number(
+                row.total_employees,
+              ),
+
+            activeEmployees:
+              Number(
+                row.active_employees,
+              ),
+
+            inactiveEmployees:
+              Number(
+                row.inactive_employees,
+              ),
+          }),
+        ),
+      });
+    } catch (error) {
+      console.error(
+        "Department report error:",
+        error,
+      );
+
+      res.status(500).json({
+        success: false,
+        message:
+          "Failed to load department report",
+      });
+    }
+  },
+);
 /* =========================================================
    DEPARTMENT REPORT
 
@@ -1157,7 +1322,7 @@ router.get(
               b.branch_code,
               b.branch_name,
               COALESCE(
-                b.city,
+                b.location,
                 b.address
               ) AS location,
               c.display_name AS company_name
@@ -1799,12 +1964,7 @@ router.get(
               COALESCE(
                 SUM(pr.pending_approvals),
                 0
-              ) AS pending,
-
-              COALESCE(
-                AVG(pr.pending_approvals),
-                0
-              ) AS average
+              ) AS pending_approvals
 
             FROM payroll_runs pr
 
@@ -1814,51 +1974,49 @@ router.get(
         ),
       ]);
 
-      const row =
+      const summaryRow =
         summary.rows[0];
+
+      const approvalRow =
+        approvals.rows[0];
 
       res.json({
         success: true,
 
         data: {
           total:
-            Number(row.total),
+            Number(summaryRow.total),
 
           pending:
-            Number(row.pending),
+            Number(summaryRow.pending),
 
           processing:
-            Number(row.processing),
+            Number(
+              summaryRow.processing,
+            ),
 
           completed:
-            Number(row.completed),
+            Number(
+              summaryRow.completed,
+            ),
+
+          pendingApprovals:
+            Number(
+              approvalRow.pending_approvals,
+            ),
 
           byMonth:
             months.rows.map(
-              (item) => ({
+              (row) => ({
                 month:
                   formatDateOnly(
-                    item.payroll_month,
+                    row.payroll_month,
                   ),
 
                 total:
-                  Number(item.total),
+                  Number(row.total),
               }),
             ),
-
-          approvals: {
-            pending:
-              Number(
-                approvals.rows[0]
-                  .pending,
-              ),
-
-            averagePendingPerRun:
-              Number(
-                approvals.rows[0]
-                  .average,
-              ),
-          },
         },
       });
     } catch (error) {
@@ -1875,7 +2033,6 @@ router.get(
     }
   },
 );
-
 /* =========================================================
    PERFORMANCE REPORT
 
