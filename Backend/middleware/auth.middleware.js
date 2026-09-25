@@ -415,7 +415,7 @@ export const authorizeResource =
      *
      * employees -> workforce
      * company -> companies
-     * exits -> exit/offboarding
+     * exits -> offboarding
      * recruitment/candidates -> candidates
      */
     if (isSuperAdmin(req.user)) {
@@ -480,7 +480,7 @@ export const authorizeResource =
 
     const permissionResource =
       {
-        exits: "exit",
+        exits: "offboarding",
         reports: "reports",
         dashboard: "dashboard",
         companies: "company",

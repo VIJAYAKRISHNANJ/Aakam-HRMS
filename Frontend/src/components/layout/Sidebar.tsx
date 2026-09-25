@@ -130,21 +130,31 @@ const navItems: NavItem[] = [
   },
 ];
 
-function normalizePermission(permission: string): string {
-  return permission.trim().toLowerCase();
+function normalizePermission(
+  permission: string,
+): string {
+  return permission
+    .trim()
+    .toLowerCase();
 }
 
-function Sidebar({ open, onClose }: SidebarProps) {
+function Sidebar({
+  open,
+  onClose,
+}: SidebarProps) {
   const {
     hasPermission,
     permissions,
   } = useAuth();
 
-  const normalizedPermissions = permissions.map(
-    normalizePermission,
-  );
+  const normalizedPermissions =
+    permissions.map(
+      normalizePermission,
+    );
 
-  const canView = (permission: string): boolean => {
+  const canView = (
+    permission: string,
+  ): boolean => {
     return normalizedPermissions.includes(
       normalizePermission(permission),
     );
@@ -172,59 +182,78 @@ function Sidebar({ open, onClose }: SidebarProps) {
     canViewBranches ||
     canViewDepartments;
 
-  const getOrganizationPath = (): string => {
-    if (canViewCompany) {
+  const getOrganizationPath =
+    (): string => {
+      if (canViewCompany) {
+        return "/organization/company";
+      }
+
+      if (canViewBranches) {
+        return "/organization/branches";
+      }
+
+      if (canViewDepartments) {
+        return "/organization/departments";
+      }
+
       return "/organization/company";
-    }
+    };
 
-    if (canViewBranches) {
-      return "/organization/branches";
-    }
+  const getOrganizationMatchPaths =
+    (): string[] => {
+      const paths: string[] = [];
 
-    if (canViewDepartments) {
-      return "/organization/departments";
-    }
-
-    return "/organization/company";
-  };
-
-  const getOrganizationMatchPaths = (): string[] => {
-    const paths: string[] = [];
-
-    if (canViewCompany) {
-      paths.push("/organization/company");
-    }
-
-    if (canViewBranches) {
-      paths.push("/organization/branches");
-    }
-
-    if (canViewDepartments) {
-      paths.push("/organization/departments");
-    }
-
-    return paths;
-  };
-
-  const visibleNavItems = navItems
-    .filter((item) => {
-      if (item.label === "Organization") {
-        return canViewOrganization;
+      if (canViewCompany) {
+        paths.push(
+          "/organization/company",
+        );
       }
 
-      return canView(item.permission);
-    })
-    .map((item) => {
-      if (item.label !== "Organization") {
-        return item;
+      if (canViewBranches) {
+        paths.push(
+          "/organization/branches",
+        );
       }
 
-      return {
-        ...item,
-        path: getOrganizationPath(),
-        matchPaths: getOrganizationMatchPaths(),
-      };
-    });
+      if (canViewDepartments) {
+        paths.push(
+          "/organization/departments",
+        );
+      }
+
+      return paths;
+    };
+
+  const visibleNavItems =
+    navItems
+      .filter((item) => {
+        if (
+          item.label ===
+          "Organization"
+        ) {
+          return canViewOrganization;
+        }
+
+        return canView(
+          item.permission,
+        );
+      })
+      .map((item) => {
+        if (
+          item.label !==
+          "Organization"
+        ) {
+          return item;
+        }
+
+        return {
+          ...item,
+          path:
+            getOrganizationPath(),
+          matchPaths:
+            getOrganizationMatchPaths(),
+        };
+      });
 
   /*
    * Keep AuthContext's hasPermission in use so the sidebar remains
@@ -281,15 +310,11 @@ function Sidebar({ open, onClose }: SidebarProps) {
 
         <div className="flex h-[88px] shrink-0 items-center px-5">
           <div className="flex items-center gap-3">
-            {/* Logo */}
-
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 via-blue-500 to-cyan-400 shadow-lg shadow-blue-950/30">
               <span className="text-xl font-black text-white">
                 A
               </span>
             </div>
-
-            {/* Brand */}
 
             <div className="min-w-0">
               <p className="text-[17px] font-bold tracking-tight text-white">
@@ -308,8 +333,6 @@ function Sidebar({ open, onClose }: SidebarProps) {
             </div>
           </div>
 
-          {/* Mobile close */}
-
           <button
             type="button"
             onClick={onClose}
@@ -326,141 +349,141 @@ function Sidebar({ open, onClose }: SidebarProps) {
 
         <nav className="min-h-0 flex-1 px-3 pb-4 pt-1">
           <div className="flex h-full flex-col justify-between">
-            {visibleNavItems.map((item) => (
-              <NavLink
-                key={item.label}
-                to={item.path}
-                onClick={onClose}
-                className={({ isActive }) => {
-                  const currentPath =
-                    window.location.pathname;
+            {visibleNavItems.map(
+              (item) => (
+                <NavLink
+                  key={item.label}
+                  to={item.path}
+                  onClick={onClose}
+                  className={({
+                    isActive,
+                  }) => {
+                    const currentPath =
+                      window.location.pathname;
 
-                  const customMatch =
-                    item.matchPaths?.some(
-                      (matchPath) =>
-                        currentPath === matchPath ||
-                        currentPath.startsWith(
-                          `${matchPath}/`,
-                        ),
-                    ) ?? false;
+                    const customMatch =
+                      item.matchPaths?.some(
+                        (matchPath) =>
+                          currentPath ===
+                            matchPath ||
+                          currentPath.startsWith(
+                            `${matchPath}/`,
+                          ),
+                      ) ?? false;
 
-                  const active = item.matchPaths
-                    ? customMatch
-                    : isActive;
+                    const active =
+                      item.matchPaths
+                        ? customMatch
+                        : isActive;
 
-                  return `
-                    group
-                    flex
-                    h-[44px]
-                    min-h-[44px]
-                    w-full
-                    shrink-0
-                    items-center
-                    gap-3
-                    rounded-xl
-                    px-3
-                    text-[14px]
-                    font-medium
-                    transition-all
-                    duration-200
+                    return `
+                      group
+                      flex
+                      h-[44px]
+                      min-h-[44px]
+                      w-full
+                      shrink-0
+                      items-center
+                      gap-3
+                      rounded-xl
+                      px-3
+                      text-[14px]
+                      font-medium
+                      transition-all
+                      duration-200
 
-                    ${
-                      active
-                        ? `
-                            bg-gradient-to-r
-                            from-blue-600/80
-                            to-violet-600/70
-                            text-white
-                            shadow-lg
-                            shadow-blue-950/30
-                            ring-1
-                            ring-blue-400/20
-                          `
-                        : `
-                            text-slate-300
-                            hover:bg-white/[0.06]
-                            hover:text-white
-                          `
-                    }
-                  `;
-                }}
-              >
-                {() => {
-                  const Icon = item.icon;
+                      ${
+                        active
+                          ? `
+                              bg-gradient-to-r
+                              from-blue-600/80
+                              to-violet-600/70
+                              text-white
+                              shadow-lg
+                              shadow-blue-950/30
+                              ring-1
+                              ring-blue-400/20
+                            `
+                          : `
+                              text-slate-300
+                              hover:bg-white/[0.06]
+                              hover:text-white
+                            `
+                      }
+                    `;
+                  }}
+                >
+                  {() => {
+                    const Icon =
+                      item.icon;
 
-                  const currentPath =
-                    window.location.pathname;
+                    const currentPath =
+                      window.location.pathname;
 
-                  const customMatch =
-                    item.matchPaths?.some(
-                      (matchPath) =>
-                        currentPath === matchPath ||
-                        currentPath.startsWith(
-                          `${matchPath}/`,
-                        ),
-                    ) ?? false;
+                    const customMatch =
+                      item.matchPaths?.some(
+                        (matchPath) =>
+                          currentPath ===
+                            matchPath ||
+                          currentPath.startsWith(
+                            `${matchPath}/`,
+                          ),
+                      ) ?? false;
 
-                  const active = item.matchPaths
-                    ? customMatch
-                    : currentPath === item.path ||
-                      currentPath.startsWith(
-                        `${item.path}/`,
-                      );
+                    const active =
+                      item.matchPaths
+                        ? customMatch
+                        : currentPath ===
+                            item.path ||
+                          currentPath.startsWith(
+                            `${item.path}/`,
+                          );
 
-                  return (
-                    <>
-                      {/* =================================================
-                          ICON
-                      ================================================== */}
+                    return (
+                      <>
+                        <span
+                          className={`
+                            flex
+                            h-8
+                            w-8
+                            shrink-0
+                            items-center
+                            justify-center
+                            rounded-lg
 
-                      <span
-                        className={`
-                          flex
-                          h-8
-                          w-8
-                          shrink-0
-                          items-center
-                          justify-center
-                          rounded-lg
+                            ${
+                              active
+                                ? "bg-white/10 text-blue-200"
+                                : "text-slate-400 group-hover:text-blue-300"
+                            }
+                          `}
+                        >
+                          <Icon
+                            size={18}
+                            strokeWidth={
+                              active
+                                ? 2.2
+                                : 1.9
+                            }
+                          />
+                        </span>
 
-                          ${
-                            active
-                              ? "bg-white/10 text-blue-200"
-                              : "text-slate-400 group-hover:text-blue-300"
-                          }
-                        `}
-                      >
-                        <Icon
-                          size={18}
-                          strokeWidth={
-                            active ? 2.2 : 1.9
-                          }
-                        />
-                      </span>
+                        <span className="min-w-0 flex-1 truncate">
+                          {item.label}
+                        </span>
 
-                      {/* =================================================
-                          LABEL
-                      ================================================== */}
-
-                      <span className="min-w-0 flex-1 truncate">
-                        {item.label}
-                      </span>
-
-                      {/* =================================================
-                          ACTIVE ARROW
-                      ================================================== */}
-
-                      {active && (
-                        <ChevronRight
-                          size={14}
-                          className="shrink-0 text-blue-200"
-                        />
-                      )}
-                    </>
-                  );
-                }}
-              </NavLink>
-            ))}
+                        {active && (
+                          <ChevronRight
+                            size={14}
+                            className="shrink-0 text-blue-200"
+                          />
+                        )}
+                      </>
+                    );
+                  }}
+                </NavLink>
+              ),
+            )}
           </div>
         </nav>
       </aside>
