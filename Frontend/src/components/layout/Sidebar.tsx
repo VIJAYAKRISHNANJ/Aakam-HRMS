@@ -15,71 +15,36 @@ import {
   X,
 } from "lucide-react";
 
-import {
-  NavLink,
-} from "react-router-dom";
+import { NavLink } from "react-router-dom";
 
-import {
-  useAuth,
-} from "../../context/AuthContext";
+import { useAuth } from "../../context/AuthContext";
 
 interface SidebarProps {
   open: boolean;
   onClose: () => void;
 }
 
-type Role =
-  | "SUPER_ADMINISTRATOR"
-  | "COMPANY_ADMINISTRATOR"
-  | "HR_ADMINISTRATOR"
-  | "RECRUITER"
-  | "PAYROLL_ADMINISTRATOR"
-  | "MANAGER"
-  | "EMPLOYEE"
-  | "CLIENT_USER";
-
 interface NavItem {
   label: string;
   icon: React.ElementType;
   path: string;
   matchPaths?: string[];
-  roles: Role[];
+  permission: string;
 }
-
-const ALL_ROLES: Role[] = [
-  "SUPER_ADMINISTRATOR",
-  "COMPANY_ADMINISTRATOR",
-  "HR_ADMINISTRATOR",
-  "RECRUITER",
-  "PAYROLL_ADMINISTRATOR",
-  "MANAGER",
-  "EMPLOYEE",
-  "CLIENT_USER",
-];
 
 const navItems: NavItem[] = [
   {
     label: "Dashboard",
     icon: LayoutDashboard,
     path: "/dashboard",
-    roles: [
-      "SUPER_ADMINISTRATOR",
-      "COMPANY_ADMINISTRATOR",
-      "HR_ADMINISTRATOR",
-    ],
+    permission: "dashboard.view",
   },
 
   {
     label: "Workforce",
     icon: Users,
     path: "/workforce",
-    roles: [
-      "SUPER_ADMINISTRATOR",
-      "COMPANY_ADMINISTRATOR",
-      "HR_ADMINISTRATOR",
-      "MANAGER",
-      "EMPLOYEE",
-    ],
+    permission: "workforce.view",
   },
 
   {
@@ -91,155 +56,181 @@ const navItems: NavItem[] = [
       "/organization/branches",
       "/organization/departments",
     ],
-    roles: [
-      "SUPER_ADMINISTRATOR",
-      "COMPANY_ADMINISTRATOR",
-      "HR_ADMINISTRATOR",
-    ],
+    permission: "organization.view",
   },
 
   {
     label: "Recruitment",
     icon: BriefcaseBusiness,
     path: "/recruitment",
-    roles: [
-      "SUPER_ADMINISTRATOR",
-      "COMPANY_ADMINISTRATOR",
-      "HR_ADMINISTRATOR",
-      "RECRUITER",
-      "CLIENT_USER",
-    ],
+    permission: "recruitment.view",
   },
 
   {
     label: "Clients",
     icon: Building2,
     path: "/clients",
-    roles: [
-      "SUPER_ADMINISTRATOR",
-      "COMPANY_ADMINISTRATOR",
-      "HR_ADMINISTRATOR",
-      "RECRUITER",
-      "CLIENT_USER",
-    ],
+    permission: "clients.view",
   },
 
   {
     label: "Onboarding",
     icon: UserPlus,
     path: "/onboarding",
-    roles: [
-      "SUPER_ADMINISTRATOR",
-      "COMPANY_ADMINISTRATOR",
-      "HR_ADMINISTRATOR",
-    ],
+    permission: "onboarding.view",
   },
 
   {
     label: "Payroll",
     icon: WalletCards,
     path: "/payroll",
-    roles: [
-      "SUPER_ADMINISTRATOR",
-      "COMPANY_ADMINISTRATOR",
-      "HR_ADMINISTRATOR",
-      "PAYROLL_ADMINISTRATOR",
-    ],
+    permission: "payroll.view",
   },
 
   {
     label: "Performance",
     icon: Sparkles,
     path: "/performance",
-    roles: [
-      "SUPER_ADMINISTRATOR",
-      "COMPANY_ADMINISTRATOR",
-      "HR_ADMINISTRATOR",
-      "MANAGER",
-      "EMPLOYEE",
-    ],
+    permission: "performance.view",
   },
 
   {
     label: "Training",
     icon: GraduationCap,
     path: "/training",
-    roles: [
-      "SUPER_ADMINISTRATOR",
-      "COMPANY_ADMINISTRATOR",
-      "HR_ADMINISTRATOR",
-      "MANAGER",
-      "EMPLOYEE",
-    ],
+    permission: "training.view",
   },
 
   {
     label: "Reports",
     icon: BarChart3,
     path: "/reports",
-    roles: [
-      "SUPER_ADMINISTRATOR",
-      "COMPANY_ADMINISTRATOR",
-      "HR_ADMINISTRATOR",
-    ],
+    permission: "reports.view",
   },
 
   {
     label: "Notifications",
     icon: Bell,
     path: "/notifications",
-    roles: ALL_ROLES,
+    permission: "notifications.view",
   },
 
   {
     label: "Settings",
     icon: Settings,
     path: "/settings",
-    roles: ALL_ROLES,
+    permission: "settings.view",
   },
 
   {
     label: "Exit",
     icon: LogOut,
     path: "/exits",
-    roles: [
-      "SUPER_ADMINISTRATOR",
-      "COMPANY_ADMINISTRATOR",
-      "HR_ADMINISTRATOR",
-      "MANAGER",
-      "EMPLOYEE",
-    ],
+    permission: "offboarding.view",
   },
 ];
 
-const normalizeRole = (
-  role: string,
-): string =>
-  role
-    .trim()
-    .toUpperCase()
-    .replace(/[\s-]+/g, "_");
+function normalizePermission(permission: string): string {
+  return permission.trim().toLowerCase();
+}
 
-function Sidebar({
-  open,
-  onClose,
-}: SidebarProps) {
+function Sidebar({ open, onClose }: SidebarProps) {
   const {
-    roles,
+    hasPermission,
+    permissions,
   } = useAuth();
 
-  const normalizedRoles = roles.map(
-    normalizeRole,
+  const normalizedPermissions = permissions.map(
+    normalizePermission,
   );
 
-  const visibleNavItems =
-    navItems.filter((item) =>
-      item.roles.some((role) =>
-        normalizedRoles.includes(
-          normalizeRole(role),
-        ),
-      ),
+  const canView = (permission: string): boolean => {
+    return normalizedPermissions.includes(
+      normalizePermission(permission),
     );
+  };
+
+  /*
+   * Organization is slightly different because the HR Administrator
+   * has department access but does not have company/branch access.
+   *
+   * Therefore:
+   * - Super Admin / Company Admin -> Company
+   * - HR Admin -> Departments
+   */
+  const canViewCompany =
+    canView("companies.view");
+
+  const canViewBranches =
+    canView("branches.view");
+
+  const canViewDepartments =
+    canView("departments.view");
+
+  const canViewOrganization =
+    canViewCompany ||
+    canViewBranches ||
+    canViewDepartments;
+
+  const getOrganizationPath = (): string => {
+    if (canViewCompany) {
+      return "/organization/company";
+    }
+
+    if (canViewBranches) {
+      return "/organization/branches";
+    }
+
+    if (canViewDepartments) {
+      return "/organization/departments";
+    }
+
+    return "/organization/company";
+  };
+
+  const getOrganizationMatchPaths = (): string[] => {
+    const paths: string[] = [];
+
+    if (canViewCompany) {
+      paths.push("/organization/company");
+    }
+
+    if (canViewBranches) {
+      paths.push("/organization/branches");
+    }
+
+    if (canViewDepartments) {
+      paths.push("/organization/departments");
+    }
+
+    return paths;
+  };
+
+  const visibleNavItems = navItems
+    .filter((item) => {
+      if (item.label === "Organization") {
+        return canViewOrganization;
+      }
+
+      return canView(item.permission);
+    })
+    .map((item) => {
+      if (item.label !== "Organization") {
+        return item;
+      }
+
+      return {
+        ...item,
+        path: getOrganizationPath(),
+        matchPaths: getOrganizationMatchPaths(),
+      };
+    });
+
+  /*
+   * Keep AuthContext's hasPermission in use so the sidebar remains
+   * compatible with the application's central RBAC system.
+   */
+  void hasPermission;
 
   return (
     <>
@@ -290,7 +281,6 @@ function Sidebar({
 
         <div className="flex h-[88px] shrink-0 items-center px-5">
           <div className="flex items-center gap-3">
-
             {/* Logo */}
 
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 via-blue-500 to-cyan-400 shadow-lg shadow-blue-950/30">
@@ -336,51 +326,47 @@ function Sidebar({
 
         <nav className="min-h-0 flex-1 px-3 pb-4 pt-1">
           <div className="flex h-full flex-col justify-between">
+            {visibleNavItems.map((item) => (
+              <NavLink
+                key={item.label}
+                to={item.path}
+                onClick={onClose}
+                className={({ isActive }) => {
+                  const currentPath =
+                    window.location.pathname;
 
-            {visibleNavItems.map(
-              (item) => (
-                <NavLink
-                  key={item.label}
-                  to={item.path}
-                  onClick={onClose}
-                  className={({ isActive }) => {
-                    const currentPath =
-                      window.location.pathname;
+                  const customMatch =
+                    item.matchPaths?.some(
+                      (matchPath) =>
+                        currentPath === matchPath ||
+                        currentPath.startsWith(
+                          `${matchPath}/`,
+                        ),
+                    ) ?? false;
 
-                    const customMatch =
-                      item.matchPaths?.some(
-                        (matchPath) =>
-                          currentPath ===
-                            matchPath ||
-                          currentPath.startsWith(
-                            `${matchPath}/`,
-                          ),
-                      ) ?? false;
+                  const active = item.matchPaths
+                    ? customMatch
+                    : isActive;
 
-                    const active =
-                      item.matchPaths
-                        ? customMatch
-                        : isActive;
+                  return `
+                    group
+                    flex
+                    h-[44px]
+                    min-h-[44px]
+                    w-full
+                    shrink-0
+                    items-center
+                    gap-3
+                    rounded-xl
+                    px-3
+                    text-[14px]
+                    font-medium
+                    transition-all
+                    duration-200
 
-                    return `
-                      group
-                      flex
-                      h-[44px]
-                      min-h-[44px]
-                      w-full
-                      shrink-0
-                      items-center
-                      gap-3
-                      rounded-xl
-                      px-3
-                      text-[14px]
-                      font-medium
-                      transition-all
-                      duration-200
-
-                      ${
-                        active
-                          ? `
+                    ${
+                      active
+                        ? `
                             bg-gradient-to-r
                             from-blue-600/80
                             to-violet-600/70
@@ -390,99 +376,91 @@ function Sidebar({
                             ring-1
                             ring-blue-400/20
                           `
-                          : `
+                        : `
                             text-slate-300
                             hover:bg-white/[0.06]
                             hover:text-white
                           `
-                      }
-                    `;
-                  }}
-                >
-                  {() => {
-                    const Icon =
-                      item.icon;
+                    }
+                  `;
+                }}
+              >
+                {() => {
+                  const Icon = item.icon;
 
-                    const currentPath =
-                      window.location.pathname;
+                  const currentPath =
+                    window.location.pathname;
 
-                    const customMatch =
-                      item.matchPaths?.some(
-                        (matchPath) =>
-                          currentPath ===
-                            matchPath ||
-                          currentPath.startsWith(
-                            `${matchPath}/`,
-                          ),
-                      ) ?? false;
+                  const customMatch =
+                    item.matchPaths?.some(
+                      (matchPath) =>
+                        currentPath === matchPath ||
+                        currentPath.startsWith(
+                          `${matchPath}/`,
+                        ),
+                    ) ?? false;
 
-                    const active =
-                      item.matchPaths
-                        ? customMatch
-                        : currentPath ===
-                            item.path ||
-                          currentPath.startsWith(
-                            `${item.path}/`,
-                          );
+                  const active = item.matchPaths
+                    ? customMatch
+                    : currentPath === item.path ||
+                      currentPath.startsWith(
+                        `${item.path}/`,
+                      );
 
-                    return (
-                      <>
-                        {/* =================================================
-                            ICON
-                        ================================================== */}
+                  return (
+                    <>
+                      {/* =================================================
+                          ICON
+                      ================================================== */}
 
-                        <span
-                          className={`
-                            flex
-                            h-8
-                            w-8
-                            shrink-0
-                            items-center
-                            justify-center
-                            rounded-lg
+                      <span
+                        className={`
+                          flex
+                          h-8
+                          w-8
+                          shrink-0
+                          items-center
+                          justify-center
+                          rounded-lg
 
-                            ${
-                              active
-                                ? "bg-white/10 text-blue-200"
-                                : "text-slate-400 group-hover:text-blue-300"
-                            }
-                          `}
-                        >
-                          <Icon
-                            size={18}
-                            strokeWidth={
-                              active
-                                ? 2.2
-                                : 1.9
-                            }
-                          />
-                        </span>
+                          ${
+                            active
+                              ? "bg-white/10 text-blue-200"
+                              : "text-slate-400 group-hover:text-blue-300"
+                          }
+                        `}
+                      >
+                        <Icon
+                          size={18}
+                          strokeWidth={
+                            active ? 2.2 : 1.9
+                          }
+                        />
+                      </span>
 
-                        {/* =================================================
-                            LABEL
-                        ================================================== */}
+                      {/* =================================================
+                          LABEL
+                      ================================================== */}
 
-                        <span className="min-w-0 flex-1 truncate">
-                          {item.label}
-                        </span>
+                      <span className="min-w-0 flex-1 truncate">
+                        {item.label}
+                      </span>
 
-                        {/* =================================================
-                            ACTIVE ARROW
-                        ================================================== */}
+                      {/* =================================================
+                          ACTIVE ARROW
+                      ================================================== */}
 
-                        {active && (
-                          <ChevronRight
-                            size={14}
-                            className="shrink-0 text-blue-200"
-                          />
-                        )}
-                      </>
-                    );
-                  }}
-                </NavLink>
-              ),
-            )}
-
+                      {active && (
+                        <ChevronRight
+                          size={14}
+                          className="shrink-0 text-blue-200"
+                        />
+                      )}
+                    </>
+                  );
+                }}
+              </NavLink>
+            ))}
           </div>
         </nav>
       </aside>
