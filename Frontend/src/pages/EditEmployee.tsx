@@ -167,8 +167,18 @@ function EditEmployee() {
 
   const { hasPermission } = useAuth();
 
+  /*
+  |--------------------------------------------------------------------------
+  | Workforce Permission
+  |--------------------------------------------------------------------------
+  |
+  | HR Administrator and Super Administrator both use
+  | workforce.update for employee editing.
+  |
+  */
+
   const canUpdateEmployees =
-    hasPermission("employees.update");
+    hasPermission("workforce.update");
 
   const [
     form,

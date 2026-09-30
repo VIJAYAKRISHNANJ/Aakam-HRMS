@@ -38,7 +38,11 @@ router.get("/:id", async (req, res) => {
           AND ($2::boolean OR b.company_id = $3)
         LIMIT 1;
       `,
-      [id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
+      [
+        id,
+        req.user.roles.includes("SUPER_ADMINISTRATOR"),
+        req.user.requestedCompanyId ?? null,
+      ],
     );
 
     if (result.rows.length === 0) {
@@ -132,7 +136,12 @@ router.get("/", async (req, res) => {
     |--------------------------------------------------------------------------
     */
 
-    if (companyId && req.user.roles.includes("SUPER_ADMINISTRATOR")) {
+    if (
+      companyId &&
+      req.user.roles.includes(
+        "SUPER_ADMINISTRATOR",
+      )
+    ) {
       values.push(Number(companyId));
 
       conditions.push(
@@ -140,9 +149,18 @@ router.get("/", async (req, res) => {
       );
     }
 
-    if (!req.user.roles.includes("SUPER_ADMINISTRATOR")) {
-      values.push(req.user.requestedCompanyId);
-      conditions.push(`b.company_id = $${values.length}`);
+    if (
+      !req.user.roles.includes(
+        "SUPER_ADMINISTRATOR",
+      )
+    ) {
+      values.push(
+        req.user.requestedCompanyId,
+      );
+
+      conditions.push(
+        `b.company_id = $${values.length}`,
+      );
     }
 
     /*
@@ -254,7 +272,14 @@ router.get("/", async (req, res) => {
           WHERE status = 'ACTIVE'
             AND ($1::boolean OR id = $2)
           ORDER BY display_name ASC;
-        `, [req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
+        `,
+        [
+          req.user.roles.includes(
+            "SUPER_ADMINISTRATOR",
+          ),
+          req.user.requestedCompanyId ??
+            null,
+        ],
       );
 
     /*
@@ -406,7 +431,20 @@ router.post("/", async (req, res) => {
             AND ($2::boolean OR id = $3)
           LIMIT 1;
         `,
-        [req.user.roles.includes("SUPER_ADMINISTRATOR") ? companyId : req.user.requestedCompanyId, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
+        [
+          req.user.roles.includes(
+            "SUPER_ADMINISTRATOR",
+          )
+            ? companyId
+            : req.user.requestedCompanyId,
+
+          req.user.roles.includes(
+            "SUPER_ADMINISTRATOR",
+          ),
+
+          req.user.requestedCompanyId ??
+            null,
+        ],
       );
 
     if (
@@ -464,7 +502,11 @@ router.post("/", async (req, res) => {
               updated_at;
           `,
           [
-            req.user.roles.includes("SUPER_ADMINISTRATOR") ? Number(companyId) : req.user.requestedCompanyId,
+            req.user.roles.includes(
+              "SUPER_ADMINISTRATOR",
+            )
+              ? Number(companyId)
+              : req.user.requestedCompanyId,
 
             branchCode.trim(),
 
@@ -652,7 +694,14 @@ router.put("/:id", async (req, res) => {
             AND ($2::boolean OR company_id = $3)
           LIMIT 1;
         `,
-        [id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
+        [
+          id,
+          req.user.roles.includes(
+            "SUPER_ADMINISTRATOR",
+          ),
+          req.user.requestedCompanyId ??
+            null,
+        ],
       );
 
     if (
@@ -684,7 +733,20 @@ router.put("/:id", async (req, res) => {
             AND ($2::boolean OR id = $3)
           LIMIT 1;
         `,
-        [req.user.roles.includes("SUPER_ADMINISTRATOR") ? companyId : req.user.requestedCompanyId, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
+        [
+          req.user.roles.includes(
+            "SUPER_ADMINISTRATOR",
+          )
+            ? companyId
+            : req.user.requestedCompanyId,
+
+          req.user.roles.includes(
+            "SUPER_ADMINISTRATOR",
+          ),
+
+          req.user.requestedCompanyId ??
+            null,
+        ],
       );
 
     if (
@@ -722,7 +784,11 @@ router.put("/:id", async (req, res) => {
             AND ($10::boolean OR company_id = $11);
         `,
         [
-          req.user.roles.includes("SUPER_ADMINISTRATOR") ? Number(companyId) : req.user.requestedCompanyId,
+          req.user.roles.includes(
+            "SUPER_ADMINISTRATOR",
+          )
+            ? Number(companyId)
+            : req.user.requestedCompanyId,
 
           branchCode.trim(),
 
@@ -747,8 +813,13 @@ router.put("/:id", async (req, res) => {
             : "ACTIVE",
 
           id,
-          req.user.roles.includes("SUPER_ADMINISTRATOR"),
-          req.user.requestedCompanyId ?? null,
+
+          req.user.roles.includes(
+            "SUPER_ADMINISTRATOR",
+          ),
+
+          req.user.requestedCompanyId ??
+            null,
         ],
       );
     } catch (updateError) {
@@ -819,7 +890,14 @@ router.put("/:id", async (req, res) => {
             AND ($2::boolean OR b.company_id = $3)
           LIMIT 1;
         `,
-        [id, req.user.roles.includes("SUPER_ADMINISTRATOR"), req.user.requestedCompanyId ?? null],
+        [
+          id,
+          req.user.roles.includes(
+            "SUPER_ADMINISTRATOR",
+          ),
+          req.user.requestedCompanyId ??
+            null,
+        ],
       );
 
     const branch =
@@ -891,6 +969,140 @@ router.put("/:id", async (req, res) => {
       success: false,
       message:
         "Failed to update branch",
+    });
+  }
+});
+
+/*
+|--------------------------------------------------------------------------
+| DELETE /api/branches/:id
+|--------------------------------------------------------------------------
+| Delete an existing branch
+|--------------------------------------------------------------------------
+*/
+
+router.delete("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Confirm branch exists and belongs to user's company
+    |--------------------------------------------------------------------------
+    */
+
+    const branchResult =
+      await pool.query(
+        `
+          SELECT
+            id,
+            company_id,
+            branch_code,
+            branch_name
+          FROM branches
+          WHERE id = $1
+            AND (
+              $2::boolean
+              OR company_id = $3
+            )
+          LIMIT 1;
+        `,
+        [
+          id,
+
+          req.user.roles.includes(
+            "SUPER_ADMINISTRATOR",
+          ),
+
+          req.user.requestedCompanyId ??
+            null,
+        ],
+      );
+
+    if (
+      branchResult.rows.length ===
+      0
+    ) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Branch not found",
+      });
+    }
+
+    const branch =
+      branchResult.rows[0];
+
+    /*
+    |--------------------------------------------------------------------------
+    | Delete branch
+    |--------------------------------------------------------------------------
+    */
+
+    try {
+      await pool.query(
+        `
+          DELETE FROM branches
+          WHERE id = $1
+            AND (
+              $2::boolean
+              OR company_id = $3
+            );
+        `,
+        [
+          id,
+
+          req.user.roles.includes(
+            "SUPER_ADMINISTRATOR",
+          ),
+
+          req.user.requestedCompanyId ??
+            null,
+        ],
+      );
+    } catch (deleteError) {
+      /*
+      |--------------------------------------------------------------------------
+      | Foreign key dependency
+      |--------------------------------------------------------------------------
+      */
+
+      if (
+        deleteError.code ===
+        "23503"
+      ) {
+        return res.status(409).json({
+          success: false,
+          message:
+            "This branch cannot be deleted because it is being used by other records.",
+        });
+      }
+
+      throw deleteError;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Response
+    |--------------------------------------------------------------------------
+    */
+
+    res.json({
+      success: true,
+
+      message:
+        `Branch "${branch.branch_name}" deleted successfully.`,
+    });
+  } catch (error) {
+    console.error(
+      "Branch deletion error:",
+      error,
+    );
+
+    res.status(500).json({
+      success: false,
+      message:
+        "Failed to delete branch",
     });
   }
 });

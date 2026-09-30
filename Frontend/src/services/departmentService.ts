@@ -2,6 +2,14 @@ import api from "./api";
 
 /*
 |--------------------------------------------------------------------------
+| API
+|--------------------------------------------------------------------------
+*/
+
+const API_URL = "/";
+
+/*
+|--------------------------------------------------------------------------
 | Department
 |--------------------------------------------------------------------------
 */
@@ -16,7 +24,7 @@ export interface Department {
 
 /*
 |--------------------------------------------------------------------------
-| Payload
+| Department Payload
 |--------------------------------------------------------------------------
 */
 
@@ -27,22 +35,18 @@ export interface DepartmentPayload {
 
 /*
 |--------------------------------------------------------------------------
-| API Response
+| Department Directory
 |--------------------------------------------------------------------------
 */
 
-interface DepartmentResponse {
-  success: boolean;
-  data: Department;
-  message?: string;
+interface DepartmentDirectoryData {
+  departments: Department[];
+  total: number;
 }
 
-interface DepartmentsResponse {
+interface DepartmentDirectoryResponse {
   success: boolean;
-  data: {
-    departments: Department[];
-    total: number;
-  };
+  data: DepartmentDirectoryData;
   message?: string;
 }
 
@@ -56,8 +60,8 @@ export const getDepartments = async (): Promise<
   Department[]
 > => {
   const response =
-    await api.get<DepartmentsResponse>(
-      "/departments",
+    await api.get<DepartmentDirectoryResponse>(
+      `${API_URL}departments`,
     );
 
   return response.data.data.departments;
@@ -69,12 +73,18 @@ export const getDepartments = async (): Promise<
 |--------------------------------------------------------------------------
 */
 
+interface DepartmentResponse {
+  success: boolean;
+  data: Department;
+  message?: string;
+}
+
 export const getDepartmentById = async (
   departmentId: number | string,
 ): Promise<Department> => {
   const response =
     await api.get<DepartmentResponse>(
-      `/departments/${departmentId}`,
+      `${API_URL}departments/${departmentId}`,
     );
 
   return response.data.data;
@@ -86,12 +96,18 @@ export const getDepartmentById = async (
 |--------------------------------------------------------------------------
 */
 
+interface CreateDepartmentResponse {
+  success: boolean;
+  data: Department;
+  message?: string;
+}
+
 export const createDepartment = async (
   payload: DepartmentPayload,
 ): Promise<Department> => {
   const response =
-    await api.post<DepartmentResponse>(
-      "/departments",
+    await api.post<CreateDepartmentResponse>(
+      `${API_URL}departments`,
       payload,
     );
 
@@ -104,15 +120,35 @@ export const createDepartment = async (
 |--------------------------------------------------------------------------
 */
 
+interface UpdateDepartmentResponse {
+  success: boolean;
+  data: Department;
+  message?: string;
+}
+
 export const updateDepartment = async (
   departmentId: number | string,
   payload: DepartmentPayload,
 ): Promise<Department> => {
   const response =
-    await api.put<DepartmentResponse>(
-      `/departments/${departmentId}`,
+    await api.put<UpdateDepartmentResponse>(
+      `${API_URL}departments/${departmentId}`,
       payload,
     );
 
   return response.data.data;
+};
+
+/*
+|--------------------------------------------------------------------------
+| Delete Department
+|--------------------------------------------------------------------------
+*/
+
+export const deleteDepartment = async (
+  departmentId: number | string,
+): Promise<void> => {
+  await api.delete(
+    `${API_URL}departments/${departmentId}`,
+  );
 };

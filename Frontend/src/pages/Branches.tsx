@@ -6,6 +6,7 @@ import {
   Phone,
   Plus,
   Search,
+  Trash2,
 } from "lucide-react";
 
 import {
@@ -25,6 +26,7 @@ import DashboardLayout from "../components/layout/DashboardLayout";
 import OrganizationNav from "../components/organization/OrganizationNav";
 
 import {
+  deleteBranch,
   getBranches,
   type Branch,
 } from "../services/branchService";
@@ -33,37 +35,69 @@ function Branches() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
 
-  const canViewBranches = hasPermission("branches.view");
-  const canCreateBranches = hasPermission("branches.create");
-  const canUpdateBranches = hasPermission("branches.update");
+  const canViewBranches =
+    hasPermission("branches.view");
 
-  const [branches, setBranches] =
-    useState<Branch[]>([]);
+  const canCreateBranches =
+    hasPermission("branches.create");
 
-  const [search, setSearch] =
-    useState("");
+  const canUpdateBranches =
+    hasPermission("branches.update");
 
-  const [companyId, setCompanyId] =
-    useState("");
+  const canDeleteBranches =
+    hasPermission("branches.delete");
 
-  const [status, setStatus] =
-    useState("");
+  const [
+    branches,
+    setBranches,
+  ] = useState<Branch[]>([]);
 
-  const [companies, setCompanies] =
-    useState<
-      {
-        id: number;
-        companyCode: string;
-        displayName: string;
-        legalName: string;
-      }[]
-    >([]);
+  const [
+    search,
+    setSearch,
+  ] = useState("");
 
-  const [loading, setLoading] =
-    useState(true);
+  const [
+    companyId,
+    setCompanyId,
+  ] = useState("");
 
-  const [error, setError] =
-    useState("");
+  const [
+    status,
+    setStatus,
+  ] = useState("");
+
+  const [
+    companies,
+    setCompanies,
+  ] = useState<
+    {
+      id: number;
+      companyCode: string;
+      displayName: string;
+      legalName: string;
+    }[]
+  >([]);
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+  const [
+    deletingBranch,
+    setDeletingBranch,
+  ] = useState<Branch | null>(null);
+
+  const [
+    deleting,
+    setDeleting,
+  ] = useState(false);
 
   /*
   |--------------------------------------------------------------------------
@@ -170,13 +204,91 @@ function Branches() {
     );
   };
 
+  /*
+  |--------------------------------------------------------------------------
+  | Delete Branch
+  |--------------------------------------------------------------------------
+  */
+
+  const handleDeleteBranch =
+    async () => {
+      if (!deletingBranch) {
+        return;
+      }
+
+      try {
+        setDeleting(true);
+        setError("");
+
+        await deleteBranch(
+          deletingBranch.id,
+        );
+
+        setBranches(
+          (currentBranches) =>
+            currentBranches.filter(
+              (branch) =>
+                branch.id !==
+                deletingBranch.id,
+            ),
+        );
+
+        setDeletingBranch(null);
+      } catch (requestError) {
+        console.error(
+          "Failed to delete branch:",
+          requestError,
+        );
+
+        let message =
+          "Unable to delete the branch. Please try again.";
+
+        if (
+          requestError &&
+          typeof requestError === "object" &&
+          "response" in requestError
+        ) {
+          const response =
+            (
+              requestError as {
+                response?: {
+                  data?: {
+                    message?: string;
+                  };
+                };
+              }
+            ).response;
+
+          if (
+            response?.data?.message
+          ) {
+            message =
+              response.data.message;
+          }
+        }
+
+        setError(message);
+        setDeletingBranch(null);
+      } finally {
+        setDeleting(false);
+      }
+    };
+
   if (!canViewBranches) {
     return (
       <DashboardLayout>
+
         <div className="flex min-h-[60vh] w-full items-center justify-center">
+
           <section className="w-full max-w-lg rounded-xl border border-red-200 bg-white p-8 text-center shadow-sm">
+
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
-              <Building2 size={24} className="text-red-600" />
+
+              <Building2
+                size={24}
+                className="text-red-600"
+              />
+
             </div>
 
             <h1 className="mt-4 text-xl font-semibold text-slate-900">
@@ -189,7 +301,9 @@ function Branches() {
 
             <button
               type="button"
-              onClick={() => navigate("/dashboard")}
+              onClick={() =>
+                navigate("/dashboard")
+              }
               className="
                 mt-6
                 inline-flex
@@ -208,8 +322,11 @@ function Branches() {
             >
               Back to Dashboard
             </button>
+
           </section>
+
         </div>
+
       </DashboardLayout>
     );
   }
@@ -517,7 +634,7 @@ function Branches() {
 
               {/* Table Header */}
 
-              <div className="hidden border-b border-slate-200 bg-slate-50 px-6 py-3 md:grid md:grid-cols-[1.4fr_1fr_1fr_1fr_120px_80px] md:gap-4">
+              <div className="hidden border-b border-slate-200 bg-slate-50 px-6 py-3 md:grid md:grid-cols-[1.4fr_1fr_1fr_1fr_120px_180px] md:gap-4">
 
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Branch
@@ -583,7 +700,7 @@ function Branches() {
                         py-5
                         transition
                         hover:bg-slate-50
-                        md:grid-cols-[1.4fr_1fr_1fr_1fr_120px_80px]
+                        md:grid-cols-[1.4fr_1fr_1fr_1fr_120px_180px]
                         md:items-center
                         md:gap-4
                       "
@@ -725,10 +842,10 @@ function Branches() {
 
                       </div>
 
-                      {/* Edit */}
+                      {/* Actions */}
 
                       <div
-                        className="flex justify-start md:justify-end"
+                        className="flex flex-wrap justify-start gap-2 md:justify-end"
                         onClick={(event) =>
                           event.stopPropagation()
                         }
@@ -762,6 +879,39 @@ function Branches() {
                           </Link>
                         )}
 
+                        {canDeleteBranches && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDeletingBranch(
+                                branch,
+                              )
+                            }
+                            className="
+                              inline-flex
+                              items-center
+                              gap-2
+                              rounded-lg
+                              border
+                              border-red-200
+                              bg-white
+                              px-3
+                              py-2
+                              text-xs
+                              font-semibold
+                              text-red-600
+                              transition
+                              hover:border-red-300
+                              hover:bg-red-50
+                            "
+                          >
+                            <Trash2
+                              size={14}
+                            />
+                            Delete
+                          </button>
+                        )}
+
                       </div>
 
                     </div>
@@ -774,6 +924,140 @@ function Branches() {
           )}
 
       </div>
+
+      {/* =================================================
+          DELETE CONFIRMATION MODAL
+      ================================================= */}
+
+      {deletingBranch && (
+        <div
+          className="
+            fixed
+            inset-0
+            z-50
+            flex
+            items-center
+            justify-center
+            bg-slate-950/50
+            px-4
+          "
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-branch-title"
+        >
+
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+
+            <div className="p-6">
+
+              <div className="flex items-start gap-4">
+
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-50">
+
+                  <Trash2
+                    size={21}
+                    className="text-red-600"
+                  />
+
+                </div>
+
+                <div className="min-w-0">
+
+                  <h2
+                    id="delete-branch-title"
+                    className="text-lg font-semibold text-slate-900"
+                  >
+                    Delete Branch
+                  </h2>
+
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    Are you sure you want to
+                    delete{" "}
+                    <span className="font-semibold text-slate-900">
+                      {deletingBranch.branchName}
+                    </span>
+                    ?
+                  </p>
+
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    If this branch is being used
+                    by other records, the backend
+                    will prevent deletion.
+                  </p>
+
+                </div>
+
+              </div>
+
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 sm:flex-row sm:justify-end">
+
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() =>
+                  setDeletingBranch(null)
+                }
+                className="
+                  inline-flex
+                  items-center
+                  justify-center
+                  rounded-lg
+                  border
+                  border-slate-300
+                  bg-white
+                  px-4
+                  py-2.5
+                  text-sm
+                  font-semibold
+                  text-slate-700
+                  transition
+                  hover:bg-slate-100
+                  disabled:cursor-not-allowed
+                  disabled:opacity-60
+                "
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={handleDeleteBranch}
+                className="
+                  inline-flex
+                  items-center
+                  justify-center
+                  gap-2
+                  rounded-lg
+                  bg-red-600
+                  px-4
+                  py-2.5
+                  text-sm
+                  font-semibold
+                  text-white
+                  transition
+                  hover:bg-red-700
+                  disabled:cursor-not-allowed
+                  disabled:opacity-60
+                "
+              >
+
+                <Trash2 size={16} />
+
+                {deleting
+                  ? "Deleting..."
+                  : "Delete Branch"}
+
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
 
     </DashboardLayout>
   );

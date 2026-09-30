@@ -20,11 +20,30 @@ import {
 
 import DashboardLayout from "../components/layout/DashboardLayout";
 
+import { useAuth } from "../context/AuthContext";
+
+import {
+  getEmployeeById,
+  type Employee,
+} from "../services/workforceService";
+
+/*
+|--------------------------------------------------------------------------
+| Settings Section
+|--------------------------------------------------------------------------
+*/
+
 type SettingsSection =
   | "account"
   | "preferences"
   | "notifications"
   | "security";
+
+/*
+|--------------------------------------------------------------------------
+| Notification Preferences
+|--------------------------------------------------------------------------
+*/
 
 interface NotificationPreferences {
   emailNotifications: boolean;
@@ -33,51 +52,564 @@ interface NotificationPreferences {
   trainingNotifications: boolean;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Application Settings
+|--------------------------------------------------------------------------
+*/
+
 interface SettingsState {
-  displayName: string;
-  email: string;
-  role: string;
   language: string;
   timezone: string;
   dateFormat: string;
   notifications: NotificationPreferences;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Auth User Types
+|--------------------------------------------------------------------------
+*/
+
+interface AuthEmployee {
+  id?: number | string;
+  firstName?: string;
+  lastName?: string | null;
+  fullName?: string;
+  email?: string;
+  designation?: string;
+  status?: string;
+  employmentStatus?: string;
+}
+
+interface AuthRole {
+  name?: string;
+}
+
+interface AuthUserShape {
+  id?: number | string;
+  username?: string;
+  name?: string;
+  fullName?: string;
+  firstName?: string;
+  lastName?: string | null;
+  email?: string;
+  designation?: string;
+  role?: string;
+  roles?: AuthRole[];
+  employee?: AuthEmployee | null;
+  employeeId?: number | string | null;
+  employee_id?: number | string | null;
+  isActive?: boolean;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Account Profile
+|--------------------------------------------------------------------------
+*/
+
+interface AccountProfile {
+  displayName: string;
+  email: string;
+  username: string;
+  designation: string;
+  role: string;
+  status: string;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Default Application Settings
+|--------------------------------------------------------------------------
+|
+| IMPORTANT:
+| Account name, email and designation are NOT stored here.
+| They are loaded from the authenticated employee record.
+|
+|--------------------------------------------------------------------------
+*/
+
 const DEFAULT_SETTINGS: SettingsState = {
-  displayName: "Anita Kumar",
-  email: "anita.kumar@aakamhrms.com",
-  role: "HR Manager",
   language: "English",
+
   timezone: "Asia/Kolkata",
+
   dateFormat: "DD/MM/YYYY",
+
   notifications: {
     emailNotifications: true,
+
     hrAnnouncements: true,
+
     payrollNotifications: true,
+
     trainingNotifications: true,
   },
 };
 
+/*
+|--------------------------------------------------------------------------
+| Local Storage
+|--------------------------------------------------------------------------
+*/
+
 const STORAGE_KEY =
   "aakam_hrms_settings";
 
+/*
+|--------------------------------------------------------------------------
+| Format Status
+|--------------------------------------------------------------------------
+*/
+
+const formatStatus = (
+  value: string,
+): string => {
+  if (!value) {
+    return "Active";
+  }
+
+  const normalized =
+    value.toUpperCase();
+
+  if (normalized === "ACTIVE") {
+    return "Active";
+  }
+
+  return value
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(
+      /\b\w/g,
+      (character) =>
+        character.toUpperCase(),
+    );
+};
+
+/*
+|--------------------------------------------------------------------------
+| Get Display Name
+|--------------------------------------------------------------------------
+|
+| Always prefer:
+|
+| First Name + " " + Last Name
+|
+| Example:
+|
+| Vijay
+| Krishnan
+|
+| becomes:
+|
+| Vijay Krishnan
+|
+|--------------------------------------------------------------------------
+*/
+
+const buildDisplayName = (
+  firstName?: string | null,
+  lastName?: string | null,
+  fallback?: string | null,
+): string => {
+  const first =
+    firstName?.trim() ?? "";
+
+  const last =
+    lastName?.trim() ?? "";
+
+  const combined =
+    `${first} ${last}`.trim();
+
+  if (combined) {
+    return combined;
+  }
+
+  return (
+    fallback?.trim() ||
+    "User"
+  );
+};
+
+/*
+|--------------------------------------------------------------------------
+| Get Initials
+|--------------------------------------------------------------------------
+*/
+
+const getInitials = (
+  displayName: string,
+): string => {
+  const parts =
+    displayName
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  }
+
+  if (parts.length === 1) {
+    return parts[0]
+      .slice(0, 2)
+      .toUpperCase();
+  }
+
+  return "US";
+};
+
+/*
+|--------------------------------------------------------------------------
+| Settings Component
+|--------------------------------------------------------------------------
+*/
+
 function Settings() {
-  const [activeSection, setActiveSection] =
-    useState<SettingsSection>(
-      "account",
-    );
+  /*
+  |--------------------------------------------------------------------------
+  | Authentication
+  |--------------------------------------------------------------------------
+  */
 
-  const [settings, setSettings] =
-    useState<SettingsState>(
-      DEFAULT_SETTINGS,
-    );
-
-  const [saved, setSaved] =
-    useState(false);
+  const { user } = useAuth();
 
   /*
   |--------------------------------------------------------------------------
-  | LOAD SETTINGS
+  | Active Settings Section
+  |--------------------------------------------------------------------------
+  */
+
+  const [
+    activeSection,
+    setActiveSection,
+  ] = useState<SettingsSection>(
+    "account",
+  );
+
+  /*
+  |--------------------------------------------------------------------------
+  | Application Settings
+  |--------------------------------------------------------------------------
+  */
+
+  const [
+    settings,
+    setSettings,
+  ] = useState<SettingsState>(
+    DEFAULT_SETTINGS,
+  );
+
+  /*
+  |--------------------------------------------------------------------------
+  | Logged-in Account Profile
+  |--------------------------------------------------------------------------
+  */
+
+  const [
+    accountProfile,
+    setAccountProfile,
+  ] = useState<AccountProfile>({
+    displayName: "",
+    email: "",
+    username: "",
+    designation: "",
+    role: "",
+    status: "",
+  });
+
+  /*
+  |--------------------------------------------------------------------------
+  | Account Loading
+  |--------------------------------------------------------------------------
+  */
+
+  const [
+    accountLoading,
+    setAccountLoading,
+  ] = useState(true);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Saved Message
+  |--------------------------------------------------------------------------
+  */
+
+  const [
+    saved,
+    setSaved,
+  ] = useState(false);
+
+  /*
+  |--------------------------------------------------------------------------
+  | LOAD ACCOUNT PROFILE
+  |--------------------------------------------------------------------------
+  |
+  | The account information comes from:
+  |
+  | AuthContext
+  |       ↓
+  | employeeId
+  |       ↓
+  | getEmployeeById()
+  |       ↓
+  | employees table
+  |
+  | This ensures Settings always reflects the actual
+  | employee record.
+  |
+  |--------------------------------------------------------------------------
+  */
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadAccountProfile =
+      async () => {
+        try {
+          setAccountLoading(true);
+
+          const authUser =
+            (user ?? null) as
+              | AuthUserShape
+              | null;
+
+          /*
+          |--------------------------------------------------------------------------
+          | Employee embedded in auth user
+          |--------------------------------------------------------------------------
+          */
+
+          const authEmployee =
+            authUser?.employee ??
+            null;
+
+          /*
+          |--------------------------------------------------------------------------
+          | First Name
+          |--------------------------------------------------------------------------
+          */
+
+          const firstName =
+            authEmployee?.firstName ??
+            authUser?.firstName ??
+            "";
+
+          /*
+          |--------------------------------------------------------------------------
+          | Last Name
+          |--------------------------------------------------------------------------
+          */
+
+          const lastName =
+            authEmployee?.lastName ??
+            authUser?.lastName ??
+            "";
+
+          /*
+          |--------------------------------------------------------------------------
+          | Employee ID
+          |--------------------------------------------------------------------------
+          */
+
+          const employeeId =
+            authEmployee?.id ??
+            authUser?.employeeId ??
+            authUser?.employee_id ??
+            null;
+
+          /*
+          |--------------------------------------------------------------------------
+          | Start with authenticated user data
+          |--------------------------------------------------------------------------
+          */
+
+          let employeeRecord:
+            | Employee
+            | null = null;
+
+          /*
+          |--------------------------------------------------------------------------
+          | Load actual employee record
+          |--------------------------------------------------------------------------
+          |
+          | This is important because the employee table contains:
+          |
+          | - firstName
+          | - lastName
+          | - email / work email
+          | - designation
+          | - status
+          | - department
+          |
+          |--------------------------------------------------------------------------
+          */
+
+          if (employeeId) {
+            try {
+              employeeRecord =
+                await getEmployeeById(
+                  employeeId,
+                );
+            } catch (error) {
+              console.error(
+                "Failed to load employee account record:",
+                error,
+              );
+            }
+          }
+
+          /*
+          |--------------------------------------------------------------------------
+          | FIRST NAME + LAST NAME
+          |--------------------------------------------------------------------------
+          |
+          | Always build the display name from the employee
+          | firstName and lastName.
+          |
+          |--------------------------------------------------------------------------
+          */
+
+          const displayName =
+            buildDisplayName(
+              employeeRecord?.firstName ??
+                firstName,
+
+              employeeRecord?.lastName ??
+                lastName,
+
+              authUser?.fullName ??
+                authUser?.name ??
+                authUser?.username,
+            );
+
+          /*
+          |--------------------------------------------------------------------------
+          | WORK EMAIL
+          |--------------------------------------------------------------------------
+          |
+          | Employee record is the primary source.
+          |
+          |--------------------------------------------------------------------------
+          */
+
+          const workEmail =
+            employeeRecord?.email ??
+            authEmployee?.email ??
+            authUser?.email ??
+            "";
+
+          /*
+          |--------------------------------------------------------------------------
+          | USERNAME
+          |--------------------------------------------------------------------------
+          */
+
+          const username =
+            authUser?.username ??
+            "";
+
+          /*
+          |--------------------------------------------------------------------------
+          | DESIGNATION
+          |--------------------------------------------------------------------------
+          |
+          | Designation is the employee's actual job title.
+          |
+          | Example:
+          |
+          | System Administrator
+          |
+          | This is different from:
+          |
+          | SUPER_ADMINISTRATOR
+          |
+          |--------------------------------------------------------------------------
+          */
+
+          const designation =
+            employeeRecord?.designation ??
+            authEmployee?.designation ??
+            authUser?.designation ??
+            "";
+
+          /*
+          |--------------------------------------------------------------------------
+          | SYSTEM ROLE
+          |--------------------------------------------------------------------------
+          */
+
+          const systemRole =
+            employeeRecord?.systemRole ??
+            "";
+
+          /*
+          |--------------------------------------------------------------------------
+          | ACCOUNT STATUS
+          |--------------------------------------------------------------------------
+          */
+
+          const rawStatus =
+            employeeRecord?.status ??
+            authEmployee?.status ??
+            authEmployee?.employmentStatus ??
+            (authUser?.isActive === false
+              ? "INACTIVE"
+              : "ACTIVE");
+
+          const status =
+            formatStatus(
+              rawStatus,
+            );
+
+          /*
+          |--------------------------------------------------------------------------
+          | Update state
+          |--------------------------------------------------------------------------
+          */
+
+          if (!cancelled) {
+            setAccountProfile({
+              displayName,
+
+              email: workEmail,
+
+              username,
+
+              designation:
+                designation ||
+                "Employee",
+
+              role:
+                systemRole ||
+                "Employee",
+
+              status,
+            });
+          }
+        } catch (error) {
+          console.error(
+            "Failed to load account profile:",
+            error,
+          );
+        } finally {
+          if (!cancelled) {
+            setAccountLoading(false);
+          }
+        }
+      };
+
+    loadAccountProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  /*
+  |--------------------------------------------------------------------------
+  | LOAD SAVED APPLICATION SETTINGS
   |--------------------------------------------------------------------------
   */
 
@@ -99,9 +631,12 @@ function Settings() {
 
       setSettings({
         ...DEFAULT_SETTINGS,
+
         ...parsedSettings,
+
         notifications: {
           ...DEFAULT_SETTINGS.notifications,
+
           ...(parsedSettings.notifications ??
             {}),
         },
@@ -122,6 +657,14 @@ function Settings() {
 
   const handleSave = () => {
     try {
+      /*
+      |--------------------------------------------------------------------------
+      | Only application preferences are stored.
+      |
+      | Employee name/email/designation are intentionally NOT stored here.
+      |--------------------------------------------------------------------------
+      */
+
       localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify(settings),
@@ -155,6 +698,7 @@ function Settings() {
     setSettings(
       (currentSettings) => ({
         ...currentSettings,
+
         [key]: value,
       }),
     );
@@ -173,8 +717,10 @@ function Settings() {
     setSettings(
       (currentSettings) => ({
         ...currentSettings,
+
         notifications: {
           ...currentSettings.notifications,
+
           [key]: value,
         },
       }),
@@ -183,14 +729,18 @@ function Settings() {
 
   /*
   |--------------------------------------------------------------------------
-  | RESET SETTINGS
+  | RESET PREFERENCES
   |--------------------------------------------------------------------------
   */
 
   const handleReset = () => {
-    setSettings(
-      DEFAULT_SETTINGS,
-    );
+    setSettings({
+      ...DEFAULT_SETTINGS,
+
+      notifications: {
+        ...DEFAULT_SETTINGS.notifications,
+      },
+    });
 
     localStorage.removeItem(
       STORAGE_KEY,
@@ -205,13 +755,17 @@ function Settings() {
 
   /*
   |--------------------------------------------------------------------------
-  | SECTION CONTENT
+  | ACCOUNT SECTION
   |--------------------------------------------------------------------------
   */
 
   const renderAccountSection =
     () => (
       <div className="space-y-6">
+
+        {/* ================================================================
+            ACCOUNT HEADER
+        ================================================================ */}
 
         <div>
           <h2 className="text-lg font-bold text-slate-900">
@@ -223,28 +777,50 @@ function Settings() {
           </p>
         </div>
 
-        {/* Profile */}
+        {/* ================================================================
+            PROFILE
+        ================================================================ */}
 
         <div className="rounded-xl border border-slate-200 bg-white p-6">
+
           <div className="flex items-center gap-4 border-b border-slate-100 pb-5">
+
+            {/* Avatar */}
+
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-violet-600 text-lg font-bold text-white">
-              AK
+              {accountLoading
+                ? "..."
+                : getInitials(
+                    accountProfile.displayName,
+                  )}
             </div>
+
+            {/* Name + Designation */}
 
             <div>
               <h3 className="font-semibold text-slate-900">
-                {settings.displayName}
+                {accountLoading
+                  ? "Loading..."
+                  : accountProfile.displayName}
               </h3>
 
               <p className="mt-1 text-sm text-slate-500">
-                {settings.role}
+                {accountLoading
+                  ? "Loading account..."
+                  : accountProfile.designation}
               </p>
             </div>
           </div>
 
+          {/* ============================================================
+              ACCOUNT FIELDS
+          ============================================================ */}
+
           <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
 
-            {/* Name */}
+            {/* ==========================================================
+                DISPLAY NAME
+            ========================================================== */}
 
             <div>
               <label className="mb-2 block text-sm font-semibold text-slate-700">
@@ -252,6 +828,7 @@ function Settings() {
               </label>
 
               <div className="relative">
+
                 <User
                   size={17}
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
@@ -260,20 +837,20 @@ function Settings() {
                 <input
                   type="text"
                   value={
-                    settings.displayName
+                    accountLoading
+                      ? "Loading..."
+                      : accountProfile.displayName
                   }
-                  onChange={(event) =>
-                    updateSetting(
-                      "displayName",
-                      event.target.value,
-                    )
-                  }
-                  className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  readOnly
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm text-slate-700 outline-none"
                 />
+
               </div>
             </div>
 
-            {/* Email */}
+            {/* ==========================================================
+                WORK EMAIL
+            ========================================================== */}
 
             <div>
               <label className="mb-2 block text-sm font-semibold text-slate-700">
@@ -281,6 +858,7 @@ function Settings() {
               </label>
 
               <div className="relative">
+
                 <Mail
                   size={17}
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
@@ -289,35 +867,83 @@ function Settings() {
                 <input
                   type="email"
                   value={
-                    settings.email
+                    accountLoading
+                      ? "Loading..."
+                      : accountProfile.email
                   }
-                  onChange={(event) =>
-                    updateSetting(
-                      "email",
-                      event.target.value,
-                    )
-                  }
-                  className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  readOnly
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm text-slate-700 outline-none"
                 />
+
               </div>
             </div>
 
-            {/* Role */}
+            {/* ==========================================================
+                DESIGNATION
+            ========================================================== */}
 
             <div>
               <label className="mb-2 block text-sm font-semibold text-slate-700">
-                Role
+                Designation
               </label>
 
               <input
                 type="text"
-                value={settings.role}
+                value={
+                  accountLoading
+                    ? "Loading..."
+                    : accountProfile.designation
+                }
                 readOnly
                 className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-500 outline-none"
               />
             </div>
 
-            {/* Account status */}
+            {/* ==========================================================
+                SYSTEM ROLE
+            ========================================================== */}
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                System Role
+              </label>
+
+              <input
+                type="text"
+                value={
+                  accountLoading
+                    ? "Loading..."
+                    : accountProfile.role
+                }
+                readOnly
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-500 outline-none"
+              />
+            </div>
+
+            {/* ==========================================================
+                USERNAME
+            ========================================================== */}
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Username
+              </label>
+
+              <input
+                type="text"
+                value={
+                  accountLoading
+                    ? "Loading..."
+                    : accountProfile.username
+                }
+                readOnly
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-500 outline-none"
+              />
+            </div>
+
+            {/* ==========================================================
+                ACCOUNT STATUS
+            ========================================================== */}
 
             <div>
               <label className="mb-2 block text-sm font-semibold text-slate-700">
@@ -325,38 +951,58 @@ function Settings() {
               </label>
 
               <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+
                 <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
 
                 <span className="text-sm font-medium text-emerald-700">
-                  Active
+                  {accountLoading
+                    ? "Loading..."
+                    : accountProfile.status}
                 </span>
+
               </div>
             </div>
           </div>
         </div>
 
-        {/* Account information */}
+        {/* ================================================================
+            ACCOUNT INFORMATION
+        ================================================================ */}
 
         <div className="rounded-xl border border-slate-200 bg-white p-6">
+
           <div className="flex items-start gap-4">
+
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
               <ShieldCheck size={20} />
             </div>
 
             <div>
+
               <h3 className="font-semibold text-slate-900">
                 Account Information
               </h3>
 
               <p className="mt-1 text-sm leading-6 text-slate-500">
-                Your account is currently active
-                and has HR Manager access.
+                {accountLoading
+                  ? "Loading your account information..."
+                  : `Your account is currently ${accountProfile.status.toLowerCase()} and your designation is ${accountProfile.designation}.`}
               </p>
+
             </div>
+
           </div>
+
         </div>
+
       </div>
     );
+
+  /*
+  |--------------------------------------------------------------------------
+  | PREFERENCES SECTION
+  |--------------------------------------------------------------------------
+  */
 
   const renderPreferencesSection =
     () => (
@@ -372,17 +1018,26 @@ function Settings() {
           </p>
         </div>
 
+        {/* ================================================================
+            PREFERENCE FORM
+        ================================================================ */}
+
         <div className="rounded-xl border border-slate-200 bg-white p-6">
+
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
 
-            {/* Language */}
+            {/* ==========================================================
+                LANGUAGE
+            ========================================================== */}
 
             <div>
+
               <label className="mb-2 block text-sm font-semibold text-slate-700">
                 Language
               </label>
 
               <div className="relative">
+
                 <Globe
                   size={17}
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
@@ -400,29 +1055,35 @@ function Settings() {
                   }
                   className="w-full appearance-none rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 >
-                  <option>
+                  <option value="English">
                     English
                   </option>
 
-                  <option>
+                  <option value="Tamil">
                     Tamil
                   </option>
 
-                  <option>
+                  <option value="Hindi">
                     Hindi
                   </option>
                 </select>
+
               </div>
+
             </div>
 
-            {/* Timezone */}
+            {/* ==========================================================
+                TIMEZONE
+            ========================================================== */}
 
             <div>
+
               <label className="mb-2 block text-sm font-semibold text-slate-700">
                 Time Zone
               </label>
 
               <div className="relative">
+
                 <Clock3
                   size={17}
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
@@ -460,12 +1121,17 @@ function Settings() {
                     Pacific Time
                   </option>
                 </select>
+
               </div>
+
             </div>
 
-            {/* Date format */}
+            {/* ==========================================================
+                DATE FORMAT
+            ========================================================== */}
 
             <div>
+
               <label className="mb-2 block text-sm font-semibold text-slate-700">
                 Date Format
               </label>
@@ -482,30 +1148,40 @@ function Settings() {
                 }
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               >
-                <option>
+                <option value="DD/MM/YYYY">
                   DD/MM/YYYY
                 </option>
 
-                <option>
+                <option value="MM/DD/YYYY">
                   MM/DD/YYYY
                 </option>
 
-                <option>
+                <option value="YYYY-MM-DD">
                   YYYY-MM-DD
                 </option>
               </select>
+
             </div>
+
           </div>
+
         </div>
 
+        {/* ================================================================
+            INFORMATION
+        ================================================================ */}
+
         <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-5">
+
           <div className="flex gap-3">
+
             <SettingsIcon
               size={19}
               className="mt-0.5 shrink-0 text-blue-600"
             />
 
             <div>
+
               <p className="text-sm font-semibold text-blue-900">
                 Preference settings
               </p>
@@ -515,11 +1191,21 @@ function Settings() {
                 in this browser and will remain after
                 refreshing the application.
               </p>
+
             </div>
+
           </div>
+
         </div>
+
       </div>
     );
+
+  /*
+  |--------------------------------------------------------------------------
+  | NOTIFICATIONS SECTION
+  |--------------------------------------------------------------------------
+  */
 
   const renderNotificationsSection =
     () => (
@@ -538,6 +1224,8 @@ function Settings() {
 
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
 
+          {/* Email Notifications */}
+
           <NotificationSetting
             icon={Bell}
             title="Email Notifications"
@@ -553,6 +1241,8 @@ function Settings() {
               )
             }
           />
+
+          {/* HR Announcements */}
 
           <NotificationSetting
             icon={Bell}
@@ -570,6 +1260,8 @@ function Settings() {
             }
           />
 
+          {/* Payroll Notifications */}
+
           <NotificationSetting
             icon={Bell}
             title="Payroll Notifications"
@@ -585,6 +1277,8 @@ function Settings() {
               )
             }
           />
+
+          {/* Training Notifications */}
 
           <NotificationSetting
             icon={Bell}
@@ -602,9 +1296,17 @@ function Settings() {
             }
             last
           />
+
         </div>
+
       </div>
     );
+
+  /*
+  |--------------------------------------------------------------------------
+  | SECURITY SECTION
+  |--------------------------------------------------------------------------
+  */
 
   const renderSecuritySection =
     () => (
@@ -620,14 +1322,20 @@ function Settings() {
           </p>
         </div>
 
+        {/* ================================================================
+            PASSWORD
+        ================================================================ */}
+
         <div className="rounded-xl border border-slate-200 bg-white p-6">
 
           <div className="flex items-start gap-4">
+
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-600">
               <LockKeyhole size={20} />
             </div>
 
             <div className="flex-1">
+
               <h3 className="font-semibold text-slate-900">
                 Password
               </h3>
@@ -644,9 +1352,16 @@ function Settings() {
               >
                 Change Password
               </button>
+
             </div>
+
           </div>
+
         </div>
+
+        {/* ================================================================
+            SECURITY STATUS
+        ================================================================ */}
 
         <div className="rounded-xl border border-slate-200 bg-white p-6">
 
@@ -658,48 +1373,78 @@ function Settings() {
 
             <SecurityRow
               title="Account Status"
-              value="Active"
-              positive
+              value={
+                accountLoading
+                  ? "Loading..."
+                  : accountProfile.status
+              }
+              positive={
+                accountProfile.status ===
+                "Active"
+              }
             />
 
             <SecurityRow
               title="Role"
-              value={settings.role}
+              value={
+                accountLoading
+                  ? "Loading..."
+                  : accountProfile.role
+              }
             />
 
             <SecurityRow
               title="Authentication"
               value="Application managed"
             />
+
           </div>
+
         </div>
 
+        {/* ================================================================
+            SECURITY INFORMATION
+        ================================================================ */}
+
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
+
           <div className="flex gap-3">
+
             <ShieldCheck
               size={20}
               className="mt-0.5 shrink-0 text-amber-600"
             />
 
             <div>
+
               <p className="text-sm font-semibold text-amber-900">
                 Security controls
               </p>
 
               <p className="mt-1 text-sm leading-6 text-amber-700">
                 Advanced password and authentication
-                controls will become available when
-                the application authentication flow is
-                enabled.
+                controls are managed by the Aakam HRMS
+                authentication system.
               </p>
+
             </div>
+
           </div>
+
         </div>
+
       </div>
     );
 
+  /*
+  |--------------------------------------------------------------------------
+  | MAIN RENDER
+  |--------------------------------------------------------------------------
+  */
+
   return (
     <DashboardLayout>
+
       <div className="space-y-6">
 
         {/* ================================================================
@@ -707,12 +1452,15 @@ function Settings() {
         ================================================================ */}
 
         <div>
+
           <div className="flex items-center gap-3">
+
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 text-white shadow-md">
               <SettingsIcon size={22} />
             </div>
 
             <div>
+
               <h1 className="text-2xl font-bold text-slate-900">
                 Settings
               </h1>
@@ -720,8 +1468,11 @@ function Settings() {
               <p className="mt-1 text-sm text-slate-500">
                 Manage your account and application preferences.
               </p>
+
             </div>
+
           </div>
+
         </div>
 
         {/* ================================================================
@@ -730,10 +1481,13 @@ function Settings() {
 
         {saved && (
           <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+
             <div className="flex items-center gap-2">
+
               <Check size={17} />
 
               Settings saved successfully.
+
             </div>
 
             <button
@@ -745,6 +1499,7 @@ function Settings() {
             >
               <X size={16} />
             </button>
+
           </div>
         )}
 
@@ -761,12 +1516,16 @@ function Settings() {
           <div className="h-fit overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
 
             <div className="border-b border-slate-200 px-5 py-4">
+
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                 Settings
               </p>
+
             </div>
 
             <div className="p-2">
+
+              {/* Account */}
 
               <SettingsNavItem
                 icon={User}
@@ -782,6 +1541,8 @@ function Settings() {
                 }
               />
 
+              {/* Preferences */}
+
               <SettingsNavItem
                 icon={Globe}
                 label="Preferences"
@@ -795,6 +1556,8 @@ function Settings() {
                   )
                 }
               />
+
+              {/* Notifications */}
 
               <SettingsNavItem
                 icon={Bell}
@@ -810,6 +1573,8 @@ function Settings() {
                 }
               />
 
+              {/* Security */}
+
               <SettingsNavItem
                 icon={LockKeyhole}
                 label="Security"
@@ -823,7 +1588,9 @@ function Settings() {
                   )
                 }
               />
+
             </div>
+
           </div>
 
           {/* ============================================================
@@ -832,17 +1599,25 @@ function Settings() {
 
           <div className="min-w-0">
 
+            {/* Account */}
+
             {activeSection ===
               "account" &&
               renderAccountSection()}
+
+            {/* Preferences */}
 
             {activeSection ===
               "preferences" &&
               renderPreferencesSection()}
 
+            {/* Notifications */}
+
             {activeSection ===
               "notifications" &&
               renderNotificationsSection()}
+
+            {/* Security */}
 
             {activeSection ===
               "security" &&
@@ -875,10 +1650,15 @@ function Settings() {
 
                 Save Changes
               </button>
+
             </div>
+
           </div>
+
         </div>
+
       </div>
+
     </DashboardLayout>
   );
 }
@@ -912,6 +1692,7 @@ function SettingsNavItem({
           : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
       }`}
     >
+
       <Icon
         size={18}
         className={
@@ -931,6 +1712,7 @@ function SettingsNavItem({
           className="text-blue-500"
         />
       )}
+
     </button>
   );
 }
@@ -946,7 +1728,9 @@ interface NotificationSettingProps {
   title: string;
   description: string;
   enabled: boolean;
-  onChange: (value: boolean) => void;
+  onChange: (
+    value: boolean,
+  ) => void;
   last?: boolean;
 }
 
@@ -966,11 +1750,13 @@ function NotificationSetting({
           : "border-b border-slate-100"
       }`}
     >
+
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
         <Icon size={19} />
       </div>
 
       <div className="min-w-0 flex-1">
+
         <p className="text-sm font-semibold text-slate-900">
           {title}
         </p>
@@ -978,6 +1764,7 @@ function NotificationSetting({
         <p className="mt-1 text-sm text-slate-500">
           {description}
         </p>
+
       </div>
 
       <button
@@ -993,6 +1780,7 @@ function NotificationSetting({
             : "bg-slate-300"
         }`}
       >
+
         <span
           className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition ${
             enabled
@@ -1000,7 +1788,9 @@ function NotificationSetting({
               : "left-1"
           }`}
         />
+
       </button>
+
     </div>
   );
 }
@@ -1024,6 +1814,7 @@ function SecurityRow({
 }: SecurityRowProps) {
   return (
     <div className="flex items-center justify-between border-b border-slate-100 pb-4 last:border-0 last:pb-0">
+
       <span className="text-sm text-slate-500">
         {title}
       </span>
@@ -1037,8 +1828,15 @@ function SecurityRow({
       >
         {value}
       </span>
+
     </div>
   );
 }
+
+/*
+|--------------------------------------------------------------------------
+| Export
+|--------------------------------------------------------------------------
+*/
 
 export default Settings;

@@ -20,6 +20,27 @@ function HeadcountChart({
         Number.isFinite(item.total),
     )
 
+  /*
+    =========================================================
+    Y AXIS SCALE
+
+    Always use even-numbered values:
+
+    0
+    2
+    4
+    6
+    8
+    ...
+
+    The minimum chart scale is 0 -> 8 so small employee
+    counts do not make the chart look artificially full.
+
+    If the data grows beyond 8, the scale automatically grows
+    to the next even number.
+  =========================================================
+  */
+
   const maxDataValue =
     safeData.length > 0
       ? Math.max(
@@ -29,18 +50,17 @@ function HeadcountChart({
         )
       : 0
 
-  const maxValue =
-    maxDataValue > 0
-      ? maxDataValue
-      : 10
+  const maxValue = Math.max(
+    8,
+    Math.ceil(maxDataValue / 2) * 2,
+  )
 
-  const ticks = [
-    maxValue,
-    Math.round(maxValue * 0.75),
-    Math.round(maxValue * 0.5),
-    Math.round(maxValue * 0.25),
-    0,
-  ]
+  const ticks = Array.from(
+    {
+      length: maxValue / 2 + 1,
+    },
+    (_, index) => index * 2,
+  ).reverse()
 
   return (
     <article className="dashboard-card min-w-0 max-w-full overflow-hidden p-5 sm:p-6">
@@ -91,11 +111,13 @@ function HeadcountChart({
 
           {ticks.map(
             (tick, index) => (
+
               <span
                 key={`tick-${index}`}
               >
                 {tick}
               </span>
+
             ),
           )}
 
@@ -117,16 +139,20 @@ function HeadcountChart({
             }}
           >
 
-            {/* GRID */}
+            {/* =================================================
+                GRID
+            ================================================= */}
 
             <div className="pointer-events-none absolute inset-0 grid grid-rows-4">
 
               {[0, 1, 2, 3].map(
                 (line) => (
+
                   <div
                     key={line}
                     className="border-b border-dashed border-slate-200"
                   />
+
                 ),
               )}
 
@@ -149,21 +175,36 @@ function HeadcountChart({
                 {safeData.map(
                   (item) => {
 
+                    /*
+                      Calculate the bar height based on the
+                      even-numbered maximum Y-axis value.
+
+                      Example:
+
+                      maxValue = 8
+                      employee count = 2
+
+                      2 / 8 * 100 = 25%
+                    */
+
                     const height =
                       `${Math.max(
                         (item.total /
                           maxValue) *
                           100,
-                        12,
+                        2,
                       )}%`
 
                     return (
+
                       <div
                         key={item.month}
                         className="flex h-full min-w-[65px] flex-1 flex-col justify-end gap-3"
                       >
 
-                        {/* BAR */}
+                        {/* =================================================
+                            BAR
+                        ================================================= */}
 
                         <div className="group relative flex h-full items-end justify-center">
 
@@ -174,7 +215,9 @@ function HeadcountChart({
                             }}
                           >
 
-                            {/* TOOLTIP */}
+                            {/* =================================================
+                                TOOLTIP
+                            ================================================= */}
 
                             <div className="pointer-events-none absolute left-1/2 top-3 z-50 -translate-x-1/2 rounded-xl bg-slate-950/95 px-3 py-2 text-center opacity-0 shadow-xl transition-all duration-200 group-hover:opacity-100">
 
@@ -192,13 +235,16 @@ function HeadcountChart({
 
                         </div>
 
-                        {/* MONTH */}
+                        {/* =================================================
+                            MONTH
+                        ================================================= */}
 
                         <span className="text-center text-xs font-medium text-slate-500">
                           {item.month}
                         </span>
 
                       </div>
+
                     )
                   },
                 )}
@@ -218,9 +264,11 @@ function HeadcountChart({
       ===================================================== */}
 
       {safeData.length > 8 && (
+
         <p className="mt-2 text-center text-xs text-slate-400">
           ← Swipe or scroll horizontally to view more months →
         </p>
+
       )}
 
     </article>

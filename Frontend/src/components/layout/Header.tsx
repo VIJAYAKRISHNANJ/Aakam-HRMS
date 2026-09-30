@@ -28,6 +28,14 @@ import {
 } from "../../context/AuthContext";
 
 import {
+  getEmployeeById,
+} from "../../services/workforceService";
+
+import type {
+  Employee,
+} from "../../services/workforceService";
+
+import {
   getNotifications,
   getUnreadNotificationCount,
   markAllNotificationsAsRead,
@@ -42,40 +50,75 @@ interface HeaderProps {
   onOpenSidebar: () => void;
 }
 
+/* ==========================================================================
+   AUTH USER SHAPE
+
+   Only authentication/account information is taken from AuthContext.
+
+   Workforce information such as:
+   - firstName
+   - lastName
+   - designation
+   - systemRole
+
+   comes from the Workforce employee record.
+========================================================================== */
+
+interface HeaderUserShape {
+  employeeId?: number | string | null;
+  employee_id?: number | string | null;
+
+  username?: string | null;
+
+  firstName?: string | null;
+  lastName?: string | null;
+  fullName?: string | null;
+
+  email?: string | null;
+}
+
+/* ==========================================================================
+   HEADER
+========================================================================== */
+
 function Header({
   onOpenSidebar,
 }: HeaderProps) {
-  const location =
-    useLocation();
-
-  const navigate =
-    useNavigate();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const {
     user,
     logout,
   } = useAuth();
 
+  /* ==========================================================================
+     AUTH USER
+  ========================================================================== */
+
+  const authUser =
+    user as unknown as HeaderUserShape | null;
+
+  /* ==========================================================================
+     REFS
+  ========================================================================== */
+
   const notificationRef =
-    useRef<HTMLDivElement | null>(
-      null,
-    );
+    useRef<HTMLDivElement | null>(null);
 
   const profileRef =
-    useRef<HTMLDivElement | null>(
-      null,
-    );
+    useRef<HTMLDivElement | null>(null);
+
+  /* ==========================================================================
+     PAGE
+  ========================================================================== */
 
   const isWorkforce =
-    location.pathname.startsWith(
-      "/workforce",
-    );
+    location.pathname.startsWith("/workforce");
 
-  /*
-  |--------------------------------------------------------------------------
-  | Profile State
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================================
+     PROFILE STATE
+  ========================================================================== */
 
   const [
     profileOpen,
@@ -87,18 +130,39 @@ function Header({
     setLoggingOut,
   ] = useState<boolean>(false);
 
-  /*
-  |--------------------------------------------------------------------------
-  | Notification State
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================================
+     WORKFORCE EMPLOYEE PROFILE
+
+     IMPORTANT:
+     Workforce is the source of truth.
+
+     AuthContext
+          ↓
+     employeeId
+          ↓
+     getEmployeeById()
+          ↓
+     Workforce employee record
+  ========================================================================== */
+
+  const [
+    employeeProfile,
+    setEmployeeProfile,
+  ] = useState<Employee | null>(null);
+
+  const [
+    employeeLoading,
+    setEmployeeLoading,
+  ] = useState<boolean>(true);
+
+  /* ==========================================================================
+     NOTIFICATION STATE
+  ========================================================================== */
 
   const [
     notifications,
     setNotifications,
-  ] = useState<Notification[]>(
-    [],
-  );
+  ] = useState<Notification[]>([]);
 
   const [
     unreadCount,
@@ -108,16 +172,12 @@ function Header({
   const [
     notificationOpen,
     setNotificationOpen,
-  ] = useState<boolean>(
-    false,
-  );
+  ] = useState<boolean>(false);
 
   const [
     notificationLoading,
     setNotificationLoading,
-  ] = useState<boolean>(
-    false,
-  );
+  ] = useState<boolean>(false);
 
   const [
     notificationError,
@@ -127,15 +187,73 @@ function Header({
   const [
     markingAllRead,
     setMarkingAllRead,
-  ] = useState<boolean>(
-    false,
-  );
+  ] = useState<boolean>(false);
 
-  /*
-  |--------------------------------------------------------------------------
-  | Load Unread Count
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================================
+     LOAD WORKFORCE EMPLOYEE PROFILE
+  ========================================================================== */
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadEmployeeProfile =
+      async () => {
+        const employeeId =
+          authUser?.employeeId ??
+          authUser?.employee_id ??
+          null;
+
+        if (!employeeId) {
+          if (!cancelled) {
+            setEmployeeProfile(null);
+            setEmployeeLoading(false);
+          }
+
+          return;
+        }
+
+        try {
+          setEmployeeLoading(true);
+
+          const employee =
+            await getEmployeeById(
+              employeeId,
+            );
+
+          if (!cancelled) {
+            setEmployeeProfile(
+              employee,
+            );
+          }
+        } catch (error) {
+          console.error(
+            "Failed to load Workforce employee profile:",
+            error,
+          );
+
+          if (!cancelled) {
+            setEmployeeProfile(null);
+          }
+        } finally {
+          if (!cancelled) {
+            setEmployeeLoading(false);
+          }
+        }
+      };
+
+    void loadEmployeeProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    authUser?.employeeId,
+    authUser?.employee_id,
+  ]);
+
+  /* ==========================================================================
+     LOAD UNREAD COUNT
+  ========================================================================== */
 
   const loadUnreadCount =
     useCallback(
@@ -155,11 +273,9 @@ function Header({
       [],
     );
 
-  /*
-  |--------------------------------------------------------------------------
-  | Load Notifications
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================================
+     LOAD NOTIFICATIONS
+  ========================================================================== */
 
   const loadNotifications =
     useCallback(
@@ -178,7 +294,9 @@ function Header({
 
           const unread =
             data.filter(
-              (notification) =>
+              (
+                notification,
+              ) =>
                 !notification.isRead,
             ).length;
 
@@ -203,27 +321,25 @@ function Header({
       [],
     );
 
-  /*
-  |--------------------------------------------------------------------------
-  | Initial Unread Count
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================================
+     INITIAL UNREAD COUNT
+  ========================================================================== */
 
   useEffect(() => {
-    loadUnreadCount();
-  }, [loadUnreadCount]);
+    void loadUnreadCount();
+  }, [
+    loadUnreadCount,
+  ]);
 
-  /*
-  |--------------------------------------------------------------------------
-  | Refresh Unread Count
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================================
+     REFRESH UNREAD COUNT
+  ========================================================================== */
 
   useEffect(() => {
     const interval =
       window.setInterval(
         () => {
-          loadUnreadCount();
+          void loadUnreadCount();
         },
         15000,
       );
@@ -233,28 +349,26 @@ function Header({
         interval,
       );
     };
-  }, [loadUnreadCount]);
+  }, [
+    loadUnreadCount,
+  ]);
 
-  /*
-  |--------------------------------------------------------------------------
-  | Load Notifications When Dropdown Opens
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================================
+     LOAD NOTIFICATIONS WHEN OPEN
+  ========================================================================== */
 
   useEffect(() => {
     if (notificationOpen) {
-      loadNotifications();
+      void loadNotifications();
     }
   }, [
     notificationOpen,
     loadNotifications,
   ]);
 
-  /*
-  |--------------------------------------------------------------------------
-  | Close Notification/Profile Dropdowns
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================================
+     CLOSE DROPDOWNS WHEN CLICKING OUTSIDE
+  ========================================================================== */
 
   useEffect(() => {
     const handleClickOutside =
@@ -298,11 +412,121 @@ function Header({
     };
   }, []);
 
+  /* ==========================================================================
+     PROFILE DISPLAY DATA
+
+     Workforce is the source of truth.
+  ========================================================================== */
+
+  const employeeFirstName =
+    employeeProfile?.firstName?.trim() ||
+    "";
+
+  const employeeLastName =
+    employeeProfile?.lastName?.trim() ||
+    "";
+
+  const employeeFullName =
+    `${employeeFirstName} ${employeeLastName}`
+      .trim() ||
+    "User";
+
   /*
-  |--------------------------------------------------------------------------
-  | Toggle Notification Dropdown
-  |--------------------------------------------------------------------------
-  */
+   * IMPORTANT:
+   * Do NOT transform this value.
+   *
+   * Workforce contains:
+   *
+   * SUPER_ADMINISTRATOR
+   *
+   * Therefore the header displays:
+   *
+   * SUPER_ADMINISTRATOR
+   *
+   * exactly.
+   */
+
+  const systemRole =
+    employeeProfile?.systemRole?.trim() ||
+    "-";
+
+  /*
+   * Designation also comes directly from Workforce.
+   */
+
+  const designation =
+    employeeProfile?.designation?.trim() ||
+    "-";
+
+  /*
+   * Username belongs to the authentication account,
+   * not the employee record.
+   */
+
+  const username =
+    authUser?.username?.trim() ||
+    "-";
+
+  /* ==========================================================================
+     INITIALS
+  ========================================================================== */
+
+  const getInitials = (
+    firstName?: string | null,
+    lastName?: string | null,
+    fullName?: string | null,
+  ) => {
+    const first =
+      firstName?.trim() || "";
+
+    const last =
+      lastName?.trim() || "";
+
+    if (
+      first &&
+      last
+    ) {
+      return `${first[0]}${last[0]}`
+        .toUpperCase();
+    }
+
+    if (first) {
+      return first
+        .slice(0, 2)
+        .toUpperCase();
+    }
+
+    if (fullName) {
+      const parts =
+        fullName
+          .trim()
+          .split(/\s+/);
+
+      if (
+        parts.length >= 2
+      ) {
+        return `${parts[0][0]}${parts[1][0]}`
+          .toUpperCase();
+      }
+
+      return fullName
+        .slice(0, 2)
+        .toUpperCase();
+    }
+
+    return "U";
+  };
+
+  const userInitials =
+    getInitials(
+      employeeFirstName,
+      employeeLastName,
+      employeeFullName,
+    );
+
+  /* ==========================================================================
+     TOGGLE NOTIFICATIONS
+  ========================================================================== */
 
   const handleNotificationToggle =
     () => {
@@ -313,11 +537,9 @@ function Header({
       setProfileOpen(false);
     };
 
-  /*
-  |--------------------------------------------------------------------------
-  | Toggle Profile Dropdown
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================================
+     TOGGLE PROFILE
+  ========================================================================== */
 
   const handleProfileToggle =
     () => {
@@ -330,11 +552,9 @@ function Header({
       );
     };
 
-  /*
-  |--------------------------------------------------------------------------
-  | Logout
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================================
+     LOGOUT
+  ========================================================================== */
 
   const handleLogout =
     async () => {
@@ -359,13 +579,6 @@ function Header({
           error,
         );
 
-        /*
-        |--------------------------------------------------------------------------
-        | AuthContext logout clears local auth storage
-        | even when the API request fails.
-        |--------------------------------------------------------------------------
-        */
-
         navigate(
           "/login",
           {
@@ -377,11 +590,9 @@ function Header({
       }
     };
 
-  /*
-  |--------------------------------------------------------------------------
-  | Mark Notification As Read
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================================
+     MARK NOTIFICATION AS READ
+  ========================================================================== */
 
   const handleMarkAsRead =
     async (
@@ -423,11 +634,9 @@ function Header({
       }
     };
 
-  /*
-  |--------------------------------------------------------------------------
-  | Mark All Notifications As Read
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================================
+     MARK ALL AS READ
+  ========================================================================== */
 
   const handleMarkAllAsRead =
     async () => {
@@ -472,11 +681,9 @@ function Header({
       }
     };
 
-  /*
-  |--------------------------------------------------------------------------
-  | View All Notifications
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================================
+     VIEW ALL NOTIFICATIONS
+  ========================================================================== */
 
   const handleViewAll =
     () => {
@@ -489,11 +696,9 @@ function Header({
       );
     };
 
-  /*
-  |--------------------------------------------------------------------------
-  | Format Date
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================================
+     FORMAT NOTIFICATION DATE
+  ========================================================================== */
 
   const formatNotificationDate =
     (
@@ -521,84 +726,19 @@ function Header({
       );
     };
 
-  /*
-  |--------------------------------------------------------------------------
-  | User Display Data
-  |--------------------------------------------------------------------------
-  */
-
-  const getInitials =
-    (
-      firstName?: string | null,
-      lastName?: string | null,
-      fullName?: string,
-    ) => {
-      const first =
-        firstName?.trim() || "";
-
-      const last =
-        lastName?.trim() || "";
-
-      if (
-        first &&
-        last
-      ) {
-        return `${first[0]}${last[0]}`.toUpperCase();
-      }
-
-      if (first) {
-        return first
-          .slice(0, 2)
-          .toUpperCase();
-      }
-
-      if (fullName) {
-        const parts =
-          fullName
-            .trim()
-            .split(/\s+/);
-
-        if (
-          parts.length >= 2
-        ) {
-          return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-        }
-
-        return fullName
-          .slice(0, 2)
-          .toUpperCase();
-      }
-
-      return "HR";
-    };
-
-  const userInitials =
-    getInitials(
-      user?.firstName,
-      user?.lastName,
-      user?.fullName,
-    );
-
-  const userName =
-    user?.fullName ||
-    user?.username ||
-    "User";
-
-  const userDesignation =
-    user?.designation ||
-    "Employee";
-
-  /*
-  |--------------------------------------------------------------------------
-  | Latest Notifications
-  |--------------------------------------------------------------------------
-  */
+  /* ==========================================================================
+     LATEST NOTIFICATIONS
+  ========================================================================== */
 
   const latestNotifications =
     notifications.slice(
       0,
       5,
     );
+
+  /* ==========================================================================
+     RENDER
+  ========================================================================== */
 
   return (
     <header
@@ -774,8 +914,7 @@ function Header({
             >
               <Bell className="h-5 w-5" />
 
-              {unreadCount >
-                0 && (
+              {unreadCount > 0 && (
                 <span
                   className="
                     absolute
@@ -797,8 +936,7 @@ function Header({
                     ring-white
                   "
                 >
-                  {unreadCount >
-                  99
+                  {unreadCount > 99
                     ? "99+"
                     : unreadCount}
                 </span>
@@ -822,7 +960,7 @@ function Header({
                   shadow-xl
                 "
               >
-                {/* Dropdown Header */}
+                {/* Notification Header */}
 
                 <div
                   className="
@@ -841,8 +979,7 @@ function Header({
                     </h2>
 
                     <p className="mt-0.5 text-xs text-slate-500">
-                      {unreadCount >
-                      0
+                      {unreadCount > 0
                         ? `${unreadCount} unread`
                         : "You're all caught up"}
                     </p>
@@ -871,8 +1008,7 @@ function Header({
 
                 {/* Mark All */}
 
-                {unreadCount >
-                  0 && (
+                {unreadCount > 0 && (
                   <div className="border-b border-slate-100 px-4 py-2">
                     <button
                       type="button"
@@ -1034,7 +1170,7 @@ function Header({
                                     type="button"
                                     title="Mark as read"
                                     onClick={() =>
-                                      handleMarkAsRead(
+                                      void handleMarkAsRead(
                                         notification.id,
                                       )
                                     }
@@ -1152,12 +1288,16 @@ function Header({
               </div>
 
               <div className="hidden min-w-0 sm:block">
-                <p className="max-w-[160px] truncate text-sm font-semibold text-slate-900">
-                  {userName}
+                <p className="max-w-[180px] truncate text-sm font-semibold text-slate-900">
+                  {employeeLoading
+                    ? "Loading..."
+                    : employeeFullName}
                 </p>
 
-                <p className="max-w-[160px] truncate text-xs text-slate-500">
-                  {userDesignation}
+                <p className="max-w-[180px] truncate text-xs text-slate-500">
+                  {employeeLoading
+                    ? ""
+                    : systemRole}
                 </p>
               </div>
 
@@ -1190,7 +1330,7 @@ function Header({
                   right-0
                   z-50
                   mt-3
-                  w-[280px]
+                  w-[300px]
                   overflow-hidden
                   rounded-2xl
                   border
@@ -1199,7 +1339,14 @@ function Header({
                   shadow-xl
                 "
               >
-                {/* User Information */}
+                {/* =================================================
+                    USER INFORMATION
+
+                    ONLY NAME HERE.
+
+                    No designation.
+                    No system role.
+                ================================================= */}
 
                 <div className="border-b border-slate-200 px-4 py-4">
                   <div className="flex items-center gap-3">
@@ -1225,52 +1372,70 @@ function Header({
 
                     <div className="min-w-0">
                       <p className="truncate text-sm font-bold text-slate-900">
-                        {userName}
+                        {employeeLoading
+                          ? "Loading..."
+                          : employeeFullName}
                       </p>
-
-                      <p className="mt-0.5 truncate text-xs text-slate-500">
-                        {userDesignation}
-                      </p>
-
-                      {user?.department && (
-                        <p className="mt-0.5 truncate text-[11px] text-slate-400">
-                          {
-                            user.department
-                          }
-                        </p>
-                      )}
                     </div>
                   </div>
                 </div>
 
-                {/* Account Details */}
+                {/* =================================================
+                    ACCOUNT DETAILS
+
+                    EXACTLY:
+
+                    Designation        System Administrator
+                    System Role        SUPER_ADMINISTRATOR
+                    Username           admin
+                ================================================= */}
 
                 <div className="border-b border-slate-100 px-4 py-3">
+
+                  {/* Designation */}
+
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-xs text-slate-500">
-                      Username
+                      Designation
                     </span>
 
-                    <span className="max-w-[150px] truncate text-xs font-medium text-slate-700">
-                      {user?.username ||
-                        "-"}
+                    <span className="max-w-[190px] truncate text-xs font-medium text-slate-700">
+                      {employeeLoading
+                        ? "-"
+                        : designation}
                     </span>
                   </div>
+
+                  {/* System Role */}
 
                   <div className="mt-2 flex items-center justify-between gap-3">
                     <span className="text-xs text-slate-500">
                       System Role
                     </span>
 
-                    <span className="max-w-[150px] truncate text-xs font-medium text-slate-700">
-                      {user
-                        ? "Assigned"
-                        : "-"}
+                    <span className="max-w-[190px] truncate text-xs font-medium text-slate-700">
+                      {employeeLoading
+                        ? "-"
+                        : systemRole}
+                    </span>
+                  </div>
+
+                  {/* Username */}
+
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <span className="text-xs text-slate-500">
+                      Username
+                    </span>
+
+                    <span className="max-w-[190px] truncate text-xs font-medium text-slate-700">
+                      {username}
                     </span>
                   </div>
                 </div>
 
-                {/* Profile/Settings */}
+                {/* =================================================
+                    ACCOUNT SETTINGS / SIGN OUT
+                ================================================= */}
 
                 <div className="p-2">
                   <button

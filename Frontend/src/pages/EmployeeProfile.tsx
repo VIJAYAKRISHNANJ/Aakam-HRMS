@@ -8,15 +8,9 @@ import {
   Users,
 } from "lucide-react";
 
-import {
-  useEffect,
-  useState,
-} from "react";
+import { useEffect, useState } from "react";
 
-import {
-  Link,
-  useParams,
-} from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 
 import DashboardLayout from "../components/layout/DashboardLayout";
 import { useAuth } from "../context/AuthContext";
@@ -32,53 +26,35 @@ import {
 |--------------------------------------------------------------------------
 */
 
-const formatDate = (
-  value: string,
-): string => {
+const formatDate = (value: string): string => {
   if (!value) {
     return "-";
   }
 
-  const datePart =
-    value.slice(0, 10);
+  const datePart = value.slice(0, 10);
 
-  const parts =
-    datePart.split("-");
+  const parts = datePart.split("-");
 
   if (parts.length === 3) {
-    const year =
-      Number(parts[0]);
+    const year = Number(parts[0]);
 
-    const month =
-      Number(parts[1]);
+    const month = Number(parts[1]);
 
-    const day =
-      Number(parts[2]);
+    const day = Number(parts[2]);
 
     if (
       !Number.isNaN(year) &&
       !Number.isNaN(month) &&
       !Number.isNaN(day)
     ) {
-      const date = new Date(
-        year,
-        month - 1,
-        day,
-      );
+      const date = new Date(year, month - 1, day);
 
-      if (
-        !Number.isNaN(
-          date.getTime(),
-        )
-      ) {
-        return date.toLocaleDateString(
-          "en-IN",
-          {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          },
-        );
+      if (!Number.isNaN(date.getTime())) {
+        return date.toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        });
       }
     }
   }
@@ -92,9 +68,7 @@ const formatDate = (
 |--------------------------------------------------------------------------
 */
 
-const formatValue = (
-  value: string,
-): string => {
+const formatValue = (value: string): string => {
   if (!value) {
     return "-";
   }
@@ -102,11 +76,7 @@ const formatValue = (
   return value
     .toLowerCase()
     .replaceAll("_", " ")
-    .replace(
-      /\b\w/g,
-      (letter) =>
-        letter.toUpperCase(),
-    );
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 };
 
 /*
@@ -115,18 +85,12 @@ const formatValue = (
 |--------------------------------------------------------------------------
 */
 
-const getInitials = (
-  employee: Employee,
-): string => {
+const getInitials = (employee: Employee): string => {
   const first =
-    employee.firstName
-      ?.charAt(0)
-      ?.toUpperCase() ?? "";
+    employee.firstName?.charAt(0)?.toUpperCase() ?? "";
 
   const last =
-    employee.lastName
-      ?.charAt(0)
-      ?.toUpperCase() ?? "";
+    employee.lastName?.charAt(0)?.toUpperCase() ?? "";
 
   return `${first}${last}`;
 };
@@ -152,13 +116,11 @@ function InfoItem({
 }: InfoItemProps) {
   return (
     <div className="min-w-0">
-
       <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
         {label}
       </p>
 
       <div className="flex min-w-0 items-center gap-2">
-
         {icon && (
           <span className="shrink-0 text-slate-400">
             {icon}
@@ -167,16 +129,12 @@ function InfoItem({
 
         <p
           className={`truncate text-sm font-semibold text-slate-800 ${
-            mono
-              ? "font-mono"
-              : ""
+            mono ? "font-mono" : ""
           }`}
         >
           {value}
         </p>
-
       </div>
-
     </div>
   );
 }
@@ -214,15 +172,12 @@ function SectionCard({
         ${className}
       `}
     >
-
       <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
-
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600 ring-1 ring-slate-100">
           {icon}
         </div>
 
         <div className="min-w-0">
-
           <h2 className="text-sm font-bold text-slate-900">
             {title}
           </h2>
@@ -230,15 +185,12 @@ function SectionCard({
           <p className="mt-0.5 text-xs text-slate-500">
             {description}
           </p>
-
         </div>
-
       </div>
 
       <div className="p-5">
         {children}
       </div>
-
     </section>
   );
 }
@@ -250,28 +202,34 @@ function SectionCard({
 */
 
 function EmployeeProfile() {
-  const { id } =
-    useParams<{ id: string }>();
+  const { id } = useParams<{ id: string }>();
 
-  const { user, hasPermission } =
-    useAuth();
+  const { user, hasPermission } = useAuth();
+
+  /*
+  |--------------------------------------------------------------------------
+  | Permissions
+  |--------------------------------------------------------------------------
+  |
+  | Workforce permissions control employee-directory
+  | and employee-profile access.
+  |
+  */
 
   const canViewEmployees =
-    hasPermission("employees.view");
+    hasPermission("workforce.view");
 
   const canViewOwnEmployee =
-    hasPermission("employees.view.own") &&
+    hasPermission("workforce.view") &&
     !!user?.employeeId &&
     !!id &&
-    String(user.employeeId) ===
-      String(id);
+    String(user.employeeId) === String(id);
 
   const canViewProfile =
-    canViewEmployees ||
-    canViewOwnEmployee;
+    canViewEmployees || canViewOwnEmployee;
 
   const canUpdateEmployees =
-    hasPermission("employees.update");
+    hasPermission("workforce.update");
 
   const [employee, setEmployee] =
     useState<Employee | null>(null);
@@ -289,67 +247,64 @@ function EmployeeProfile() {
   */
 
   useEffect(() => {
-    const loadEmployee =
-      async () => {
-        if (!canViewProfile) {
-          setEmployee(null);
-          setLoading(false);
-          setError("");
-          return;
-        }
+    const loadEmployee = async () => {
+      if (!canViewProfile) {
+        setEmployee(null);
+        setLoading(false);
+        setError("");
+        return;
+      }
 
-        if (!id) {
-          setError(
-            "Employee ID is missing.",
-          );
+      if (!id) {
+        setError("Employee ID is missing.");
+        setLoading(false);
+        return;
+      }
 
-          setLoading(false);
+      try {
+        setLoading(true);
+        setError("");
 
-          return;
-        }
+        const data = await getEmployeeById(id);
 
-        try {
-          setLoading(true);
-          setError("");
+        /*
+         * Frontend self-service guard:
+         * even when the user has workforce.view,
+         * only their own employee record is accepted
+         * when they are not viewing through general
+         * workforce access.
+         *
+         * The backend remains authoritative.
+         */
 
-          const data =
-            await getEmployeeById(id);
-
-          /*
-           * Frontend self-service guard:
-           * even when the user has employees.view.own,
-           * only their own employee record is accepted.
-           * The backend remains authoritative.
-           */
-          if (
-            !canViewEmployees &&
-            canViewOwnEmployee &&
-            String(data.id) !==
-              String(user?.employeeId)
-          ) {
-            setEmployee(null);
-            setError(
-              "You are not authorized to view this employee profile.",
-            );
-            return;
-          }
-
-          setEmployee(data);
-        } catch (
-          requestError
+        if (
+          !canViewEmployees &&
+          canViewOwnEmployee &&
+          String(data.id) !== String(user?.employeeId)
         ) {
-          console.error(
-            "Failed to load employee profile:",
-            requestError,
-          );
+          setEmployee(null);
 
           setError(
-            "Unable to load employee profile.",
+            "You are not authorized to view this employee profile.",
           );
-        } finally {
-          setLoading(false);
+
+          return;
         }
-      };
+
+        setEmployee(data);
+      } catch (requestError) {
+        console.error(
+          "Failed to load employee profile:",
+          requestError,
+        );
+
+        setError(
+          "Unable to load employee profile.",
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
 
     loadEmployee();
   }, [
@@ -369,11 +324,8 @@ function EmployeeProfile() {
   if (!canViewProfile) {
     return (
       <DashboardLayout>
-
         <div className="flex min-h-[520px] items-center justify-center px-6">
-
           <div className="max-w-md text-center">
-
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
               <User size={21} />
             </div>
@@ -407,11 +359,8 @@ function EmployeeProfile() {
               <ArrowLeft size={16} />
               Back to Workforce
             </Link>
-
           </div>
-
         </div>
-
       </DashboardLayout>
     );
   }
@@ -425,21 +374,15 @@ function EmployeeProfile() {
   if (loading) {
     return (
       <DashboardLayout>
-
         <div className="flex min-h-[520px] items-center justify-center">
-
           <div className="text-center">
-
             <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-teal-600" />
 
             <p className="text-sm font-medium text-slate-500">
               Loading employee profile...
             </p>
-
           </div>
-
         </div>
-
       </DashboardLayout>
     );
   }
@@ -450,17 +393,11 @@ function EmployeeProfile() {
   |--------------------------------------------------------------------------
   */
 
-  if (
-    error ||
-    !employee
-  ) {
+  if (error || !employee) {
     return (
       <DashboardLayout>
-
         <div className="flex min-h-[520px] items-center justify-center px-6">
-
           <div className="max-w-md text-center">
-
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-600">
               <User size={21} />
             </div>
@@ -495,11 +432,8 @@ function EmployeeProfile() {
               <ArrowLeft size={16} />
               Back to Workforce
             </Link>
-
           </div>
-
         </div>
-
       </DashboardLayout>
     );
   }
@@ -512,11 +446,9 @@ function EmployeeProfile() {
 
   return (
     <DashboardLayout>
-
       <div className="w-full min-w-0 space-y-5">
 
         <div>
-
           <Link
             to="/workforce"
             className="
@@ -541,20 +473,16 @@ function EmployeeProfile() {
               hover:shadow-md
             "
           >
-
             <ArrowLeft
               size={18}
               strokeWidth={2.2}
             />
 
             Back to Employee Directory
-
           </Link>
-
         </div>
 
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
-
           <div className="h-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-teal-500" />
 
           <div className="flex flex-col gap-5 px-5 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
@@ -562,9 +490,7 @@ function EmployeeProfile() {
             <div className="flex min-w-0 items-center gap-4">
 
               <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-teal-600 text-xl font-bold text-white shadow-sm">
-                {getInitials(
-                  employee,
-                )}
+                {getInitials(employee)}
               </div>
 
               <div className="min-w-0">
@@ -579,9 +505,7 @@ function EmployeeProfile() {
 
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
 
-                    {formatValue(
-                      employee.status,
-                    )}
+                    {formatValue(employee.status)}
 
                   </span>
 
@@ -615,15 +539,12 @@ function EmployeeProfile() {
                   </span>
 
                   <span>
-                    {formatValue(
-                      employee.employmentType,
-                    )}
+                    {formatValue(employee.employmentType)}
                   </span>
 
                 </div>
 
               </div>
-
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
@@ -649,13 +570,11 @@ function EmployeeProfile() {
                   hover:text-slate-900
                 "
               >
-
                 <ArrowLeft size={16} />
 
                 <span className="hidden sm:inline">
                   Back
                 </span>
-
               </Link>
 
               {canUpdateEmployees && (
@@ -677,18 +596,15 @@ function EmployeeProfile() {
                     hover:bg-teal-800
                   "
                 >
-
                   <Pencil size={15} />
 
                   Edit Employee
-
                 </Link>
               )}
 
             </div>
 
           </div>
-
         </section>
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
@@ -698,56 +614,38 @@ function EmployeeProfile() {
             title="Personal Information"
             description="Basic employee identity and contact details"
           >
-
             <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
 
               <InfoItem
                 label="First Name"
-                value={
-                  employee.firstName
-                }
+                value={employee.firstName}
               />
 
               <InfoItem
                 label="Last Name"
-                value={
-                  employee.lastName ||
-                  "-"
-                }
+                value={employee.lastName || "-"}
               />
 
               <InfoItem
                 label="Work Email"
-                value={
-                  employee.email
-                }
-                icon={
-                  <Mail size={15} />
-                }
+                value={employee.email}
+                icon={<Mail size={15} />}
               />
 
               <InfoItem
                 label="Employee Code"
-                value={
-                  employee.employeeCode
-                }
+                value={employee.employeeCode}
                 mono
               />
 
             </div>
-
           </SectionCard>
 
           <SectionCard
-            icon={
-              <BriefcaseBusiness
-                size={18}
-              />
-            }
+            icon={<BriefcaseBusiness size={18} />}
             title="Employment"
             description="Current employment information"
           >
-
             <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
 
               <InfoItem
@@ -760,9 +658,7 @@ function EmployeeProfile() {
 
               <InfoItem
                 label="Department"
-                value={
-                  employee.department
-                }
+                value={employee.department}
               />
 
               <InfoItem
@@ -777,11 +673,7 @@ function EmployeeProfile() {
                 value={formatDate(
                   employee.joiningDate,
                 )}
-                icon={
-                  <CalendarDays
-                    size={15}
-                  />
-                }
+                icon={<CalendarDays size={15} />}
               />
 
               <InfoItem
@@ -792,7 +684,6 @@ function EmployeeProfile() {
               />
 
             </div>
-
           </SectionCard>
 
           <SectionCard
@@ -800,21 +691,17 @@ function EmployeeProfile() {
             title="Organization"
             description="Employee organization and system access details"
           >
-
             <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
 
               <InfoItem
                 label="Department"
-                value={
-                  employee.department
-                }
+                value={employee.department}
               />
 
               <InfoItem
                 label="Department ID"
                 value={
-                  employee.departmentId
-                    ?.toString() ||
+                  employee.departmentId?.toString() ||
                   "-"
                 }
                 mono
@@ -829,19 +716,13 @@ function EmployeeProfile() {
               />
 
             </div>
-
           </SectionCard>
 
           <SectionCard
-            icon={
-              <CalendarDays
-                size={18}
-              />
-            }
+            icon={<CalendarDays size={18} />}
             title="Record Information"
             description="System record details"
           >
-
             <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
 
               <InfoItem
@@ -853,14 +734,11 @@ function EmployeeProfile() {
 
               <InfoItem
                 label="Employee ID"
-                value={
-                  employee.id.toString()
-                }
+                value={employee.id.toString()}
                 mono
               />
 
             </div>
-
           </SectionCard>
 
         </div>
@@ -879,7 +757,6 @@ function EmployeeProfile() {
         </div>
 
       </div>
-
     </DashboardLayout>
   );
 }

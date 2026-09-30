@@ -1,21 +1,14 @@
 import api from "./api";
 
-/*
-|--------------------------------------------------------------------------
-| API
-|--------------------------------------------------------------------------
-*/
-
 const API_URL = "/";
 
-/*
-|--------------------------------------------------------------------------
-| Employee
-|--------------------------------------------------------------------------
-*/
+/* --------------------------------------------------------------------------
+ * Employee
+ * -------------------------------------------------------------------------- */
 
 export interface Employee {
   id: number;
+  username?: string;
   employeeCode: string;
   firstName: string;
   lastName: string | null;
@@ -31,11 +24,9 @@ export interface Employee {
   createdAt: string;
 }
 
-/*
-|--------------------------------------------------------------------------
-| Department
-|--------------------------------------------------------------------------
-*/
+/* --------------------------------------------------------------------------
+ * Department
+ * -------------------------------------------------------------------------- */
 
 export interface WorkforceDepartment {
   id: number;
@@ -43,11 +34,9 @@ export interface WorkforceDepartment {
   code: string;
 }
 
-/*
-|--------------------------------------------------------------------------
-| Employee Directory
-|--------------------------------------------------------------------------
-*/
+/* --------------------------------------------------------------------------
+ * Employee Directory
+ * -------------------------------------------------------------------------- */
 
 export interface EmployeeDirectoryData {
   employees: Employee[];
@@ -60,17 +49,20 @@ interface EmployeeDirectoryResponse {
   data: EmployeeDirectoryData;
 }
 
+interface EmployeeProfileResponse {
+  success: boolean;
+  data: Employee;
+}
+
 export interface EmployeeDirectoryFilters {
   search?: string;
   departmentId?: string;
   status?: string;
 }
 
-/*
-|--------------------------------------------------------------------------
-| Get Employees
-|--------------------------------------------------------------------------
-*/
+/* --------------------------------------------------------------------------
+ * Get Employees
+ * -------------------------------------------------------------------------- */
 
 export const getEmployees = async (
   filters: EmployeeDirectoryFilters = {},
@@ -83,9 +75,11 @@ export const getEmployees = async (
           search:
             filters.search ||
             undefined,
+
           departmentId:
             filters.departmentId ||
             undefined,
+
           status:
             filters.status ||
             undefined,
@@ -96,16 +90,9 @@ export const getEmployees = async (
   return response.data.data;
 };
 
-/*
-|--------------------------------------------------------------------------
-| Get Employee Profile
-|--------------------------------------------------------------------------
-*/
-
-interface EmployeeProfileResponse {
-  success: boolean;
-  data: Employee;
-}
+/* --------------------------------------------------------------------------
+ * Get Employee By ID
+ * -------------------------------------------------------------------------- */
 
 export const getEmployeeById = async (
   employeeId: number | string,
@@ -118,11 +105,30 @@ export const getEmployeeById = async (
   return response.data.data;
 };
 
-/*
-|--------------------------------------------------------------------------
-| Create Employee
-|--------------------------------------------------------------------------
-*/
+/* --------------------------------------------------------------------------
+ * Get Employee By Username
+ *
+ * Used by Header/Settings to find the Workforce employee record
+ * belonging to the currently logged-in username.
+ * -------------------------------------------------------------------------- */
+
+export const getEmployeeByUsername =
+  async (
+    username: string,
+  ): Promise<Employee> => {
+    const response =
+      await api.get<EmployeeProfileResponse>(
+        `${API_URL}employees/by-username/${encodeURIComponent(
+          username,
+        )}`,
+      );
+
+    return response.data.data;
+  };
+
+/* --------------------------------------------------------------------------
+ * Create Employee
+ * -------------------------------------------------------------------------- */
 
 export interface CreateEmployeePayload {
   employeeCode: string;
@@ -154,11 +160,9 @@ export const createEmployee = async (
   return response.data.data;
 };
 
-/*
-|--------------------------------------------------------------------------
-| Update Employee
-|--------------------------------------------------------------------------
-*/
+/* --------------------------------------------------------------------------
+ * Update Employee
+ * -------------------------------------------------------------------------- */
 
 export interface UpdateEmployeePayload {
   employeeCode: string;
@@ -191,20 +195,9 @@ export const updateEmployee = async (
   return response.data.data;
 };
 
-/*
-|--------------------------------------------------------------------------
-| Delete Employee
-|--------------------------------------------------------------------------
-|
-| Connects to:
-| DELETE /api/employees/:id
-|
-| Backend remains responsible for:
-| - authorization
-| - foreign-key/dependency checks
-| - deciding whether deletion is allowed
-|--------------------------------------------------------------------------
-*/
+/* --------------------------------------------------------------------------
+ * Delete Employee
+ * -------------------------------------------------------------------------- */
 
 interface DeleteEmployeeResponse {
   success: boolean;

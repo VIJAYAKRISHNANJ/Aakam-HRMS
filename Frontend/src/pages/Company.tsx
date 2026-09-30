@@ -5,6 +5,7 @@ import {
   MapPin,
   Phone,
   Plus,
+  Trash2,
 } from "lucide-react";
 
 import {
@@ -20,7 +21,10 @@ import DashboardLayout from "../components/layout/DashboardLayout";
 
 import OrganizationNav from "../components/organization/OrganizationNav";
 
+import { useAuth } from "../context/AuthContext";
+
 import {
+  deleteCompany,
   getCompanies,
   type Company as CompanyType,
 } from "../services/companyService";
@@ -62,6 +66,11 @@ const formatLabel = (
 };
 
 function Company() {
+  const { hasPermission } = useAuth();
+
+  const canDeleteCompanies =
+    hasPermission("companies.delete");
+
   const [
     companies,
     setCompanies,
@@ -76,6 +85,16 @@ function Company() {
     error,
     setError,
   ] = useState("");
+
+  const [
+    deletingCompany,
+    setDeletingCompany,
+  ] = useState<CompanyType | null>(null);
+
+  const [
+    deleting,
+    setDeleting,
+  ] = useState(false);
 
   useEffect(() => {
     const loadCompanies =
@@ -104,6 +123,70 @@ function Company() {
 
     loadCompanies();
   }, []);
+
+  const handleDeleteCompany =
+    async () => {
+      if (!deletingCompany) {
+        return;
+      }
+
+      try {
+        setDeleting(true);
+        setError("");
+
+        await deleteCompany(
+          deletingCompany.id,
+        );
+
+        setCompanies(
+          (currentCompanies) =>
+            currentCompanies.filter(
+              (company) =>
+                company.id !==
+                deletingCompany.id,
+            ),
+        );
+
+        setDeletingCompany(null);
+      } catch (requestError) {
+        console.error(
+          "Failed to delete company:",
+          requestError,
+        );
+
+        let message =
+          "Unable to delete the company. Please try again.";
+
+        if (
+          requestError &&
+          typeof requestError === "object" &&
+          "response" in requestError
+        ) {
+          const response =
+            (
+              requestError as {
+                response?: {
+                  data?: {
+                    message?: string;
+                  };
+                };
+              }
+            ).response;
+
+          if (
+            response?.data?.message
+          ) {
+            message =
+              response.data.message;
+          }
+        }
+
+        setError(message);
+        setDeletingCompany(null);
+      } finally {
+        setDeleting(false);
+      }
+    };
 
   return (
     <DashboardLayout>
@@ -249,6 +332,14 @@ function Company() {
                   <CompanyCard
                     key={company.id}
                     company={company}
+                    canDelete={
+                      canDeleteCompanies
+                    }
+                    onDelete={() =>
+                      setDeletingCompany(
+                        company,
+                      )
+                    }
                   />
                 ),
               )}
@@ -257,6 +348,142 @@ function Company() {
           )}
 
       </div>
+
+      {/* =================================================
+          DELETE CONFIRMATION MODAL
+      ================================================= */}
+
+      {deletingCompany && (
+        <div
+          className="
+            fixed
+            inset-0
+            z-50
+            flex
+            items-center
+            justify-center
+            bg-slate-950/50
+            px-4
+          "
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-company-title"
+        >
+
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+
+            <div className="p-6">
+
+              <div className="flex items-start gap-4">
+
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-50">
+
+                  <Trash2
+                    size={21}
+                    className="text-red-600"
+                  />
+
+                </div>
+
+                <div className="min-w-0">
+
+                  <h2
+                    id="delete-company-title"
+                    className="text-lg font-semibold text-slate-900"
+                  >
+                    Delete Company
+                  </h2>
+
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    Are you sure you want to
+                    delete{" "}
+                    <span className="font-semibold text-slate-900">
+                      {deletingCompany.displayName ||
+                        deletingCompany.legalName}
+                    </span>
+                    ?
+                  </p>
+
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    This action cannot be undone.
+                    If the company is being used
+                    by other records, the backend
+                    will prevent deletion.
+                  </p>
+
+                </div>
+
+              </div>
+
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 sm:flex-row sm:justify-end">
+
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() =>
+                  setDeletingCompany(null)
+                }
+                className="
+                  inline-flex
+                  items-center
+                  justify-center
+                  rounded-lg
+                  border
+                  border-slate-300
+                  bg-white
+                  px-4
+                  py-2.5
+                  text-sm
+                  font-semibold
+                  text-slate-700
+                  transition
+                  hover:bg-slate-100
+                  disabled:cursor-not-allowed
+                  disabled:opacity-60
+                "
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={handleDeleteCompany}
+                className="
+                  inline-flex
+                  items-center
+                  justify-center
+                  gap-2
+                  rounded-lg
+                  bg-red-600
+                  px-4
+                  py-2.5
+                  text-sm
+                  font-semibold
+                  text-white
+                  transition
+                  hover:bg-red-700
+                  disabled:cursor-not-allowed
+                  disabled:opacity-60
+                "
+              >
+
+                <Trash2 size={16} />
+
+                {deleting
+                  ? "Deleting..."
+                  : "Delete Company"}
+
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
 
     </DashboardLayout>
   );
@@ -270,8 +497,12 @@ function Company() {
 
 function CompanyCard({
   company,
+  canDelete,
+  onDelete,
 }: {
   company: CompanyType;
+  canDelete: boolean;
+  onDelete: () => void;
 }) {
   return (
     <section className="overflow-hidden rounded-xl border border-slate-300 bg-white">
@@ -334,29 +565,59 @@ function CompanyCard({
 
           </div>
 
-          <Link
-            to={`/organization/company/edit/${company.id}`}
-            className="
-              inline-flex
-              shrink-0
-              items-center
-              gap-2
-              rounded-lg
-              border
-              border-slate-300
-              bg-white
-              px-3
-              py-2
-              text-xs
-              font-semibold
-              text-slate-700
-              transition
-              hover:bg-slate-50
-            "
-          >
-            <Edit size={14} />
-            Edit
-          </Link>
+          <div className="flex shrink-0 items-center gap-2">
+
+            <Link
+              to={`/organization/company/edit/${company.id}`}
+              className="
+                inline-flex
+                items-center
+                gap-2
+                rounded-lg
+                border
+                border-slate-300
+                bg-white
+                px-3
+                py-2
+                text-xs
+                font-semibold
+                text-slate-700
+                transition
+                hover:bg-slate-50
+              "
+            >
+              <Edit size={14} />
+              Edit
+            </Link>
+
+            {canDelete && (
+              <button
+                type="button"
+                onClick={onDelete}
+                className="
+                  inline-flex
+                  items-center
+                  gap-2
+                  rounded-lg
+                  border
+                  border-red-200
+                  bg-white
+                  px-3
+                  py-2
+                  text-xs
+                  font-semibold
+                  text-red-600
+                  transition
+                  hover:border-red-300
+                  hover:bg-red-50
+                "
+              >
+                <Trash2 size={14} />
+                Delete
+              </button>
+            )}
+
+          </div>
 
         </div>
 

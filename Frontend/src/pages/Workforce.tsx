@@ -88,15 +88,15 @@ function Workforce() {
   | Permissions
   |--------------------------------------------------------------------------
   |
-  | Production permissions use workforce.* for employee-directory
-  | management. Keep employees.view.own for self-service access.
+ | Workforce permissions control employee-directory
+| and employee-profile access.
   |
   */
 
   const canViewEmployees = hasPermission("workforce.view");
 
-  const canViewOwnEmployee =
-    hasPermission("employees.view.own") && Boolean(user?.employeeId);
+ const canViewOwnEmployee =
+  hasPermission("workforce.view") && Boolean(user?.employeeId);
 
   const canCreateEmployees = hasPermission("workforce.create");
 

@@ -133,7 +133,10 @@ router.get("/headcount", async (req, res) => {
       ORDER BY m.month_start;
     `;
 
-    const result = await pool.query(query, dashboardValues(req));
+    const result = await pool.query(
+      query,
+      dashboardValues(req),
+    );
 
     res.json({
       success: true,
@@ -177,7 +180,10 @@ router.get("/departments", async (req, res) => {
       ORDER BY d.id;
     `;
 
-    const result = await pool.query(query, dashboardValues(req));
+    const result = await pool.query(
+      query,
+      dashboardValues(req),
+    );
 
     res.json({
       success: true,
@@ -203,63 +209,78 @@ router.get("/departments", async (req, res) => {
 
 router.get("/attendance", async (req, res) => {
   try {
+    /*
+      ATTENDANCE LOGIC
+
+      ACTIVE employee   -> PRESENT
+      INACTIVE employee -> ABSENT
+
+      attendance_records are used only for:
+      - check-in time
+      - On Time
+      - Late
+
+      Therefore an ACTIVE employee does not need an
+      attendance_records row to be counted as PRESENT.
+    */
+
     const query = `
       SELECT
-        attendance_date AS date,
+        CURRENT_DATE AS date,
 
-        COUNT(*) AS total,
+        /* Total ACTIVE + INACTIVE employees */
+        COUNT(DISTINCT e.id) AS total,
 
-        COUNT(*) FILTER (
-          WHERE status = 'PRESENT'
+        /* ACTIVE employees are PRESENT */
+        COUNT(DISTINCT e.id) FILTER (
+          WHERE e.employment_status = 'ACTIVE'
         ) AS present,
 
-        COUNT(*) FILTER (
-          WHERE status = 'ABSENT'
+        /* INACTIVE employees are ABSENT */
+        COUNT(DISTINCT e.id) FILTER (
+          WHERE e.employment_status = 'INACTIVE'
         ) AS absent,
 
-        COUNT(*) FILTER (
-          WHERE status = 'PRESENT'
-          AND check_in <= TIME '09:15'
+        /* ACTIVE employees who checked in by 09:15 */
+        COUNT(DISTINCT e.id) FILTER (
+          WHERE e.employment_status = 'ACTIVE'
+            AND ar.check_in IS NOT NULL
+            AND ar.check_in <= TIME '09:15'
         ) AS on_time,
 
-        COUNT(*) FILTER (
-          WHERE status = 'PRESENT'
-          AND check_in > TIME '09:15'
+        /* ACTIVE employees who checked in after 09:15 */
+        COUNT(DISTINCT e.id) FILTER (
+          WHERE e.employment_status = 'ACTIVE'
+            AND ar.check_in IS NOT NULL
+            AND ar.check_in > TIME '09:15'
         ) AS late
 
-      FROM attendance_records
+      FROM employees e
 
-      WHERE ($1::boolean OR company_id = $2)
-        AND attendance_date = (
-          SELECT MAX(attendance_date)
-          FROM attendance_records
-          WHERE ($1::boolean OR company_id = $2)
-        )
+      LEFT JOIN attendance_records ar
+        ON ar.employee_id = e.id
+        AND ar.attendance_date = CURRENT_DATE
+        AND ($1::boolean OR ar.company_id = $2)
 
-      GROUP BY attendance_date;
+      WHERE e.employment_status IN (
+        'ACTIVE',
+        'INACTIVE'
+      )
+      AND ($1::boolean OR e.company_id = $2);
     `;
 
-    const result = await pool.query(query, dashboardValues(req));
-
-    if (result.rows.length === 0) {
-      return res.json({
-        success: true,
-        data: {
-          date: null,
-          attendanceRate: 0,
-          total: 0,
-          present: 0,
-          absent: 0,
-          onTime: 0,
-          late: 0,
-        },
-      });
-    }
+    const result = await pool.query(
+      query,
+      dashboardValues(req),
+    );
 
     const row = result.rows[0];
 
     const total = Number(row.total);
     const present = Number(row.present);
+    const absent = Number(row.absent);
+    const onTime = Number(row.on_time);
+    const late = Number(row.late);
 
     const attendanceRate =
       total > 0
@@ -270,12 +291,15 @@ router.get("/attendance", async (req, res) => {
       success: true,
       data: {
         date: row.date,
+
         attendanceRate,
+
         total,
         present,
-        absent: Number(row.absent),
-        onTime: Number(row.on_time),
-        late: Number(row.late),
+        absent,
+
+        onTime,
+        late,
       },
     });
   } catch (error) {

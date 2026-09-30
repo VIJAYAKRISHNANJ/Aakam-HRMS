@@ -1,10 +1,18 @@
 import api from "./api";
 
-/**
- * |--------------------------------------------------------------------------
- * | Branch
- * |--------------------------------------------------------------------------
- */
+/*
+|--------------------------------------------------------------------------
+| API
+|--------------------------------------------------------------------------
+*/
+
+const API_URL = "/";
+
+/*
+|--------------------------------------------------------------------------
+| Branch
+|--------------------------------------------------------------------------
+*/
 
 export interface Branch {
   id: number;
@@ -22,14 +30,11 @@ export interface Branch {
   updatedAt: string;
 }
 
-/**
- * |--------------------------------------------------------------------------
- * | Company
- * |--------------------------------------------------------------------------
- *
- * | Companies available for branch selection.
- * |--------------------------------------------------------------------------
- */
+/*
+|--------------------------------------------------------------------------
+| Company
+|--------------------------------------------------------------------------
+*/
 
 export interface BranchCompany {
   id: number;
@@ -38,11 +43,11 @@ export interface BranchCompany {
   legalName: string;
 }
 
-/**
- * |--------------------------------------------------------------------------
- * | Branch Directory Data
- * |--------------------------------------------------------------------------
- */
+/*
+|--------------------------------------------------------------------------
+| Branch Directory
+|--------------------------------------------------------------------------
+*/
 
 export interface BranchDirectoryData {
   branches: Branch[];
@@ -50,41 +55,29 @@ export interface BranchDirectoryData {
   companies: BranchCompany[];
 }
 
-/**
- * |--------------------------------------------------------------------------
- * | API Response
- * |--------------------------------------------------------------------------
- */
-
 interface BranchDirectoryResponse {
   success: boolean;
   data: BranchDirectoryData;
   message?: string;
 }
 
-interface BranchResponse {
-  success: boolean;
-  data: Branch;
-  message?: string;
-}
-
-/**
- * |--------------------------------------------------------------------------
- * | Filters
- * |--------------------------------------------------------------------------
- */
+/*
+|--------------------------------------------------------------------------
+| Branch Filters
+|--------------------------------------------------------------------------
+*/
 
 export interface BranchFilters {
   search?: string;
-  companyId?: string;
+  companyId?: string | number;
   status?: string;
 }
 
-/**
- * |--------------------------------------------------------------------------
- * | Create Branch Payload
- * |--------------------------------------------------------------------------
- */
+/*
+|--------------------------------------------------------------------------
+| Create Branch
+|--------------------------------------------------------------------------
+*/
 
 export interface CreateBranchPayload {
   companyId: number;
@@ -94,14 +87,20 @@ export interface CreateBranchPayload {
   address?: string;
   phone?: string;
   email?: string;
-  status: string;
+  status?: string;
 }
 
-/**
- * |--------------------------------------------------------------------------
- * | Update Branch Payload
- * |--------------------------------------------------------------------------
- */
+interface CreateBranchResponse {
+  success: boolean;
+  data: Branch;
+  message?: string;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Update Branch
+|--------------------------------------------------------------------------
+*/
 
 export interface UpdateBranchPayload {
   companyId: number;
@@ -111,34 +110,38 @@ export interface UpdateBranchPayload {
   address?: string;
   phone?: string;
   email?: string;
-  status: string;
+  status?: string;
 }
 
-/**
- * |--------------------------------------------------------------------------
- * | GET Branches
- * |--------------------------------------------------------------------------
- * | GET /api/branches
- * |--------------------------------------------------------------------------
- */
+interface UpdateBranchResponse {
+  success: boolean;
+  data: Branch;
+  message?: string;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Get Branches
+|--------------------------------------------------------------------------
+*/
 
 export const getBranches = async (
   filters: BranchFilters = {},
 ): Promise<BranchDirectoryData> => {
   const response =
     await api.get<BranchDirectoryResponse>(
-      "/branches",
+      `${API_URL}branches`,
       {
         params: {
           search:
-            filters.search ||
-            undefined,
+            filters.search || undefined,
+
           companyId:
             filters.companyId ||
             undefined,
+
           status:
-            filters.status ||
-            undefined,
+            filters.status || undefined,
         },
       },
     );
@@ -146,62 +149,76 @@ export const getBranches = async (
   return response.data.data;
 };
 
-/**
- * |--------------------------------------------------------------------------
- * | GET Branch By ID
- * |--------------------------------------------------------------------------
- * | GET /api/branches/:id
- * |--------------------------------------------------------------------------
- */
+/*
+|--------------------------------------------------------------------------
+| Get Branch By ID
+|--------------------------------------------------------------------------
+*/
+
+interface BranchResponse {
+  success: boolean;
+  data: Branch;
+  message?: string;
+}
 
 export const getBranchById = async (
   branchId: number | string,
 ): Promise<Branch> => {
   const response =
     await api.get<BranchResponse>(
-      `/branches/${branchId}`,
+      `${API_URL}branches/${branchId}`,
     );
 
   return response.data.data;
 };
 
-/**
- * |--------------------------------------------------------------------------
- * | CREATE Branch
- * |--------------------------------------------------------------------------
- * | POST /api/branches
- * |--------------------------------------------------------------------------
- */
+/*
+|--------------------------------------------------------------------------
+| Create Branch
+|--------------------------------------------------------------------------
+*/
 
 export const createBranch = async (
   payload: CreateBranchPayload,
 ): Promise<Branch> => {
   const response =
-    await api.post<BranchResponse>(
-      "/branches",
+    await api.post<CreateBranchResponse>(
+      `${API_URL}branches`,
       payload,
     );
 
   return response.data.data;
 };
 
-/**
- * |--------------------------------------------------------------------------
- * | UPDATE Branch
- * |--------------------------------------------------------------------------
- * | PUT /api/branches/:id
- * |--------------------------------------------------------------------------
- */
+/*
+|--------------------------------------------------------------------------
+| Update Branch
+|--------------------------------------------------------------------------
+*/
 
 export const updateBranch = async (
   branchId: number | string,
   payload: UpdateBranchPayload,
 ): Promise<Branch> => {
   const response =
-    await api.put<BranchResponse>(
-      `/branches/${branchId}`,
+    await api.put<UpdateBranchResponse>(
+      `${API_URL}branches/${branchId}`,
       payload,
     );
 
   return response.data.data;
+};
+
+/*
+|--------------------------------------------------------------------------
+| Delete Branch
+|--------------------------------------------------------------------------
+*/
+
+export const deleteBranch = async (
+  branchId: number | string,
+): Promise<void> => {
+  await api.delete(
+    `${API_URL}branches/${branchId}`,
+  );
 };

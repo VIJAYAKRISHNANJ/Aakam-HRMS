@@ -1,6 +1,7 @@
 import {
   Edit3,
   Layers3,
+  Trash2,
 } from "lucide-react";
 
 import {
@@ -17,7 +18,10 @@ import DashboardLayout from "../components/layout/DashboardLayout";
 
 import OrganizationNav from "../components/organization/OrganizationNav";
 
+import { useAuth } from "../context/AuthContext";
+
 import {
+  deleteDepartment,
   getDepartments,
 } from "../services/departmentService";
 
@@ -27,6 +31,13 @@ import type {
 
 function Department() {
   const navigate = useNavigate();
+
+  const { hasPermission } = useAuth();
+
+  const canDeleteDepartments =
+    hasPermission(
+      "departments.delete",
+    );
 
   const [
     departments,
@@ -42,6 +53,18 @@ function Department() {
     error,
     setError,
   ] = useState("");
+
+  const [
+    deletingDepartment,
+    setDeletingDepartment,
+  ] = useState<DepartmentType | null>(
+    null,
+  );
+
+  const [
+    deleting,
+    setDeleting,
+  ] = useState(false);
 
   /*
   |--------------------------------------------------------------------------
@@ -90,6 +113,76 @@ function Department() {
       `/organization/departments/${departmentId}`,
     );
   };
+
+  /*
+  |--------------------------------------------------------------------------
+  | Delete Department
+  |--------------------------------------------------------------------------
+  */
+
+  const handleDeleteDepartment =
+    async () => {
+      if (!deletingDepartment) {
+        return;
+      }
+
+      try {
+        setDeleting(true);
+        setError("");
+
+        await deleteDepartment(
+          deletingDepartment.id,
+        );
+
+        setDepartments(
+          (currentDepartments) =>
+            currentDepartments.filter(
+              (department) =>
+                department.id !==
+                deletingDepartment.id,
+            ),
+        );
+
+        setDeletingDepartment(null);
+      } catch (requestError) {
+        console.error(
+          "Failed to delete department:",
+          requestError,
+        );
+
+        let message =
+          "Unable to delete the department. Please try again.";
+
+        if (
+          requestError &&
+          typeof requestError === "object" &&
+          "response" in requestError
+        ) {
+          const response =
+            (
+              requestError as {
+                response?: {
+                  data?: {
+                    message?: string;
+                  };
+                };
+              }
+            ).response;
+
+          if (
+            response?.data?.message
+          ) {
+            message =
+              response.data.message;
+          }
+        }
+
+        setError(message);
+        setDeletingDepartment(null);
+      } finally {
+        setDeleting(false);
+      }
+    };
 
   return (
     <DashboardLayout>
@@ -226,6 +319,7 @@ function Department() {
 
             </div>
           ) : departments.length === 0 ? (
+
             /* =================================================
                EMPTY STATE
             ================================================= */
@@ -274,13 +368,14 @@ function Department() {
 
             </div>
           ) : (
+
             /* =================================================
                TABLE
             ================================================= */
 
             <div className="overflow-x-auto">
 
-              <table className="w-full min-w-[700px]">
+              <table className="w-full min-w-[800px]">
 
                 <thead>
 
@@ -406,36 +501,77 @@ function Department() {
                           }
                         >
 
-                          <Link
-                            to={`/organization/departments/edit/${department.id}`}
-                            className="
-                              inline-flex
-                              h-9
-                              items-center
-                              justify-center
-                              gap-2
-                              rounded-lg
-                              border
-                              border-slate-300
-                              bg-white
-                              px-3
-                              text-sm
-                              font-medium
-                              text-slate-700
-                              transition
-                              hover:border-teal-300
-                              hover:bg-teal-50
-                              hover:text-teal-700
-                            "
-                          >
+                          <div className="flex flex-wrap justify-end gap-2">
 
-                            <Edit3
-                              size={15}
-                            />
+                            <Link
+                              to={`/organization/departments/edit/${department.id}`}
+                              className="
+                                inline-flex
+                                h-9
+                                items-center
+                                justify-center
+                                gap-2
+                                rounded-lg
+                                border
+                                border-slate-300
+                                bg-white
+                                px-3
+                                text-sm
+                                font-medium
+                                text-slate-700
+                                transition
+                                hover:border-teal-300
+                                hover:bg-teal-50
+                                hover:text-teal-700
+                              "
+                            >
 
-                            Edit
+                              <Edit3
+                                size={15}
+                              />
 
-                          </Link>
+                              Edit
+
+                            </Link>
+
+                            {canDeleteDepartments && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setDeletingDepartment(
+                                    department,
+                                  )
+                                }
+                                className="
+                                  inline-flex
+                                  h-9
+                                  items-center
+                                  justify-center
+                                  gap-2
+                                  rounded-lg
+                                  border
+                                  border-red-200
+                                  bg-white
+                                  px-3
+                                  text-sm
+                                  font-medium
+                                  text-red-600
+                                  transition
+                                  hover:border-red-300
+                                  hover:bg-red-50
+                                "
+                              >
+
+                                <Trash2
+                                  size={15}
+                                />
+
+                                Delete
+
+                              </button>
+                            )}
+
+                          </div>
 
                         </td>
 
@@ -453,6 +589,143 @@ function Department() {
         </section>
 
       </div>
+
+      {/* =================================================
+          DELETE CONFIRMATION MODAL
+      ================================================= */}
+
+      {deletingDepartment && (
+        <div
+          className="
+            fixed
+            inset-0
+            z-50
+            flex
+            items-center
+            justify-center
+            bg-slate-950/50
+            px-4
+          "
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-department-title"
+        >
+
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+
+            <div className="p-6">
+
+              <div className="flex items-start gap-4">
+
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-50">
+
+                  <Trash2
+                    size={21}
+                    className="text-red-600"
+                  />
+
+                </div>
+
+                <div className="min-w-0">
+
+                  <h2
+                    id="delete-department-title"
+                    className="text-lg font-semibold text-slate-900"
+                  >
+                    Delete Department
+                  </h2>
+
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    Are you sure you want to
+                    delete{" "}
+                    <span className="font-semibold text-slate-900">
+                      {deletingDepartment.name}
+                    </span>
+                    ?
+                  </p>
+
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    If this department is being
+                    used by employees or other
+                    records, the backend will
+                    prevent deletion.
+                  </p>
+
+                </div>
+
+              </div>
+
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 sm:flex-row sm:justify-end">
+
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() =>
+                  setDeletingDepartment(null)
+                }
+                className="
+                  inline-flex
+                  items-center
+                  justify-center
+                  rounded-lg
+                  border
+                  border-slate-300
+                  bg-white
+                  px-4
+                  py-2.5
+                  text-sm
+                  font-semibold
+                  text-slate-700
+                  transition
+                  hover:bg-slate-100
+                  disabled:cursor-not-allowed
+                  disabled:opacity-60
+                "
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={
+                  handleDeleteDepartment
+                }
+                className="
+                  inline-flex
+                  items-center
+                  justify-center
+                  gap-2
+                  rounded-lg
+                  bg-red-600
+                  px-4
+                  py-2.5
+                  text-sm
+                  font-semibold
+                  text-white
+                  transition
+                  hover:bg-red-700
+                  disabled:cursor-not-allowed
+                  disabled:opacity-60
+                "
+              >
+
+                <Trash2 size={16} />
+
+                {deleting
+                  ? "Deleting..."
+                  : "Delete Department"}
+
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
 
     </DashboardLayout>
   );
