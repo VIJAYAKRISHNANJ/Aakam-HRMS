@@ -1,4 +1,3 @@
-
 import {
   ArrowLeft,
   CheckCircle2,
@@ -133,9 +132,19 @@ const employmentTypeOptions = [
 
 function AddEmployee() {
   const navigate = useNavigate();
+
   const { hasPermission } = useAuth();
 
-  const canCreateEmployees = hasPermission("employees.create");
+  /*
+  |--------------------------------------------------------------------------
+  | IMPORTANT
+  |--------------------------------------------------------------------------
+  | HR Admin uses the workforce.* permission namespace.
+  | Do NOT use employees.create here.
+  */
+
+  const canCreateEmployees =
+    hasPermission("workforce.create");
 
   const [form, setForm] =
     useState<AddEmployeeForm>(
@@ -186,6 +195,7 @@ function AddEmployee() {
   useEffect(() => {
     if (!canCreateEmployees) {
       setDepartmentsLoading(false);
+
       return;
     }
 
@@ -254,6 +264,12 @@ function AddEmployee() {
       }));
     };
 
+  /*
+  |--------------------------------------------------------------------------
+  | Validation
+  |--------------------------------------------------------------------------
+  */
+
   const validate =
     (): FormErrors => {
       const nextErrors: FormErrors =
@@ -314,6 +330,12 @@ function AddEmployee() {
 
       return nextErrors;
     };
+
+  /*
+  |--------------------------------------------------------------------------
+  | Submit
+  |--------------------------------------------------------------------------
+  */
 
   const handleSubmit =
     async (
@@ -423,7 +445,7 @@ function AddEmployee() {
 
   /*
   |--------------------------------------------------------------------------
-  | Render
+  | Access Restricted
   |--------------------------------------------------------------------------
   */
 
@@ -431,29 +453,45 @@ function AddEmployee() {
     return (
       <DashboardLayout>
         <div className="flex w-full min-w-0 flex-col gap-6">
+
           <Link
             to="/workforce"
             className="inline-flex w-fit items-center gap-2.5 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm transition-all duration-200 hover:border-slate-400 hover:bg-slate-50 hover:shadow-md"
           >
-            <ArrowLeft size={18} strokeWidth={2.2} />
+            <ArrowLeft
+              size={18}
+              strokeWidth={2.2}
+            />
+
             Back to Employee Directory
           </Link>
 
           <section className="dashboard-card p-6">
+
             <h1 className="text-xl font-semibold text-slate-900">
               Access Restricted
             </h1>
+
             <p className="mt-2 text-sm leading-6 text-slate-600">
               You do not have permission to create employee records.
             </p>
+
           </section>
+
         </div>
       </DashboardLayout>
     );
   }
 
+  /*
+  |--------------------------------------------------------------------------
+  | Main Render
+  |--------------------------------------------------------------------------
+  */
+
   return (
     <DashboardLayout>
+
       <div className="flex w-full min-w-0 max-w-3xl flex-col gap-6">
 
         {/* BACK */}
@@ -493,6 +531,7 @@ function AddEmployee() {
         {/* HEADER */}
 
         <div>
+
           <h1 className="m-0 text-[32px] font-semibold leading-10 tracking-tight text-slate-900">
             Add Employee
           </h1>
@@ -501,6 +540,7 @@ function AddEmployee() {
             Create a new employee record
             in Aakam HRMS.
           </p>
+
         </div>
 
         {/* DEPARTMENT ERROR */}
@@ -523,11 +563,13 @@ function AddEmployee() {
 
         {success && (
           <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+
             <CheckCircle2 size={17} />
 
             Employee created
             successfully. Redirecting
             to their profile...
+
           </div>
         )}
 
@@ -545,6 +587,7 @@ function AddEmployee() {
               {/* EMPLOYEE CODE */}
 
               <div>
+
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Employee Code
                 </label>
@@ -575,11 +618,13 @@ function AddEmployee() {
                     }
                   </p>
                 )}
+
               </div>
 
               {/* EMAIL */}
 
               <div>
+
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Email
                 </label>
@@ -606,11 +651,13 @@ function AddEmployee() {
                     {errors.email}
                   </p>
                 )}
+
               </div>
 
               {/* FIRST NAME */}
 
               <div>
+
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
                   First Name
                 </label>
@@ -641,11 +688,13 @@ function AddEmployee() {
                     }
                   </p>
                 )}
+
               </div>
 
               {/* LAST NAME */}
 
               <div>
+
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Last Name
                 </label>
@@ -664,11 +713,13 @@ function AddEmployee() {
                   placeholder="e.g. Kumar (optional)"
                   className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 disabled:cursor-not-allowed disabled:bg-slate-50"
                 />
+
               </div>
 
               {/* DESIGNATION */}
 
               <div>
+
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Designation
                 </label>
@@ -699,11 +750,13 @@ function AddEmployee() {
                     }
                   </p>
                 )}
+
               </div>
 
               {/* DEPARTMENT */}
 
               <div>
+
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Department
                 </label>
@@ -725,6 +778,7 @@ function AddEmployee() {
                       : "border-slate-300 focus:border-teal-600 focus:ring-teal-600/20"
                   }`}
                 >
+
                   <option value="">
                     {departmentsLoading
                       ? "Loading departments..."
@@ -747,6 +801,7 @@ function AddEmployee() {
                       </option>
                     ),
                   )}
+
                 </select>
 
                 {errors.departmentId && (
@@ -756,11 +811,13 @@ function AddEmployee() {
                     }
                   </p>
                 )}
+
               </div>
 
               {/* JOINING DATE */}
 
               <div>
+
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Joining Date
                 </label>
@@ -790,11 +847,13 @@ function AddEmployee() {
                     }
                   </p>
                 )}
+
               </div>
 
               {/* EMPLOYMENT STATUS */}
 
               <div>
+
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Employment Status
                 </label>
@@ -809,8 +868,9 @@ function AddEmployee() {
                   disabled={
                     fieldDisabled
                   }
-                  className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 disabled:cursor-not-allowed disabled:bg-slate-50"
+                  className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-teal-600 focus:ring-teal-600/20 disabled:cursor-not-allowed disabled:bg-slate-50"
                 >
+
                   {statusOptions.map(
                     (option) => (
                       <option
@@ -827,12 +887,15 @@ function AddEmployee() {
                       </option>
                     ),
                   )}
+
                 </select>
+
               </div>
 
               {/* EMPLOYMENT TYPE */}
 
               <div>
+
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Employment Type
                 </label>
@@ -847,8 +910,9 @@ function AddEmployee() {
                   disabled={
                     fieldDisabled
                   }
-                  className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 disabled:cursor-not-allowed disabled:bg-slate-50"
+                  className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-teal-600 focus:ring-teal-600/20 disabled:cursor-not-allowed disabled:bg-slate-50"
                 >
+
                   {employmentTypeOptions.map(
                     (option) => (
                       <option
@@ -865,7 +929,9 @@ function AddEmployee() {
                       </option>
                     ),
                   )}
+
                 </select>
+
               </div>
 
             </div>
@@ -888,6 +954,7 @@ function AddEmployee() {
                 }
                 className="inline-flex items-center gap-2 rounded-lg bg-teal-700 px-5 py-2 text-xs font-semibold tracking-wide text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
+
                 {submitting && (
                   <Loader2
                     size={15}
@@ -900,6 +967,7 @@ function AddEmployee() {
                   : success
                     ? "Created"
                     : "Create Employee"}
+
               </button>
 
             </div>
@@ -909,6 +977,7 @@ function AddEmployee() {
         </section>
 
       </div>
+
     </DashboardLayout>
   );
 }

@@ -1,10 +1,17 @@
 // Render auto-deploy verification
+
 import express from "express";
 import cors from "cors";
 import "dotenv/config";
 
 import pool from "./db.js";
-import { authenticate, authorizeResource, verifyClientScope, verifyCompanyScope } from "./middleware/auth.middleware.js";
+
+import {
+  authenticate,
+  authorizeResource,
+  verifyClientScope,
+  verifyCompanyScope,
+} from "./middleware/auth.middleware.js";
 
 import dashboardRoutes from "./routes/dashboard.routes.js";
 import employeeRoutes from "./routes/employees.routes.js";
@@ -34,6 +41,7 @@ const PORT = process.env.PORT || 5000;
 */
 
 app.use(cors());
+
 app.use(express.json());
 
 /*
@@ -57,10 +65,31 @@ app.get("/api/health", async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: "Backend is running, but PostgreSQL is not connected",
+      message:
+        "Backend is running, but PostgreSQL is not connected",
     });
   }
 });
+
+/*
+|--------------------------------------------------------------------------
+| Protected Resource
+|--------------------------------------------------------------------------
+*/
+
+const protectedResource = (
+  path,
+  resource,
+  router,
+) =>
+  app.use(
+    path,
+    authenticate,
+    verifyCompanyScope,
+    verifyClientScope,
+    authorizeResource(resource),
+    router,
+  );
 
 /*
 |--------------------------------------------------------------------------
@@ -68,17 +97,23 @@ app.get("/api/health", async (req, res) => {
 |--------------------------------------------------------------------------
 */
 
-const protectedResource = (path, resource, router) =>
-  app.use(path, authenticate, verifyCompanyScope, verifyClientScope, authorizeResource(resource), router);
-
-protectedResource("/api/dashboard", "dashboard", dashboardRoutes);
+protectedResource(
+  "/api/dashboard",
+  "dashboard",
+  dashboardRoutes,
+);
 
 /*
 |--------------------------------------------------------------------------
 | Employees / Workforce
 |--------------------------------------------------------------------------
 */
-protectedResource("/api/employees", "workforce", employeeRoutes);
+
+protectedResource(
+  "/api/employees",
+  "workforce",
+  employeeRoutes,
+);
 
 /*
 |--------------------------------------------------------------------------
@@ -86,7 +121,11 @@ protectedResource("/api/employees", "workforce", employeeRoutes);
 |--------------------------------------------------------------------------
 */
 
-protectedResource("/api/companies", "company", companyRoutes);
+protectedResource(
+  "/api/companies",
+  "companies",
+  companyRoutes,
+);
 
 /*
 |--------------------------------------------------------------------------
@@ -94,7 +133,11 @@ protectedResource("/api/companies", "company", companyRoutes);
 |--------------------------------------------------------------------------
 */
 
-protectedResource("/api/branches", "branches", branchRoutes);
+protectedResource(
+  "/api/branches",
+  "branches",
+  branchRoutes,
+);
 
 /*
 |--------------------------------------------------------------------------
@@ -102,7 +145,11 @@ protectedResource("/api/branches", "branches", branchRoutes);
 |--------------------------------------------------------------------------
 */
 
-protectedResource("/api/departments", "departments", departmentRoutes);
+protectedResource(
+  "/api/departments",
+  "departments",
+  departmentRoutes,
+);
 
 /*
 |--------------------------------------------------------------------------
@@ -110,7 +157,11 @@ protectedResource("/api/departments", "departments", departmentRoutes);
 |--------------------------------------------------------------------------
 */
 
-protectedResource("/api/notifications", "notifications", notificationRoutes);
+protectedResource(
+  "/api/notifications",
+  "notifications",
+  notificationRoutes,
+);
 
 /*
 |--------------------------------------------------------------------------
@@ -134,7 +185,11 @@ app.use("/api/users", usersRoutes);
 |--------------------------------------------------------------------------
 */
 
-protectedResource("/api/recruitment", "recruitment", recruitmentRoutes);
+protectedResource(
+  "/api/recruitment",
+  "recruitment",
+  recruitmentRoutes,
+);
 
 /*
 |--------------------------------------------------------------------------
@@ -142,7 +197,11 @@ protectedResource("/api/recruitment", "recruitment", recruitmentRoutes);
 |--------------------------------------------------------------------------
 */
 
-protectedResource("/api/clients", "clients", clientsRoutes);
+protectedResource(
+  "/api/clients",
+  "clients",
+  clientsRoutes,
+);
 
 /*
 |--------------------------------------------------------------------------
@@ -150,7 +209,11 @@ protectedResource("/api/clients", "clients", clientsRoutes);
 |--------------------------------------------------------------------------
 */
 
-protectedResource("/api/onboarding", "onboarding", onboardingRoutes);
+protectedResource(
+  "/api/onboarding",
+  "onboarding",
+  onboardingRoutes,
+);
 
 /*
 |--------------------------------------------------------------------------
@@ -158,7 +221,11 @@ protectedResource("/api/onboarding", "onboarding", onboardingRoutes);
 |--------------------------------------------------------------------------
 */
 
-protectedResource("/api/payroll", "payroll", payrollRoutes);
+protectedResource(
+  "/api/payroll",
+  "payroll",
+  payrollRoutes,
+);
 
 /*
 |--------------------------------------------------------------------------
@@ -166,7 +233,11 @@ protectedResource("/api/payroll", "payroll", payrollRoutes);
 |--------------------------------------------------------------------------
 */
 
-protectedResource("/api/performance", "performance", performanceRoutes);
+protectedResource(
+  "/api/performance",
+  "performance",
+  performanceRoutes,
+);
 
 /*
 |--------------------------------------------------------------------------
@@ -174,7 +245,11 @@ protectedResource("/api/performance", "performance", performanceRoutes);
 |--------------------------------------------------------------------------
 */
 
-protectedResource("/api/training", "training", trainingRoutes);
+protectedResource(
+  "/api/training",
+  "training",
+  trainingRoutes,
+);
 
 /*
 |--------------------------------------------------------------------------
@@ -182,7 +257,11 @@ protectedResource("/api/training", "training", trainingRoutes);
 |--------------------------------------------------------------------------
 */
 
-protectedResource("/api/reports", "reports", reportsRoutes);
+protectedResource(
+  "/api/reports",
+  "reports",
+  reportsRoutes,
+);
 
 /*
 |--------------------------------------------------------------------------
@@ -190,7 +269,11 @@ protectedResource("/api/reports", "reports", reportsRoutes);
 |--------------------------------------------------------------------------
 */
 
-protectedResource("/api/exits", "exits", exitsRoutes);
+protectedResource(
+  "/api/exits",
+  "exits",
+  exitsRoutes,
+);
 
 /*
 |--------------------------------------------------------------------------
@@ -203,10 +286,16 @@ const startServer = async () => {
     await pool.query("SELECT 1");
 
     app.listen(PORT, () => {
-      console.log(`Aakam HRMS Backend running on http://localhost:${PORT}`);
+      console.log(
+        `Aakam HRMS Backend running on http://localhost:${PORT}`,
+      );
     });
   } catch (error) {
-    console.error("Failed to start backend:", error);
+    console.error(
+      "Failed to start backend:",
+      error,
+    );
+
     process.exit(1);
   }
 };

@@ -309,10 +309,6 @@ export const authorizeRoles =
     /*
      * SUPER_ADMINISTRATOR has unrestricted
      * role access.
-     *
-     * This prevents module-specific role
-     * restrictions from blocking the platform
-     * administrator.
      */
     if (isSuperAdmin(req.user)) {
       return next();
@@ -354,19 +350,6 @@ export const authorizePermissions =
     /*
      * SUPER_ADMINISTRATOR has unrestricted
      * permission access.
-     *
-     * The admin therefore does not depend on
-     * individual permission names such as:
-     *
-     * workforce.view
-     * employees.view
-     * company.view
-     * companies.view
-     * exit.view
-     * offboarding.view
-     *
-     * This avoids legacy/current permission-name
-     * differences from blocking the administrator.
      */
     if (isSuperAdmin(req.user)) {
       return next();
@@ -393,10 +376,6 @@ export const authorizePermissions =
 
 /**
  * Route-level permission gate.
- *
- * Keep this at the API boundary so adding a new
- * handler cannot accidentally make it available
- * to every authenticated user.
  */
 export const authorizeResource =
   (resource) =>
@@ -408,15 +387,6 @@ export const authorizeResource =
     /*
      * SUPER_ADMINISTRATOR has unrestricted
      * resource access.
-     *
-     * This must happen before resource/action
-     * permission-name calculation so the admin
-     * is not affected by differences such as:
-     *
-     * employees -> workforce
-     * company -> companies
-     * exits -> offboarding
-     * recruitment/candidates -> candidates
      */
     if (isSuperAdmin(req.user)) {
       req.authorization = {
@@ -444,6 +414,9 @@ export const authorizeResource =
         DELETE: "delete",
       })[method];
 
+    /*
+     * Payroll workflow actions
+     */
     if (
       resource === "payroll" &&
       /\/(approve|validate|process)/.test(
@@ -453,6 +426,9 @@ export const authorizeResource =
       action = "approve";
     }
 
+    /*
+     * Leave workflow actions
+     */
     if (
       resource === "leave" &&
       /\/(approve|reject)/.test(
@@ -462,6 +438,9 @@ export const authorizeResource =
       action = "approve";
     }
 
+    /*
+     * Exit workflow actions
+     */
     if (
       resource === "exits" &&
       /\/(approve|settlement)/.test(
@@ -471,19 +450,44 @@ export const authorizeResource =
       action = "approve";
     }
 
-    if (
-      resource === "recruitment" &&
-      path.includes("/candidates")
-    ) {
-      resource = "candidates";
-    }
+    /*
+     * IMPORTANT:
+     *
+     * Candidates are part of the Recruitment
+     * module in the current permission model.
+     *
+     * DO NOT change:
+     *
+     * recruitment -> candidates
+     *
+     * because the database uses:
+     *
+     * recruitment.view
+     * recruitment.create
+     * recruitment.update
+     * recruitment.delete
+     * recruitment.manage
+     *
+     * for both recruitment jobs and candidates.
+     *
+     * Therefore resource remains "recruitment".
+     */
 
+    /*
+     * Permission resource names must exactly match
+     * the permissions stored in the database.
+     */
     const permissionResource =
       {
         exits: "offboarding",
         reports: "reports",
         dashboard: "dashboard",
-        companies: "company",
+
+        /*
+         * Companies use companies.*
+         * permissions, not company.*.
+         */
+        companies: "companies",
       }[resource] ?? resource;
 
     const permission =
@@ -493,8 +497,7 @@ export const authorizeResource =
       `${permissionResource}.view.own`;
 
     /*
-     * "manage" is an established, broader grant
-     * in the existing permission model.
+     * Dashboard legacy compatibility.
      */
     const legacyPermission =
       resource === "dashboard"
@@ -522,6 +525,10 @@ export const authorizeResource =
       );
 
     if (!hasPermission) {
+      console.warn(
+        `Permission denied: ${req.user.username} attempted ${method} ${req.originalUrl}. Required: ${permission}`,
+      );
+
       return forbidden(
         res,
         "Insufficient permission access",
@@ -686,8 +693,7 @@ export const verifyClientScope =
       /*
        * Collection routes are authorized by their
        * route-specific, server-side company/client
-       * filters. Do not reject them before those
-       * filters run.
+       * filters.
        */
       if (
         !Number.isInteger(id) ||
@@ -781,8 +787,6 @@ export const verifyCompanyScope =
      * Super admins may select one existing
      * company explicitly, or omit the header
      * for platform-wide queries.
-     *
-     * Other request fields never select scope.
      */
     if (isSuperAdmin(req.user)) {
       const requested =
@@ -838,8 +842,6 @@ export const verifyCompanyScope =
     /*
      * Ordinary accounts never switch tenant from
      * a header, parameter, query, or body field.
-     * Their primary company is the authorization
-     * source.
      */
     if (!req.user.company_id) {
       return forbidden(
