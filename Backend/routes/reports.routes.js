@@ -65,10 +65,22 @@ const ownEmployeeId = (req) =>
 const ownClientId = (req) =>
   positiveIdOrFallback(req.user?.client_id);
 
+const hasPermission = (req, permission) => {
+  const permissions = Array.isArray(req.user?.permissions)
+    ? req.user.permissions
+    : [];
+
+  return permissions.some(
+    (item) =>
+      String(item).toLowerCase() ===
+      String(permission).toLowerCase(),
+  );
+};
+
 const assertReportAccess = (
   req,
   res,
-  allowedRoles,
+  _allowedRoles = [],
 ) => {
   if (!req.user) {
     res.status(401).json({
@@ -79,7 +91,18 @@ const assertReportAccess = (
     return false;
   }
 
-  if (!hasAnyRole(req, allowedRoles)) {
+  /*
+   * Reports access is controlled by the RBAC permission
+   * instead of a hard-coded role list.
+   *
+   * Required permission:
+   * reports.view
+   *
+   * This allows every role that has reports.view to access
+   * the Reports module while preserving all existing
+   * company/employee/client data-scoping logic below.
+   */
+  if (!hasPermission(req, "reports.view")) {
     res.status(403).json({
       success: false,
       message: "Insufficient report access",

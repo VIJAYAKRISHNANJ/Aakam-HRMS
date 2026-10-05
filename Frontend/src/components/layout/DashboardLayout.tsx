@@ -1,21 +1,30 @@
-import { useState } from 'react'
+import { useState } from "react";
 
-import Header from './Header'
-import Sidebar from './Sidebar'
+import Header from "./Header";
+import Sidebar from "./Sidebar";
 
 interface DashboardLayoutProps {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 
 function DashboardLayout({
   children,
 }: DashboardLayoutProps) {
-  const [sidebarOpen, setSidebarOpen] =
-    useState(false)
+  const [
+    sidebarOpen,
+    setSidebarOpen,
+  ] = useState(false);
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden bg-transparent text-slate-900">
-
+    <div
+      className="
+        h-screen
+        w-full
+        overflow-hidden
+        bg-transparent
+        text-slate-900
+      "
+    >
       {/* =====================================================
           FIXED SIDEBAR
       ===================================================== */}
@@ -28,71 +37,72 @@ function DashboardLayout({
       />
 
       {/* =====================================================
-          RIGHT SIDE SCROLLING PAGE
+          RIGHT SIDE SCROLLING AREA
 
-          Header + Dashboard content scroll together
+          IMPORTANT:
+          Only this area scrolls.
+
+          Sidebar remains fixed/static.
       ===================================================== */}
 
       <div
         className="
-          min-h-screen
+          h-screen
           min-w-0
+          overflow-y-auto
+          overflow-x-hidden
           lg:ml-[260px]
         "
       >
-
         {/* ===================================================
             HEADER
-
-            This is NOT fixed.
-            It scrolls together with the dashboard.
         =================================================== */}
 
         <div
           className="
-            px-3
+            px-4
             pt-6
-            sm:px-4
+            sm:px-5
             lg:px-6
+            xl:px-8
           "
         >
-
           <Header
             onOpenSidebar={() =>
               setSidebarOpen(true)
             }
           />
-
         </div>
 
         {/* ===================================================
-            DASHBOARD CONTENT
+            MAIN CONTENT
         =================================================== */}
 
         <main
           className="
             min-w-0
-            overflow-x-hidden
-            px-3
+            px-4
             pb-8
-            pt-5
-            sm:px-4
+            pt-6
+            sm:px-5
             lg:px-6
+            xl:px-8
           "
         >
-
-          <div className="mx-auto w-full min-w-0 max-w-[1600px]">
-
+          <div
+            className="
+              mx-auto
+              w-full
+              min-w-0
+              max-w-[1600px]
+            "
+          >
             {children}
-
           </div>
-
         </main>
-
       </div>
-
     </div>
-  )
+  );
 }
 
-export default DashboardLayout
+export default DashboardLayout;

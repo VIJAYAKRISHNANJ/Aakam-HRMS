@@ -12,50 +12,28 @@ import {
   useAuth,
 } from "../../context/AuthContext";
 
-const ROLES = {
-  SUPER_ADMINISTRATOR:
-    "SUPER_ADMINISTRATOR",
-  COMPANY_ADMINISTRATOR:
-    "COMPANY_ADMINISTRATOR",
-  HR_ADMINISTRATOR:
-    "HR_ADMINISTRATOR",
-  RECRUITER:
-    "RECRUITER",
-  PAYROLL_ADMINISTRATOR:
-    "PAYROLL_ADMINISTRATOR",
-  MANAGER:
-    "MANAGER",
-  EMPLOYEE:
-    "EMPLOYEE",
-  CLIENT_USER:
-    "CLIENT_USER",
-} as const;
-
-type Role = (typeof ROLES)[keyof typeof ROLES];
-
-const normalizeRole = (
-  role: string,
-): string =>
-  role
-    .trim()
-    .toUpperCase()
-    .replace(/[\s-]+/g, "_");
-
 /*
 |--------------------------------------------------------------------------
-| Route Access Policy
+| Route Permission Policy
 |--------------------------------------------------------------------------
 |
 | Frontend checks are UX/access guards only.
 | Backend authorization remains the final security boundary.
 |
+| Each module is protected by its VIEW permission.
+|
+| Create / Update / Delete permissions should be enforced inside the
+| corresponding module pages/components and by the backend API.
+|
 |--------------------------------------------------------------------------
 */
 
-const routeAccess: Array<{
+type RoutePermission = {
   matches: (pathname: string) => boolean;
-  roles: Role[];
-}> = [
+  permission: string;
+};
+
+const routePermissions: RoutePermission[] = [
   /*
   |--------------------------------------------------------------------------
   | Dashboard
@@ -66,11 +44,8 @@ const routeAccess: Array<{
     matches: (pathname) =>
       pathname === "/dashboard" ||
       pathname.startsWith("/dashboard/"),
-    roles: [
-      ROLES.SUPER_ADMINISTRATOR,
-      ROLES.COMPANY_ADMINISTRATOR,
-      ROLES.HR_ADMINISTRATOR,
-    ],
+
+    permission: "dashboard.view",
   },
 
   /*
@@ -83,30 +58,41 @@ const routeAccess: Array<{
     matches: (pathname) =>
       pathname === "/workforce" ||
       pathname.startsWith("/workforce/"),
-    roles: [
-      ROLES.SUPER_ADMINISTRATOR,
-      ROLES.COMPANY_ADMINISTRATOR,
-      ROLES.HR_ADMINISTRATOR,
-      ROLES.MANAGER,
-      ROLES.EMPLOYEE,
-    ],
+
+    permission: "workforce.view",
   },
 
   /*
   |--------------------------------------------------------------------------
   | Organization
   |--------------------------------------------------------------------------
+  |
+  | Organization uses separate permission resources.
+  |
   */
 
   {
     matches: (pathname) =>
-      pathname === "/organization" ||
-      pathname.startsWith("/organization/"),
-    roles: [
-      ROLES.SUPER_ADMINISTRATOR,
-      ROLES.COMPANY_ADMINISTRATOR,
-      ROLES.HR_ADMINISTRATOR,
-    ],
+      pathname === "/organization/company" ||
+      pathname.startsWith("/organization/company/"),
+
+    permission: "companies.view",
+  },
+
+  {
+    matches: (pathname) =>
+      pathname === "/organization/branches" ||
+      pathname.startsWith("/organization/branches/"),
+
+    permission: "branches.view",
+  },
+
+  {
+    matches: (pathname) =>
+      pathname === "/organization/departments" ||
+      pathname.startsWith("/organization/departments/"),
+
+    permission: "departments.view",
   },
 
   /*
@@ -119,16 +105,8 @@ const routeAccess: Array<{
     matches: (pathname) =>
       pathname === "/notifications" ||
       pathname.startsWith("/notifications/"),
-    roles: [
-      ROLES.SUPER_ADMINISTRATOR,
-      ROLES.COMPANY_ADMINISTRATOR,
-      ROLES.HR_ADMINISTRATOR,
-      ROLES.RECRUITER,
-      ROLES.PAYROLL_ADMINISTRATOR,
-      ROLES.MANAGER,
-      ROLES.EMPLOYEE,
-      ROLES.CLIENT_USER,
-    ],
+
+    permission: "notifications.view",
   },
 
   /*
@@ -141,16 +119,8 @@ const routeAccess: Array<{
     matches: (pathname) =>
       pathname === "/settings" ||
       pathname.startsWith("/settings/"),
-    roles: [
-      ROLES.SUPER_ADMINISTRATOR,
-      ROLES.COMPANY_ADMINISTRATOR,
-      ROLES.HR_ADMINISTRATOR,
-      ROLES.RECRUITER,
-      ROLES.PAYROLL_ADMINISTRATOR,
-      ROLES.MANAGER,
-      ROLES.EMPLOYEE,
-      ROLES.CLIENT_USER,
-    ],
+
+    permission: "settings.view",
   },
 
   /*
@@ -163,11 +133,8 @@ const routeAccess: Array<{
     matches: (pathname) =>
       pathname === "/onboarding" ||
       pathname.startsWith("/onboarding/"),
-    roles: [
-      ROLES.SUPER_ADMINISTRATOR,
-      ROLES.COMPANY_ADMINISTRATOR,
-      ROLES.HR_ADMINISTRATOR,
-    ],
+
+    permission: "onboarding.view",
   },
 
   /*
@@ -180,12 +147,8 @@ const routeAccess: Array<{
     matches: (pathname) =>
       pathname === "/payroll" ||
       pathname.startsWith("/payroll/"),
-    roles: [
-      ROLES.SUPER_ADMINISTRATOR,
-      ROLES.COMPANY_ADMINISTRATOR,
-      ROLES.HR_ADMINISTRATOR,
-      ROLES.PAYROLL_ADMINISTRATOR,
-    ],
+
+    permission: "payroll.view",
   },
 
   /*
@@ -198,13 +161,8 @@ const routeAccess: Array<{
     matches: (pathname) =>
       pathname === "/performance" ||
       pathname.startsWith("/performance/"),
-    roles: [
-      ROLES.SUPER_ADMINISTRATOR,
-      ROLES.COMPANY_ADMINISTRATOR,
-      ROLES.HR_ADMINISTRATOR,
-      ROLES.MANAGER,
-      ROLES.EMPLOYEE,
-    ],
+
+    permission: "performance.view",
   },
 
   /*
@@ -217,13 +175,8 @@ const routeAccess: Array<{
     matches: (pathname) =>
       pathname === "/training" ||
       pathname.startsWith("/training/"),
-    roles: [
-      ROLES.SUPER_ADMINISTRATOR,
-      ROLES.COMPANY_ADMINISTRATOR,
-      ROLES.HR_ADMINISTRATOR,
-      ROLES.MANAGER,
-      ROLES.EMPLOYEE,
-    ],
+
+    permission: "training.view",
   },
 
   /*
@@ -236,11 +189,8 @@ const routeAccess: Array<{
     matches: (pathname) =>
       pathname === "/reports" ||
       pathname.startsWith("/reports/"),
-    roles: [
-      ROLES.SUPER_ADMINISTRATOR,
-      ROLES.COMPANY_ADMINISTRATOR,
-      ROLES.HR_ADMINISTRATOR,
-    ],
+
+    permission: "reports.view",
   },
 
   /*
@@ -253,13 +203,8 @@ const routeAccess: Array<{
     matches: (pathname) =>
       pathname === "/exits" ||
       pathname.startsWith("/exits/"),
-    roles: [
-      ROLES.SUPER_ADMINISTRATOR,
-      ROLES.COMPANY_ADMINISTRATOR,
-      ROLES.HR_ADMINISTRATOR,
-      ROLES.MANAGER,
-      ROLES.EMPLOYEE,
-    ],
+
+    permission: "offboarding.view",
   },
 
   /*
@@ -272,13 +217,8 @@ const routeAccess: Array<{
     matches: (pathname) =>
       pathname === "/clients" ||
       pathname.startsWith("/clients/"),
-    roles: [
-      ROLES.SUPER_ADMINISTRATOR,
-      ROLES.COMPANY_ADMINISTRATOR,
-      ROLES.HR_ADMINISTRATOR,
-      ROLES.RECRUITER,
-      ROLES.CLIENT_USER,
-    ],
+
+    permission: "clients.view",
   },
 
   /*
@@ -291,35 +231,47 @@ const routeAccess: Array<{
     matches: (pathname) =>
       pathname === "/recruitment" ||
       pathname.startsWith("/recruitment/"),
-    roles: [
-      ROLES.SUPER_ADMINISTRATOR,
-      ROLES.COMPANY_ADMINISTRATOR,
-      ROLES.HR_ADMINISTRATOR,
-      ROLES.RECRUITER,
-      ROLES.CLIENT_USER,
-    ],
+
+    permission: "recruitment.view",
   },
 ];
 
-const getAllowedRolesForPath = (
+/*
+|--------------------------------------------------------------------------
+| Find Required Permission
+|--------------------------------------------------------------------------
+*/
+
+const getRequiredPermission = (
   pathname: string,
-): Role[] | null => {
-  const policy = routeAccess.find(
+): string | null => {
+  const policy = routePermissions.find(
     (entry) => entry.matches(pathname),
   );
 
-  return policy?.roles ?? null;
+  return policy?.permission ?? null;
 };
+
+/*
+|--------------------------------------------------------------------------
+| Protected Route
+|--------------------------------------------------------------------------
+*/
 
 function ProtectedRoute() {
   const {
     isAuthenticated,
     isLoading,
-    roles,
+    hasPermission,
   } = useAuth();
 
-  const location =
-    useLocation();
+  const location = useLocation();
+
+  /*
+  |--------------------------------------------------------------------------
+  | Loading
+  |--------------------------------------------------------------------------
+  */
 
   if (isLoading) {
     return (
@@ -337,6 +289,12 @@ function ProtectedRoute() {
     );
   }
 
+  /*
+  |--------------------------------------------------------------------------
+  | Authentication
+  |--------------------------------------------------------------------------
+  */
+
   if (!isAuthenticated) {
     return (
       <Navigate
@@ -351,43 +309,85 @@ function ProtectedRoute() {
 
   /*
   |--------------------------------------------------------------------------
-  | Role Authorization
+  | Permission Authorization
   |--------------------------------------------------------------------------
   */
 
-  const normalizedRoles = roles.map(
-    normalizeRole,
+  const requiredPermission = getRequiredPermission(
+    location.pathname,
   );
-
-  const allowedRoles =
-    getAllowedRolesForPath(
-      location.pathname,
-    );
 
   /*
   |--------------------------------------------------------------------------
-  | Unknown routes
+  | Unknown Routes
   |--------------------------------------------------------------------------
   |
-  | The route itself determines whether the user can reach it.
-  | If no policy exists, don't impose an additional role restriction.
+  | If there is no explicit permission policy for the route,
+  | don't impose an additional frontend restriction.
   |
   |--------------------------------------------------------------------------
   */
 
-  if (allowedRoles) {
-    const hasAccess =
-      allowedRoles.some(
-        (allowedRole) =>
-          normalizedRoles.includes(
-            normalizeRole(allowedRole),
-          ),
-      );
+  if (!requiredPermission) {
+    return <Outlet />;
+  }
 
-    if (!hasAccess) {
+  /*
+  |--------------------------------------------------------------------------
+  | Permission Check
+  |--------------------------------------------------------------------------
+  */
+
+  const hasAccess = hasPermission(
+    requiredPermission,
+  );
+
+  /*
+  |--------------------------------------------------------------------------
+  | Unauthorized Route
+  |--------------------------------------------------------------------------
+  */
+
+  if (!hasAccess) {
+    /*
+    |--------------------------------------------------------------------------
+    | Preferred fallback
+    |--------------------------------------------------------------------------
+    |
+    | Settings is used when the authenticated user has access to it.
+    | Otherwise Dashboard is used when available.
+    |
+    */
+
+    const fallbackPath = hasPermission("settings.view")
+      ? "/settings"
+      : hasPermission("dashboard.view")
+        ? "/dashboard"
+        : "/login";
+
+    /*
+    |--------------------------------------------------------------------------
+    | Safety Guard
+    |--------------------------------------------------------------------------
+    |
+    | Never redirect to the exact same pathname.
+    |
+    */
+
+    if (location.pathname === fallbackPath) {
+      return <Outlet />;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | No accessible fallback
+    |--------------------------------------------------------------------------
+    */
+
+    if (fallbackPath === "/login") {
       return (
         <Navigate
-          to="/dashboard"
+          to="/login"
           replace
           state={{
             deniedPath: location.pathname,
@@ -395,7 +395,29 @@ function ProtectedRoute() {
         />
       );
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Redirect Unauthorized User
+    |--------------------------------------------------------------------------
+    */
+
+    return (
+      <Navigate
+        to={fallbackPath}
+        replace
+        state={{
+          deniedPath: location.pathname,
+        }}
+      />
+    );
   }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Authorized
+  |--------------------------------------------------------------------------
+  */
 
   return <Outlet />;
 }

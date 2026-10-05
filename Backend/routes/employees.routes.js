@@ -3,6 +3,12 @@ import pool from "../db.js";
 
 const router = express.Router();
 
+/*
+|--------------------------------------------------------------------------
+| Employee Scope Helpers
+|--------------------------------------------------------------------------
+*/
+
 const employeeScopeValues = (req) => [
   req.user.roles.includes("SUPER_ADMINISTRATOR"),
   req.user.requestedCompanyId ?? null,
@@ -10,26 +16,222 @@ const employeeScopeValues = (req) => [
 
 const departmentIsInScope = async (req, departmentId) => {
   if (!departmentId) return true;
+
   const result = await pool.query(
-    "SELECT 1 FROM departments WHERE id = $1 AND ($2::boolean OR company_id = $3) LIMIT 1",
-    [Number(departmentId), ...employeeScopeValues(req)],
+    `
+      SELECT 1
+      FROM departments
+      WHERE id = $1
+        AND (
+          $2::boolean
+          OR company_id = $3
+        )
+      LIMIT 1
+    `,
+    [
+      Number(departmentId),
+      ...employeeScopeValues(req),
+    ],
   );
+
   return result.rows.length > 0;
 };
 
-const addEmployeeScope = (req, values, conditions, alias = "e") => {
-  if (!req.user.roles.includes("SUPER_ADMINISTRATOR")) {
+const addEmployeeScope = (
+  req,
+  values,
+  conditions,
+  alias = "e",
+) => {
+  if (
+    !req.user.roles.includes(
+      "SUPER_ADMINISTRATOR",
+    )
+  ) {
     values.push(req.user.requestedCompanyId);
-    conditions.push(`${alias}.company_id = $${values.length}`);
+
+    conditions.push(
+      `${alias}.company_id = $${values.length}`,
+    );
   }
+
   if (req.authorization?.ownOnly) {
-    values.push(req.user.employee_id ?? -1);
-    conditions.push(`${alias}.id = $${values.length}`);
-  } else if (req.user.roles.includes("MANAGER") && !req.user.permissions.includes("employees.update")) {
-    values.push(req.user.employee_id ?? -1);
-    conditions.push(`${alias}.reporting_manager_id = $${values.length}`);
+    values.push(
+      req.user.employee_id ?? -1,
+    );
+
+    conditions.push(
+      `${alias}.id = $${values.length}`,
+    );
+  } else if (
+    req.user.roles.includes("MANAGER") &&
+    !req.user.permissions.includes(
+      "employees.update",
+    )
+  ) {
+    values.push(
+      req.user.employee_id ?? -1,
+    );
+
+    conditions.push(
+      `${alias}.reporting_manager_id = $${values.length}`,
+    );
   }
 };
+
+/*
+|--------------------------------------------------------------------------
+| GET /api/employees/by-username/:username
+|--------------------------------------------------------------------------
+| Get employee profile by username
+|
+| IMPORTANT:
+| This route MUST appear before /:id.
+|--------------------------------------------------------------------------
+*/
+
+router.get(
+  "/by-username/:username",
+  async (req, res) => {
+    try {
+      const { username } = req.params;
+
+      const result = await pool.query(
+        `
+          SELECT
+            e.id,
+            e.employee_code,
+            e.first_name,
+            e.last_name,
+            e.email,
+            e.designation,
+            e.department_id,
+            d.name AS department_name,
+            e.joining_date,
+            e.employment_status,
+            e.employment_type,
+            e.created_at,
+
+            COALESCE(
+              (
+                SELECT STRING_AGG(
+                  r.name,
+                  ', '
+                  ORDER BY r.name
+                )
+                FROM users u2
+                INNER JOIN user_roles ur
+                  ON ur.user_id = u2.id
+                INNER JOIN roles r
+                  ON r.id = ur.role_id
+                WHERE u2.employee_id = e.id
+              ),
+              'Not Assigned'
+            ) AS system_role
+
+          FROM users u
+
+          INNER JOIN employees e
+            ON e.id = u.employee_id
+
+          LEFT JOIN departments d
+            ON d.id = e.department_id
+
+          WHERE LOWER(u.username) = LOWER($1)
+
+            AND (
+              $2::boolean
+              OR e.company_id = $3
+            )
+
+          LIMIT 1;
+        `,
+        [
+          username,
+          req.user.roles.includes(
+            "SUPER_ADMINISTRATOR",
+          ),
+          req.user.requestedCompanyId ?? null,
+        ],
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Employee not found",
+        });
+      }
+
+      const employee = result.rows[0];
+
+      return res.json({
+        success: true,
+
+        data: {
+          id: Number(employee.id),
+
+          employeeCode:
+            employee.employee_code,
+
+          firstName:
+            employee.first_name,
+
+          lastName:
+            employee.last_name,
+
+          fullName:
+            `${employee.first_name} ${
+              employee.last_name ?? ""
+            }`.trim(),
+
+          email:
+            employee.email,
+
+          designation:
+            employee.designation ?? "",
+
+          departmentId:
+            employee.department_id
+              ? Number(
+                  employee.department_id,
+                )
+              : null,
+
+          department:
+            employee.department_name ??
+            "Unassigned",
+
+          systemRole:
+            employee.system_role ??
+            "Not Assigned",
+
+          joiningDate:
+            employee.joining_date,
+
+          status:
+            employee.employment_status,
+
+          employmentType:
+            employee.employment_type,
+
+          createdAt:
+            employee.created_at,
+        },
+      });
+    } catch (error) {
+      console.error(
+        "Employee lookup by username error:",
+        error,
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Failed to load employee by username",
+      });
+    }
+  },
+);
 
 /*
 |--------------------------------------------------------------------------
@@ -82,19 +284,33 @@ router.get("/:id", async (req, res) => {
           ON d.id = e.department_id
 
         WHERE e.id = $1
-          AND ($2::boolean OR e.company_id = $3)
-          AND ($4::boolean OR e.id = $5)
-          AND ($6::boolean OR e.reporting_manager_id = $7)
+          AND (
+            $2::boolean
+            OR e.company_id = $3
+          )
+          AND (
+            $4::boolean
+            OR e.id = $5
+          )
+          AND (
+            $6::boolean
+            OR e.reporting_manager_id = $7
+          )
 
         LIMIT 1;
       `,
       [
         id,
-        req.user.roles.includes("SUPER_ADMINISTRATOR"),
+        req.user.roles.includes(
+          "SUPER_ADMINISTRATOR",
+        ),
         req.user.requestedCompanyId ?? null,
         !req.authorization?.ownOnly,
         req.user.employee_id ?? -1,
-        !req.user.roles.includes("MANAGER") || req.user.permissions.includes("employees.update"),
+        !req.user.roles.includes("MANAGER") ||
+          req.user.permissions.includes(
+            "employees.update",
+          ),
         req.user.employee_id ?? -1,
       ],
     );
@@ -136,7 +352,9 @@ router.get("/:id", async (req, res) => {
 
         departmentId:
           employee.department_id
-            ? Number(employee.department_id)
+            ? Number(
+                employee.department_id,
+              )
             : null,
 
         department:
@@ -256,7 +474,17 @@ router.get("/", async (req, res) => {
       );
     }
 
-    addEmployeeScope(req, values, conditions);
+    /*
+    |--------------------------------------------------------------------------
+    | Employee Scope
+    |--------------------------------------------------------------------------
+    */
+
+    addEmployeeScope(
+      req,
+      values,
+      conditions,
+    );
 
     /*
     |--------------------------------------------------------------------------
@@ -273,7 +501,7 @@ router.get("/", async (req, res) => {
 
     /*
     |--------------------------------------------------------------------------
-    | Employees
+    | Employee Query
     |--------------------------------------------------------------------------
     */
 
@@ -465,7 +693,7 @@ router.post("/", async (req, res) => {
 
     /*
     |--------------------------------------------------------------------------
-    | Required field validation
+    | Required Field Validation
     |--------------------------------------------------------------------------
     */
 
@@ -486,13 +714,28 @@ router.post("/", async (req, res) => {
       });
     }
 
-    if (!(await departmentIsInScope(req, departmentId))) {
-      return res.status(404).json({ success: false, message: "Department not found" });
+    /*
+    |--------------------------------------------------------------------------
+    | Department Scope
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+      !(await departmentIsInScope(
+        req,
+        departmentId,
+      ))
+    ) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Department not found",
+      });
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Create employee
+    | Create Employee
     |--------------------------------------------------------------------------
     */
 
@@ -556,7 +799,7 @@ router.post("/", async (req, res) => {
 
       /*
       |--------------------------------------------------------------------------
-      | Get department name
+      | Get Department Name
       |--------------------------------------------------------------------------
       */
 
@@ -564,12 +807,18 @@ router.post("/", async (req, res) => {
         await pool.query(
           `
             SELECT name
-          FROM departments
-          WHERE id = $1
-            AND ($2::boolean OR company_id = $3)
-          LIMIT 1;
-        `,
-          [departmentId, ...employeeScopeValues(req)],
+            FROM departments
+            WHERE id = $1
+              AND (
+                $2::boolean
+                OR company_id = $3
+              )
+            LIMIT 1;
+          `,
+          [
+            departmentId,
+            ...employeeScopeValues(req),
+          ],
         );
 
       /*
@@ -641,7 +890,7 @@ router.post("/", async (req, res) => {
     } catch (insertError) {
       /*
       |--------------------------------------------------------------------------
-      | Duplicate employee code / email
+      | Duplicate Employee Code / Email
       |--------------------------------------------------------------------------
       */
 
@@ -719,7 +968,7 @@ router.put("/:id", async (req, res) => {
 
     /*
     |--------------------------------------------------------------------------
-    | Confirm employee exists
+    | Confirm Employee Exists
     |--------------------------------------------------------------------------
     */
 
@@ -729,10 +978,16 @@ router.put("/:id", async (req, res) => {
           SELECT id
           FROM employees
           WHERE id = $1
-            AND ($2::boolean OR company_id = $3)
+            AND (
+              $2::boolean
+              OR company_id = $3
+            )
           LIMIT 1;
         `,
-        [id, ...employeeScopeValues(req)],
+        [
+          id,
+          ...employeeScopeValues(req),
+        ],
       );
 
     if (
@@ -746,13 +1001,28 @@ router.put("/:id", async (req, res) => {
       });
     }
 
-    if (!(await departmentIsInScope(req, departmentId))) {
-      return res.status(404).json({ success: false, message: "Department not found" });
+    /*
+    |--------------------------------------------------------------------------
+    | Department Scope
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+      !(await departmentIsInScope(
+        req,
+        departmentId,
+      ))
+    ) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Department not found",
+      });
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Validate required fields
+    | Validate Required Fields
     |--------------------------------------------------------------------------
     */
 
@@ -774,7 +1044,7 @@ router.put("/:id", async (req, res) => {
 
     /*
     |--------------------------------------------------------------------------
-    | Update employee
+    | Update Employee
     |--------------------------------------------------------------------------
     */
 
@@ -793,7 +1063,10 @@ router.put("/:id", async (req, res) => {
             employment_status = $8,
             employment_type = $9
           WHERE id = $10
-            AND ($11::boolean OR company_id = $12);
+            AND (
+              $11::boolean
+              OR company_id = $12
+            );
         `,
         [
           employeeCode.trim(),
@@ -814,7 +1087,7 @@ router.put("/:id", async (req, res) => {
     } catch (updateError) {
       /*
       |--------------------------------------------------------------------------
-      | Duplicate employee code / email
+      | Duplicate Employee Code / Email
       |--------------------------------------------------------------------------
       */
 
@@ -855,7 +1128,7 @@ router.put("/:id", async (req, res) => {
 
     /*
     |--------------------------------------------------------------------------
-    | Fetch updated employee
+    | Fetch Updated Employee
     |--------------------------------------------------------------------------
     */
 
@@ -899,11 +1172,17 @@ router.put("/:id", async (req, res) => {
             ON d.id = e.department_id
 
           WHERE e.id = $1
-            AND ($2::boolean OR e.company_id = $3)
+            AND (
+              $2::boolean
+              OR e.company_id = $3
+            )
 
           LIMIT 1;
         `,
-        [id, ...employeeScopeValues(req)],
+        [
+          id,
+          ...employeeScopeValues(req),
+        ],
       );
 
     const employee =
@@ -1000,7 +1279,7 @@ router.delete("/:id", async (req, res) => {
 
     /*
     |--------------------------------------------------------------------------
-    | Confirm employee exists
+    | Confirm Employee Exists
     |--------------------------------------------------------------------------
     */
 
@@ -1013,10 +1292,16 @@ router.delete("/:id", async (req, res) => {
             last_name
           FROM employees
           WHERE id = $1
-            AND ($2::boolean OR company_id = $3)
+            AND (
+              $2::boolean
+              OR company_id = $3
+            )
           LIMIT 1;
         `,
-        [id, ...employeeScopeValues(req)],
+        [
+          id,
+          ...employeeScopeValues(req),
+        ],
       );
 
     if (
@@ -1035,7 +1320,7 @@ router.delete("/:id", async (req, res) => {
 
     /*
     |--------------------------------------------------------------------------
-    | Permanent deletion
+    | Permanent Deletion
     |--------------------------------------------------------------------------
     */
 
@@ -1044,14 +1329,20 @@ router.delete("/:id", async (req, res) => {
         `
           DELETE FROM employees
           WHERE id = $1
-            AND ($2::boolean OR company_id = $3);
+            AND (
+              $2::boolean
+              OR company_id = $3
+            );
         `,
-        [id, ...employeeScopeValues(req)],
+        [
+          id,
+          ...employeeScopeValues(req),
+        ],
       );
     } catch (deleteError) {
       /*
       |--------------------------------------------------------------------------
-      | Foreign-key dependency
+      | Foreign Key Dependency
       |--------------------------------------------------------------------------
       */
 
@@ -1071,7 +1362,7 @@ router.delete("/:id", async (req, res) => {
 
     /*
     |--------------------------------------------------------------------------
-    | Success response
+    | Success Response
     |--------------------------------------------------------------------------
     */
 
@@ -1082,6 +1373,7 @@ router.delete("/:id", async (req, res) => {
 
     return res.status(200).json({
       success: true,
+
       message:
         employeeName
           ? `${employeeName} was permanently deleted successfully.`

@@ -160,14 +160,10 @@ function Sidebar({
     );
   };
 
-  /*
-   * Organization is slightly different because the HR Administrator
-   * has department access but does not have company/branch access.
-   *
-   * Therefore:
-   * - Super Admin / Company Admin -> Company
-   * - HR Admin -> Departments
-   */
+  /* ============================================================
+     ORGANIZATION PERMISSIONS
+  ============================================================ */
+
   const canViewCompany =
     canView("companies.view");
 
@@ -224,6 +220,10 @@ function Sidebar({
       return paths;
     };
 
+  /* ============================================================
+     FILTER NAVIGATION BY RBAC
+  ============================================================ */
+
   const visibleNavItems =
     navItems
       .filter((item) => {
@@ -256,8 +256,8 @@ function Sidebar({
       });
 
   /*
-   * Keep AuthContext's hasPermission in use so the sidebar remains
-   * compatible with the application's central RBAC system.
+   * Keep AuthContext's hasPermission in use
+   * for compatibility with the central RBAC system.
    */
   void hasPermission;
 
@@ -272,12 +272,21 @@ function Sidebar({
           type="button"
           aria-label="Close sidebar"
           onClick={onClose}
-          className="fixed inset-0 z-40 bg-slate-950/50 lg:hidden"
+          className="
+            fixed
+            inset-0
+            z-40
+            bg-slate-950/50
+            lg:hidden
+          "
         />
       )}
 
       {/* =====================================================
-          FIXED SIDEBAR
+          FIXED STATIC SIDEBAR
+
+          The sidebar itself never scrolls.
+          Only the right-side application area scrolls.
       ===================================================== */}
 
       <aside
@@ -296,32 +305,80 @@ function Sidebar({
           transition-transform
           duration-300
           ease-in-out
+
           ${
             open
               ? "translate-x-0"
               : "-translate-x-full"
           }
+
           lg:translate-x-0
         `}
       >
+
         {/* ===================================================
             BRAND
+
+            Reduced slightly from 88px to 78px so that
+            every navigation item fits at 100% zoom.
         =================================================== */}
 
-        <div className="flex h-[88px] shrink-0 items-center px-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 via-blue-500 to-cyan-400 shadow-lg shadow-blue-950/30">
+        <div
+          className="
+            flex
+            h-[78px]
+            shrink-0
+            items-center
+            px-5
+          "
+        >
+          <div
+            className="
+              flex
+              min-w-0
+              items-center
+              gap-3
+            "
+          >
+            <div
+              className="
+                flex
+                h-10
+                w-10
+                shrink-0
+                items-center
+                justify-center
+                rounded-xl
+                bg-gradient-to-br
+                from-violet-500
+                via-blue-500
+                to-cyan-400
+                shadow-lg
+                shadow-blue-950/30
+              "
+            >
               <span className="text-xl font-black text-white">
                 A
               </span>
             </div>
 
             <div className="min-w-0">
+
               <p className="text-[17px] font-bold tracking-tight text-white">
                 Aakam HRMS
               </p>
 
-              <p className="mt-1 text-[8px] font-medium uppercase leading-[1.45] tracking-[0.10em] text-slate-500">
+              <p
+                className="
+                  mt-1
+                  text-[8px]
+                  font-medium
+                  uppercase
+                  leading-[1.4]
+                  tracking-[0.10em]
+                  text-slate-500
+                "
+              >
                 <span className="block">
                   Human Resource
                 </span>
@@ -330,27 +387,55 @@ function Sidebar({
                   Management System
                 </span>
               </p>
+
             </div>
           </div>
+
+          {/* MOBILE CLOSE */}
 
           <button
             type="button"
             onClick={onClose}
             aria-label="Close sidebar"
-            className="ml-auto rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white lg:hidden"
+            className="
+              ml-auto
+              rounded-lg
+              p-1.5
+              text-slate-400
+              hover:bg-white/10
+              hover:text-white
+              lg:hidden
+            "
           >
             <X size={18} />
           </button>
         </div>
 
+
         {/* ===================================================
             NAVIGATION
+
+            NO SCROLL.
+
+            All items are intentionally compact enough
+            to remain visible on a normal laptop screen.
         =================================================== */}
 
-        <nav className="min-h-0 flex-1 px-3 pb-4 pt-1">
-          <div className="flex h-full flex-col justify-between">
+        <nav
+          className="
+            min-h-0
+            flex-1
+            overflow-hidden
+            px-3
+            pb-3
+            pt-2
+          "
+        >
+          <div className="flex flex-col gap-1">
+
             {visibleNavItems.map(
               (item) => (
+
                 <NavLink
                   key={item.label}
                   to={item.path}
@@ -358,6 +443,7 @@ function Sidebar({
                   className={({
                     isActive,
                   }) => {
+
                     const currentPath =
                       window.location.pathname;
 
@@ -379,8 +465,8 @@ function Sidebar({
                     return `
                       group
                       flex
-                      h-[44px]
-                      min-h-[44px]
+                      h-[40px]
+                      min-h-[40px]
                       w-full
                       shrink-0
                       items-center
@@ -413,7 +499,9 @@ function Sidebar({
                     `;
                   }}
                 >
+
                   {() => {
+
                     const Icon =
                       item.icon;
 
@@ -441,11 +529,13 @@ function Sidebar({
 
                     return (
                       <>
+                        {/* ICON */}
+
                         <span
                           className={`
                             flex
-                            h-8
-                            w-8
+                            h-7
+                            w-7
                             shrink-0
                             items-center
                             justify-center
@@ -459,7 +549,7 @@ function Sidebar({
                           `}
                         >
                           <Icon
-                            size={18}
+                            size={17}
                             strokeWidth={
                               active
                                 ? 2.2
@@ -468,24 +558,35 @@ function Sidebar({
                           />
                         </span>
 
+
+                        {/* LABEL */}
+
                         <span className="min-w-0 flex-1 truncate">
                           {item.label}
                         </span>
 
+
+                        {/* ACTIVE ARROW */}
+
                         {active && (
                           <ChevronRight
-                            size={14}
+                            size={13}
                             className="shrink-0 text-blue-200"
                           />
                         )}
+
                       </>
                     );
                   }}
+
                 </NavLink>
+
               ),
             )}
+
           </div>
         </nav>
+
       </aside>
     </>
   );
