@@ -540,10 +540,15 @@ function Settings() {
           |--------------------------------------------------------------------------
           */
 
-          const systemRole =
-            employeeRecord?.systemRole ??
-            "";
+        const authenticatedRole =
+  authUser?.roles?.[0]?.name ??
+  authUser?.role ??
+  "";
 
+const systemRole =
+  authenticatedRole ||
+  employeeRecord?.systemRole ||
+  "";
           /*
           |--------------------------------------------------------------------------
           | ACCOUNT STATUS

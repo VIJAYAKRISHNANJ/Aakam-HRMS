@@ -3,12 +3,6 @@ import pool from "../db.js";
 
 const router = express.Router();
 
-/*
-|--------------------------------------------------------------------------
-| Employee Scope Helpers
-|--------------------------------------------------------------------------
-*/
-
 const employeeScopeValues = (req) => [
   req.user.roles.includes("SUPER_ADMINISTRATOR"),
   req.user.requestedCompanyId ?? null,
@@ -65,17 +59,15 @@ const addEmployeeScope = (
     );
   } else if (
     req.user.roles.includes("MANAGER") &&
-    !req.user.permissions.includes(
-      "employees.update",
-    )
+    !req.user.permissions.includes("employees.update")
   ) {
-    values.push(
-      req.user.employee_id ?? -1,
-    );
+    values.push(req.user.employee_id ?? -1);
 
-    conditions.push(
-      `${alias}.reporting_manager_id = $${values.length}`,
-    );
+    conditions.push(`(
+      ${alias}.id = $${values.length}
+      OR
+      ${alias}.reporting_manager_id = $${values.length}
+    )`);
   }
 };
 
@@ -294,6 +286,7 @@ router.get("/:id", async (req, res) => {
           )
           AND (
             $6::boolean
+            OR e.id = $7
             OR e.reporting_manager_id = $7
           )
 
