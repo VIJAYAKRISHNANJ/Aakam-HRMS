@@ -53,28 +53,49 @@ interface HeaderProps {
 /* ==========================================================================
    AUTH USER SHAPE
 
-   Only authentication/account information is taken from AuthContext.
+   Authentication/account information comes from AuthContext.
 
-   Workforce information such as:
-   - firstName
-   - lastName
-   - designation
-   - systemRole
+   Workforce employee information is loaded using employeeId whenever the
+   authenticated role has access to the employee endpoint.
 
-   comes from the Workforce employee record.
+   If the endpoint is restricted for an employee self-service account,
+   the authenticated user's employee information is used as a safe fallback.
 ========================================================================== */
 
 interface HeaderUserShape {
   employeeId?: number | string | null;
+
   employee_id?: number | string | null;
 
   username?: string | null;
 
   firstName?: string | null;
+
   lastName?: string | null;
+
   fullName?: string | null;
 
   email?: string | null;
+
+  designation?: string | null;
+
+  employee?: {
+    id?: number | string | null;
+
+    firstName?: string | null;
+
+    lastName?: string | null;
+
+    fullName?: string | null;
+
+    email?: string | null;
+
+    designation?: string | null;
+
+    status?: string | null;
+
+    employmentStatus?: string | null;
+  } | null;
 }
 
 /* ==========================================================================
@@ -85,10 +106,12 @@ function Header({
   onOpenSidebar,
 }: HeaderProps) {
   const location = useLocation();
+
   const navigate = useNavigate();
 
   const {
     user,
+    roles,
     logout,
   } = useAuth();
 
@@ -114,7 +137,9 @@ function Header({
   ========================================================================== */
 
   const isWorkforce =
-    location.pathname.startsWith("/workforce");
+    location.pathname.startsWith(
+      "/workforce",
+    );
 
   /* ==========================================================================
      PROFILE STATE
@@ -133,8 +158,7 @@ function Header({
   /* ==========================================================================
      WORKFORCE EMPLOYEE PROFILE
 
-     IMPORTANT:
-     Workforce is the source of truth.
+     Source of truth:
 
      AuthContext
           ↓
@@ -142,7 +166,10 @@ function Header({
           ↓
      getEmployeeById()
           ↓
-     Workforce employee record
+     Employee table
+
+     For self-service users who do not have workforce.view permission,
+     the login/current-user employee information is used as fallback.
   ========================================================================== */
 
   const [
@@ -190,7 +217,18 @@ function Header({
   ] = useState<boolean>(false);
 
   /* ==========================================================================
-     LOAD WORKFORCE EMPLOYEE PROFILE
+     LOAD EMPLOYEE PROFILE
+
+     IMPORTANT:
+
+     We do NOT hardcode:
+     - Virat
+     - Saranya
+     - Naveen
+     - employee IDs
+     - designations
+
+     Everything comes from the authenticated account.
   ========================================================================== */
 
   useEffect(() => {
@@ -201,16 +239,26 @@ function Header({
         const employeeId =
           authUser?.employeeId ??
           authUser?.employee_id ??
+          authUser?.employee?.id ??
           null;
+
+        /* ---------------------------------------------------------------
+           No employee ID
+        ---------------------------------------------------------------- */
 
         if (!employeeId) {
           if (!cancelled) {
             setEmployeeProfile(null);
+
             setEmployeeLoading(false);
           }
 
           return;
         }
+
+        /* ---------------------------------------------------------------
+           First try the actual Workforce employee record.
+        ---------------------------------------------------------------- */
 
         try {
           setEmployeeLoading(true);
@@ -225,20 +273,131 @@ function Header({
               employee,
             );
           }
+
+          return;
         } catch (error) {
-          console.error(
-            "Failed to load Workforce employee profile:",
+          /*
+           * Employee self-service users may not have workforce.view.
+           *
+           * In that situation getEmployeeById() can return 403.
+           *
+           * The authenticated user response already contains the
+           * employee-linked information, so use that as fallback.
+           */
+
+          console.warn(
+            "Unable to load Workforce employee profile directly. Using authenticated employee data.",
             error,
           );
-
-          if (!cancelled) {
-            setEmployeeProfile(null);
-          }
         } finally {
           if (!cancelled) {
             setEmployeeLoading(false);
           }
         }
+
+        /* ---------------------------------------------------------------
+           FALLBACK TO AUTHENTICATED EMPLOYEE DATA
+        ---------------------------------------------------------------- */
+
+        if (cancelled) {
+          return;
+        }
+
+        const authenticatedEmployee =
+          authUser?.employee;
+
+        const fallbackFirstName =
+          authenticatedEmployee?.firstName ??
+          authUser?.firstName ??
+          "";
+
+        const fallbackLastName =
+          authenticatedEmployee?.lastName ??
+          authUser?.lastName ??
+          null;
+
+        const fallbackFullName =
+          authenticatedEmployee?.fullName ??
+          authUser?.fullName ??
+          `${fallbackFirstName} ${
+            fallbackLastName ?? ""
+          }`.trim();
+
+        const fallbackEmail =
+          authenticatedEmployee?.email ??
+          authUser?.email ??
+          "";
+
+        const fallbackDesignation =
+          authenticatedEmployee?.designation ??
+          authUser?.designation ??
+          "";
+
+        const fallbackStatus =
+          authenticatedEmployee?.status ??
+          authenticatedEmployee?.employmentStatus ??
+          "ACTIVE";
+
+        /*
+         * Create a Workforce-shaped object so the rest of the Header
+         * continues using one single data source.
+         */
+
+        const fallbackEmployee =
+          {
+            id: Number(employeeId),
+
+            username:
+              authUser?.username ??
+              "",
+
+            employeeCode:
+              "",
+
+            firstName:
+              fallbackFirstName,
+
+            lastName:
+              fallbackLastName,
+
+            fullName:
+              fallbackFullName,
+
+            email:
+              fallbackEmail,
+
+            designation:
+              fallbackDesignation,
+
+            departmentId:
+              null,
+
+            department:
+              "",
+
+            /*
+             * System role is populated separately from AuthContext.
+             */
+
+            systemRole:
+              "",
+
+            joiningDate:
+              "",
+
+            status:
+              fallbackStatus,
+
+            employmentType:
+              "",
+
+            createdAt:
+              "",
+          } satisfies Employee;
+
+        setEmployeeProfile(
+          fallbackEmployee,
+        );
       };
 
     void loadEmployeeProfile();
@@ -249,6 +408,7 @@ function Header({
   }, [
     authUser?.employeeId,
     authUser?.employee_id,
+    authUser?.employee?.id,
   ]);
 
   /* ==========================================================================
@@ -415,53 +575,77 @@ function Header({
   /* ==========================================================================
      PROFILE DISPLAY DATA
 
-     Workforce is the source of truth.
+     Employee table is preferred.
+
+     Authenticated employee data is the fallback.
   ========================================================================== */
 
   const employeeFirstName =
     employeeProfile?.firstName?.trim() ||
+    authUser?.employee?.firstName?.trim() ||
+    authUser?.firstName?.trim() ||
     "";
 
   const employeeLastName =
     employeeProfile?.lastName?.trim() ||
+    authUser?.employee?.lastName?.trim() ||
+    authUser?.lastName?.trim() ||
     "";
 
   const employeeFullName =
+    employeeProfile?.fullName?.trim() ||
+    authUser?.employee?.fullName?.trim() ||
+    authUser?.fullName?.trim() ||
     `${employeeFirstName} ${employeeLastName}`
       .trim() ||
     "User";
 
-  /*
-   * IMPORTANT:
-   * Do NOT transform this value.
-   *
-   * Workforce contains:
-   *
-   * SUPER_ADMINISTRATOR
-   *
-   * Therefore the header displays:
-   *
-   * SUPER_ADMINISTRATOR
-   *
-   * exactly.
-   */
+  /* ==========================================================================
+     SYSTEM ROLE
+
+     The RBAC role belongs to AuthContext.
+
+     Example:
+
+     EMPLOYEE
+     MANAGER
+     RECRUITER
+     HR_ADMINISTRATOR
+     COMPANY_ADMINISTRATOR
+     PAYROLL_ADMINISTRATOR
+     SUPER_ADMINISTRATOR
+  ========================================================================== */
 
   const systemRole =
+    roles?.[0]?.trim() ||
     employeeProfile?.systemRole?.trim() ||
     "-";
 
-  /*
-   * Designation also comes directly from Workforce.
-   */
+  /* ==========================================================================
+     DESIGNATION
+
+     Comes from employee record.
+
+     Example:
+
+     Software developer
+     Manager
+     HR Administrator
+     Recruiter
+     Payroll Administrator
+  ========================================================================== */
 
   const designation =
     employeeProfile?.designation?.trim() ||
+    authUser?.employee?.designation?.trim() ||
+    authUser?.designation?.trim() ||
     "-";
 
-  /*
-   * Username belongs to the authentication account,
-   * not the employee record.
-   */
+  /* ==========================================================================
+     USERNAME
+
+     Username belongs to the authentication account.
+  ========================================================================== */
 
   const username =
     authUser?.username?.trim() ||
@@ -960,8 +1144,6 @@ function Header({
                   shadow-xl
                 "
               >
-                {/* Notification Header */}
-
                 <div
                   className="
                     flex
@@ -1006,8 +1188,6 @@ function Header({
                   </button>
                 </div>
 
-                {/* Mark All */}
-
                 {unreadCount > 0 && (
                   <div className="border-b border-slate-100 px-4 py-2">
                     <button
@@ -1046,8 +1226,6 @@ function Header({
                     </button>
                   </div>
                 )}
-
-                {/* Loading */}
 
                 {notificationLoading ? (
                   <div
@@ -1204,8 +1382,6 @@ function Header({
                   </div>
                 )}
 
-                {/* Footer */}
-
                 <div className="border-t border-slate-200 bg-slate-50 p-3">
                   <button
                     type="button"
@@ -1339,14 +1515,7 @@ function Header({
                   shadow-xl
                 "
               >
-                {/* =================================================
-                    USER INFORMATION
-
-                    ONLY NAME HERE.
-
-                    No designation.
-                    No system role.
-                ================================================= */}
+                {/* USER INFORMATION */}
 
                 <div className="border-b border-slate-200 px-4 py-4">
                   <div className="flex items-center gap-3">
@@ -1380,15 +1549,7 @@ function Header({
                   </div>
                 </div>
 
-                {/* =================================================
-                    ACCOUNT DETAILS
-
-                    EXACTLY:
-
-                    Designation        System Administrator
-                    System Role        SUPER_ADMINISTRATOR
-                    Username           admin
-                ================================================= */}
+                {/* ACCOUNT DETAILS */}
 
                 <div className="border-b border-slate-100 px-4 py-3">
 
@@ -1433,9 +1594,7 @@ function Header({
                   </div>
                 </div>
 
-                {/* =================================================
-                    ACCOUNT SETTINGS / SIGN OUT
-                ================================================= */}
+                {/* ACCOUNT SETTINGS / SIGN OUT */}
 
                 <div className="p-2">
                   <button

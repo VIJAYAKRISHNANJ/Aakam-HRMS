@@ -24,6 +24,8 @@ import {
   StateMessage,
 } from "../components/recruitment/RecruitmentComponents";
 
+import { useAuth } from "../context/AuthContext";
+
 import {
   deletePerformanceReview,
   getPerformanceErrorMessage,
@@ -132,6 +134,29 @@ function Rating({
 ============================================================ */
 
 function Performance() {
+  const {
+    hasPermission,
+  } = useAuth();
+
+  /* ==========================================================
+     PERMISSIONS
+  ========================================================== */
+
+  const canCreate =
+    hasPermission(
+      "performance.create",
+    );
+
+  const canUpdate =
+    hasPermission(
+      "performance.update",
+    );
+
+  const canDelete =
+    hasPermission(
+      "performance.delete",
+    );
+
   const [
     reviews,
     setReviews,
@@ -236,8 +261,7 @@ function Performance() {
             }`
               .toLowerCase()
               .includes(
-                search
-                  .toLowerCase(),
+                search.toLowerCase(),
               ),
         ),
       [
@@ -300,6 +324,10 @@ function Performance() {
   const openDeleteModal = (
     review: PerformanceReview,
   ) => {
+    if (!canDelete) {
+      return;
+    }
+
     setDeletingReview(
       review,
     );
@@ -315,7 +343,8 @@ function Performance() {
   const handleDelete =
     async () => {
       if (
-        !deletingReview
+        !deletingReview ||
+        !canDelete
       ) {
         return;
       }
@@ -378,29 +407,31 @@ function Performance() {
           subtitle="Manage employee performance reviews, ratings and goals."
           icon={Star}
           action={
-            <Link
-              to="/performance/new"
-              className="
-                inline-flex
-                items-center
-                gap-2
-                rounded-lg
-                bg-teal-700
-                px-4
-                py-2.5
-                text-sm
-                font-semibold
-                text-white
-                transition
-                hover:bg-teal-800
-              "
-            >
-              <Plus
-                size={16}
-              />
+            canCreate ? (
+              <Link
+                to="/performance/new"
+                className="
+                  inline-flex
+                  items-center
+                  gap-2
+                  rounded-lg
+                  bg-teal-700
+                  px-4
+                  py-2.5
+                  text-sm
+                  font-semibold
+                  text-white
+                  transition
+                  hover:bg-teal-800
+                "
+              >
+                <Plus
+                  size={16}
+                />
 
-              Add Performance Review
-            </Link>
+                Add Performance Review
+              </Link>
+            ) : undefined
           }
         />
 
@@ -595,7 +626,7 @@ function Performance() {
         )}
 
         {/* ====================================================
-            LOADING
+            CONTENT
         ==================================================== */}
 
         {loading ? (
@@ -626,10 +657,6 @@ function Performance() {
                   text-sm
                 "
               >
-                {/* ==================================================
-                    TABLE HEADER
-                ================================================== */}
-
                 <thead
                   className="
                     border-b
@@ -673,10 +700,6 @@ function Performance() {
                   </tr>
                 </thead>
 
-                {/* ==================================================
-                    TABLE BODY
-                ================================================== */}
-
                 <tbody
                   className="
                     divide-y
@@ -695,9 +718,6 @@ function Performance() {
                           hover:bg-slate-50
                         "
                       >
-
-                        {/* EMPLOYEE */}
-
                         <td className="px-5 py-4">
                           <p className="font-semibold text-slate-800">
                             {
@@ -713,15 +733,11 @@ function Performance() {
                           </p>
                         </td>
 
-                        {/* DEPARTMENT */}
-
                         <td className="px-5 py-4 text-slate-600">
                           {
                             review.department
                           }
                         </td>
-
-                        {/* REVIEW PERIOD */}
 
                         <td className="px-5 py-4 text-slate-600">
                           {formatDate(
@@ -735,16 +751,12 @@ function Performance() {
                           )}
                         </td>
 
-                        {/* REVIEWER */}
-
                         <td className="px-5 py-4 text-slate-600">
                           {
                             review.reviewerName ??
                             "-"
                           }
                         </td>
-
-                        {/* RATING */}
 
                         <td className="px-5 py-4">
                           <Rating
@@ -753,8 +765,6 @@ function Performance() {
                             }
                           />
                         </td>
-
-                        {/* STATUS */}
 
                         <td className="px-5 py-4">
                           <span
@@ -773,94 +783,81 @@ function Performance() {
                               }
                             `}
                           >
-                            {
-                              formatStatus(
-                                review.status,
-                              )
-                            }
+                            {formatStatus(
+                              review.status,
+                            )}
                           </span>
                         </td>
 
-                        {/* GOALS */}
-
                         <td className="px-5 py-4 text-slate-600">
-                          {review.goals?.length ?? 0}
+                          {
+                            review.goals
+                              .length
+                          }
                         </td>
 
-                        {/* ACTIONS */}
-
                         <td className="px-5 py-4">
-                          <div
-                            className="
-                              flex
-                              justify-end
-                              gap-2
-                            "
-                          >
+                          <div className="flex justify-end gap-1">
 
-                            {/* EDIT */}
-
+                            {/* VIEW */}
                             <Link
-                              title="Edit"
-                              to={`/performance/edit/${review.id}`}
+                              title="View"
+                              to={`/performance/${review.id}`}
                               className="
-                                inline-flex
-                                items-center
-                                gap-1.5
-                                rounded-lg
-                                border
-                                border-slate-300
-                                bg-white
-                                px-3
-                                py-2
-                                text-xs
-                                font-semibold
-                                text-slate-700
-                                transition
-                                hover:bg-slate-50
+                                rounded-md
+                                p-2
+                                text-slate-500
+                                hover:bg-slate-100
                                 hover:text-teal-700
                               "
                             >
                               <Edit
-                                size={14}
+                                size={16}
                               />
-
-                              Edit
                             </Link>
 
+                            {/* EDIT */}
+                            {canUpdate && (
+                              <Link
+                                title="Edit"
+                                to={`/performance/edit/${review.id}`}
+                                className="
+                                  rounded-md
+                                  p-2
+                                  text-slate-500
+                                  hover:bg-slate-100
+                                  hover:text-teal-700
+                                "
+                              >
+                                <Edit
+                                  size={16}
+                                />
+                              </Link>
+                            )}
+
                             {/* DELETE */}
-
-                            <button
-                              type="button"
-                              title="Delete"
-                              onClick={() =>
-                                openDeleteModal(
-                                  review,
-                                )
-                              }
-                              className="
-                                inline-flex
-                                items-center
-                                gap-1.5
-                                rounded-lg
-                                border
-                                border-red-200
-                                bg-white
-                                px-3
-                                py-2
-                                text-xs
-                                font-semibold
-                                text-red-600
-                                transition
-                                hover:bg-red-50
-                              "
-                            >
-                              <Trash2
-                                size={14}
-                              />
-
-                              Delete
-                            </button>
+                            {canDelete && (
+                              <button
+                                type="button"
+                                title="Delete"
+                                onClick={() =>
+                                  openDeleteModal(
+                                    review,
+                                  )
+                                }
+                                className="
+                                  rounded-md
+                                  p-2
+                                  text-slate-500
+                                  hover:bg-red-50
+                                  hover:text-red-600
+                                "
+                              >
+                                <Trash2
+                                  size={16}
+                                />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -873,7 +870,7 @@ function Performance() {
         )}
 
         {/* ====================================================
-            DELETE CONFIRMATION MODAL
+            DELETE MODAL
         ==================================================== */}
 
         {deletingReview && (
@@ -885,7 +882,7 @@ function Performance() {
               flex
               items-center
               justify-center
-              bg-slate-950/40
+              bg-black/40
               px-4
             "
           >
@@ -893,83 +890,43 @@ function Performance() {
               className="
                 w-full
                 max-w-md
-                rounded-2xl
+                rounded-xl
                 bg-white
                 p-6
-                shadow-2xl
+                shadow-xl
               "
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="delete-performance-title"
             >
-
-              {/* MODAL HEADER */}
-
-              <div
-                className="
-                  flex
-                  items-start
-                  justify-between
-                  gap-4
-                "
-              >
+              <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2
-                    id="delete-performance-title"
-                    className="
-                      text-lg
-                      font-semibold
-                      text-slate-900
-                    "
-                  >
-                    Delete Performance Review?
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    Delete Performance Review
                   </h2>
 
-                  <p
-                    className="
-                      mt-3
-                      text-sm
-                      leading-6
-                      text-slate-600
-                    "
-                  >
+                  <p className="mt-2 text-sm text-slate-500">
                     Are you sure you want to delete the performance review for{" "}
-
-                    <span className="font-semibold text-slate-900">
+                    <span className="font-semibold text-slate-700">
                       {
                         deletingReview.employeeName
                       }
                     </span>
                     ?
-
-                    <br />
-
-                    This will also remove all goals linked to this review.
-                    This action cannot be undone.
                   </p>
                 </div>
 
                 <button
                   type="button"
-                  disabled={
-                    deleting
-                  }
                   onClick={() =>
                     setDeletingReview(
                       null,
                     )
                   }
                   className="
-                    rounded-lg
+                    rounded-md
                     p-2
                     text-slate-400
-                    transition
                     hover:bg-slate-100
                     hover:text-slate-700
-                    disabled:cursor-not-allowed
-                    disabled:opacity-50
                   "
-                  aria-label="Close"
                 >
                   <X
                     size={18}
@@ -977,16 +934,7 @@ function Performance() {
                 </button>
               </div>
 
-              {/* MODAL ACTIONS */}
-
-              <div
-                className="
-                  mt-6
-                  flex
-                  justify-end
-                  gap-3
-                "
-              >
+              <div className="mt-6 flex justify-end gap-3">
                 <button
                   type="button"
                   disabled={
@@ -1007,10 +955,7 @@ function Performance() {
                     text-sm
                     font-semibold
                     text-slate-700
-                    transition
                     hover:bg-slate-50
-                    disabled:cursor-not-allowed
-                    disabled:opacity-60
                   "
                 >
                   Cancel
@@ -1021,13 +966,10 @@ function Performance() {
                   disabled={
                     deleting
                   }
-                  onClick={() =>
-                    void handleDelete()
+                  onClick={
+                    handleDelete
                   }
                   className="
-                    inline-flex
-                    items-center
-                    gap-2
                     rounded-lg
                     bg-red-600
                     px-4
@@ -1035,24 +977,20 @@ function Performance() {
                     text-sm
                     font-semibold
                     text-white
-                    transition
                     hover:bg-red-700
                     disabled:cursor-not-allowed
                     disabled:opacity-60
                   "
                 >
-                  <Trash2
-                    size={15}
-                  />
-
                   {deleting
                     ? "Deleting..."
-                    : "Delete Review"}
+                    : "Delete"}
                 </button>
               </div>
             </div>
           </div>
         )}
+
       </div>
     </DashboardLayout>
   );
