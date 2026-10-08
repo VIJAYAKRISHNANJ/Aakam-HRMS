@@ -1,6 +1,10 @@
 import api from "./api";
 import axios from "axios";
 
+/* ============================================================
+   PAYROLL RUN
+============================================================ */
+
 export type PayrollStatus =
   | "PENDING"
   | "PROCESSING"
@@ -23,6 +27,10 @@ export interface CreatePayrollPayload {
 export type UpdatePayrollPayload =
   Partial<CreatePayrollPayload>;
 
+/* ============================================================
+   EMPLOYEE SALARY
+============================================================ */
+
 export type SalaryStatus =
   | "ACTIVE"
   | "INACTIVE";
@@ -33,7 +41,7 @@ export interface EmployeeSalary {
   employeeCode?: string;
   firstName?: string;
   lastName?: string;
-
+  employeeName?: string;
   companyId: number;
 
   annualCtc: number;
@@ -79,12 +87,55 @@ export interface CreateSalaryPayload {
 export type UpdateSalaryPayload =
   Partial<Omit<CreateSalaryPayload, "employeeId">>;
 
+/* ============================================================
+   EMPLOYEE PAYROLL PAYMENTS
+============================================================ */
+
+export type EmployeePayrollPaymentStatus =
+  | "READY_TO_PAY"
+  | "APPROVED"
+  | "COMPLETED";
+
+export interface EmployeePayrollPayment {
+  id: number;
+
+  payrollRunId: number;
+  employeeId: number;
+  salaryId?: number | null;
+  companyId: number;
+
+  employeeCode: string;
+  employeeName: string;
+
+  netSalary: number;
+
+  status: EmployeePayrollPaymentStatus;
+
+  createdAt: string;
+
+  approvedAt?: string | null;
+  approvedBy?: number | null;
+
+  completedAt?: string | null;
+  completedBy?: number | null;
+
+  updatedAt: string;
+}
+
+/* ============================================================
+   API RESPONSE
+============================================================ */
+
 interface ApiResponse<T> {
   success: boolean;
   data: T;
   message?: string;
   total?: number;
 }
+
+/* ============================================================
+   REQUEST HELPER
+============================================================ */
 
 const request = async <T>(
   requestPromise: Promise<{
@@ -115,9 +166,9 @@ const request = async <T>(
   }
 };
 
-/* =========================================================
+/* ============================================================
    PAYROLL RUNS
-   ========================================================= */
+============================================================ */
 
 export const getPayrollRuns = (): Promise<
   PayrollRun[]
@@ -172,6 +223,10 @@ export const deletePayrollRun = (
     "Unable to delete payroll run.",
   );
 
+/* ============================================================
+   PAYROLL WORKFLOW
+============================================================ */
+
 export const processPayroll = (
   id: number | string,
 ): Promise<PayrollRun> =>
@@ -202,18 +257,78 @@ export const completePayroll = (
     "Unable to complete payroll run.",
   );
 
-/* =========================================================
-   EMPLOYEE SALARIES
-   ========================================================= */
+/* ============================================================
+   EMPLOYEE PAYROLL PAYMENTS
+============================================================ */
 
 /**
- * Get salary records visible to the authenticated user.
- *
- * For administrators this can return company-scoped
- * salary records.
- *
- * For own-only roles the backend applies the employee
- * ownership restriction.
+ * Get all employee payment records belonging
+ * to a payroll run.
+ */
+export const getEmployeePayrollPayments = (
+  payrollRunId: number | string,
+): Promise<EmployeePayrollPayment[]> =>
+  request(
+    api.get<
+      ApiResponse<EmployeePayrollPayment[]>
+    >(
+      `/payroll/${payrollRunId}/payments`,
+    ),
+    "Unable to load employee payroll payments.",
+  );
+
+/**
+ * Approve one employee salary payment.
+ */
+export const approveEmployeePayrollPayment = (
+  paymentId: number | string,
+): Promise<EmployeePayrollPayment> =>
+  request(
+    api.post<
+      ApiResponse<EmployeePayrollPayment>
+    >(
+      `/payroll/payments/${paymentId}/approve`,
+    ),
+    "Unable to approve employee salary payment.",
+  );
+
+/**
+ * Complete one employee salary payment.
+ */
+export const completeEmployeePayrollPayment = (
+  paymentId: number | string,
+): Promise<EmployeePayrollPayment> =>
+  request(
+    api.post<
+      ApiResponse<EmployeePayrollPayment>
+    >(
+      `/payroll/payments/${paymentId}/complete`,
+    ),
+    "Unable to complete employee salary payment.",
+  );
+
+/**
+ * Delete one completed employee salary payment.
+ */
+export const deleteEmployeePayrollPayment = (
+  paymentId: number | string,
+): Promise<EmployeePayrollPayment> =>
+  request(
+    api.delete<
+      ApiResponse<EmployeePayrollPayment>
+    >(
+      `/payroll/payments/${paymentId}`,
+    ),
+    "Unable to delete employee salary payment.",
+  );
+
+/* ============================================================
+   EMPLOYEE SALARIES
+============================================================ */
+
+/**
+ * Get salary records visible to the
+ * authenticated user.
  */
 export const getEmployeeSalaries = (): Promise<
   EmployeeSalary[]
@@ -226,7 +341,7 @@ export const getEmployeeSalaries = (): Promise<
   );
 
 /**
- * Get the current/latest salary for one employee.
+ * Get current/latest salary for one employee.
  */
 export const getEmployeeSalary = (
   employeeId: number | string,
@@ -239,7 +354,7 @@ export const getEmployeeSalary = (
   );
 
 /**
- * Get complete salary revision history for one employee.
+ * Get complete salary revision history.
  */
 export const getEmployeeSalaryHistory = (
   employeeId: number | string,
@@ -253,9 +368,6 @@ export const getEmployeeSalaryHistory = (
 
 /**
  * Create a new salary/revision.
- *
- * The backend derives and validates company ownership
- * from the authenticated employee/company scope.
  */
 export const createEmployeeSalary = (
   payload: CreateSalaryPayload,
@@ -296,9 +408,9 @@ export const deleteEmployeeSalary = (
     "Unable to delete employee salary.",
   );
 
-/* =========================================================
+/* ============================================================
    ERROR HANDLING
-   ========================================================= */
+============================================================ */
 
 export const getPayrollErrorMessage = (
   error: unknown,

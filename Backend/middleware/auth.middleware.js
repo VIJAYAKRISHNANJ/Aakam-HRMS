@@ -241,7 +241,7 @@ export const authenticate = async (
     } catch (error) {
       return unauthorized(
         res,
-        "Invalid or expired token",
+        "Invalid or expired authorization token",
       );
     }
 
@@ -416,14 +416,39 @@ export const authorizeResource =
 
     /*
      * Payroll workflow actions
+     *
+     * IMPORTANT:
+     *
+     * Processing payroll is an update operation,
+     * not an approval operation.
+     *
+     * PAYROLL_ADMINISTRATOR has:
+     *   payroll.update
+     *
+     * but does not necessarily have:
+     *   payroll.approve
+     *
+     * Therefore:
+     *
+     * /process  -> payroll.update
+     * /approve  -> payroll.approve
+     * /validate -> payroll.approve
      */
+
     if (
       resource === "payroll" &&
-      /\/(approve|validate|process)/.test(
+      /\/(approve|validate)/.test(
         path,
       )
     ) {
       action = "approve";
+    }
+
+    if (
+      resource === "payroll" &&
+      /\/process/.test(path)
+    ) {
+      action = "update";
     }
 
     /*

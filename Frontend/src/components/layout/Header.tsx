@@ -9,6 +9,7 @@ import {
   Search,
   UserRound,
   X,
+  Building2,
 } from "lucide-react";
 
 import {
@@ -23,9 +24,7 @@ import {
   useNavigate,
 } from "react-router-dom";
 
-import {
-  useAuth,
-} from "../../context/AuthContext";
+import { useAuth } from "../../context/AuthContext";
 
 import {
   getEmployeeById,
@@ -46,54 +45,36 @@ import type {
   Notification,
 } from "../../services/notificationService";
 
+import {
+  useCompany,
+} from "../../context/CompanyContext";
+
 interface HeaderProps {
   onOpenSidebar: () => void;
 }
 
 /* ==========================================================================
    AUTH USER SHAPE
-
-   Authentication/account information comes from AuthContext.
-
-   Workforce employee information is loaded using employeeId whenever the
-   authenticated role has access to the employee endpoint.
-
-   If the endpoint is restricted for an employee self-service account,
-   the authenticated user's employee information is used as a safe fallback.
 ========================================================================== */
 
 interface HeaderUserShape {
   employeeId?: number | string | null;
-
   employee_id?: number | string | null;
-
   username?: string | null;
-
   firstName?: string | null;
-
   lastName?: string | null;
-
   fullName?: string | null;
-
   email?: string | null;
-
   designation?: string | null;
 
   employee?: {
     id?: number | string | null;
-
     firstName?: string | null;
-
     lastName?: string | null;
-
     fullName?: string | null;
-
     email?: string | null;
-
     designation?: string | null;
-
     status?: string | null;
-
     employmentStatus?: string | null;
   } | null;
 }
@@ -106,7 +87,6 @@ function Header({
   onOpenSidebar,
 }: HeaderProps) {
   const location = useLocation();
-
   const navigate = useNavigate();
 
   const {
@@ -114,6 +94,24 @@ function Header({
     roles,
     logout,
   } = useAuth();
+
+  /* ==========================================================================
+     COMPANY CONTEXT
+  ========================================================================== */
+
+  const {
+    companies,
+    selectedCompanyId,
+    selectedCompany,
+    loading: companyLoading,
+    error: companyError,
+    setSelectedCompanyId,
+  } = useCompany();
+
+  const isSuperAdministrator =
+    roles?.includes(
+      "SUPER_ADMINISTRATOR",
+    ) ?? false;
 
   /* ==========================================================================
      AUTH USER
@@ -157,19 +155,6 @@ function Header({
 
   /* ==========================================================================
      WORKFORCE EMPLOYEE PROFILE
-
-     Source of truth:
-
-     AuthContext
-          ↓
-     employeeId
-          ↓
-     getEmployeeById()
-          ↓
-     Employee table
-
-     For self-service users who do not have workforce.view permission,
-     the login/current-user employee information is used as fallback.
   ========================================================================== */
 
   const [
@@ -218,17 +203,6 @@ function Header({
 
   /* ==========================================================================
      LOAD EMPLOYEE PROFILE
-
-     IMPORTANT:
-
-     We do NOT hardcode:
-     - Virat
-     - Saranya
-     - Naveen
-     - employee IDs
-     - designations
-
-     Everything comes from the authenticated account.
   ========================================================================== */
 
   useEffect(() => {
@@ -242,23 +216,14 @@ function Header({
           authUser?.employee?.id ??
           null;
 
-        /* ---------------------------------------------------------------
-           No employee ID
-        ---------------------------------------------------------------- */
-
         if (!employeeId) {
           if (!cancelled) {
             setEmployeeProfile(null);
-
             setEmployeeLoading(false);
           }
 
           return;
         }
-
-        /* ---------------------------------------------------------------
-           First try the actual Workforce employee record.
-        ---------------------------------------------------------------- */
 
         try {
           setEmployeeLoading(true);
@@ -276,15 +241,6 @@ function Header({
 
           return;
         } catch (error) {
-          /*
-           * Employee self-service users may not have workforce.view.
-           *
-           * In that situation getEmployeeById() can return 403.
-           *
-           * The authenticated user response already contains the
-           * employee-linked information, so use that as fallback.
-           */
-
           console.warn(
             "Unable to load Workforce employee profile directly. Using authenticated employee data.",
             error,
@@ -294,10 +250,6 @@ function Header({
             setEmployeeLoading(false);
           }
         }
-
-        /* ---------------------------------------------------------------
-           FALLBACK TO AUTHENTICATED EMPLOYEE DATA
-        ---------------------------------------------------------------- */
 
         if (cancelled) {
           return;
@@ -338,62 +290,52 @@ function Header({
           authenticatedEmployee?.employmentStatus ??
           "ACTIVE";
 
-        /*
-         * Create a Workforce-shaped object so the rest of the Header
-         * continues using one single data source.
-         */
+        const fallbackEmployee = {
+          id: Number(employeeId),
 
-        const fallbackEmployee =
-          {
-            id: Number(employeeId),
+          username:
+            authUser?.username ??
+            "",
 
-            username:
-              authUser?.username ??
-              "",
+          employeeCode:
+            "",
 
-            employeeCode:
-              "",
+          firstName:
+            fallbackFirstName,
 
-            firstName:
-              fallbackFirstName,
+          lastName:
+            fallbackLastName,
 
-            lastName:
-              fallbackLastName,
+          fullName:
+            fallbackFullName,
 
-            fullName:
-              fallbackFullName,
+          email:
+            fallbackEmail,
 
-            email:
-              fallbackEmail,
+          designation:
+            fallbackDesignation,
 
-            designation:
-              fallbackDesignation,
+          departmentId:
+            null,
 
-            departmentId:
-              null,
+          department:
+            "",
 
-            department:
-              "",
+          systemRole:
+            "",
 
-            /*
-             * System role is populated separately from AuthContext.
-             */
+          joiningDate:
+            "",
 
-            systemRole:
-              "",
+          status:
+            fallbackStatus,
 
-            joiningDate:
-              "",
+          employmentType:
+            "",
 
-            status:
-              fallbackStatus,
-
-            employmentType:
-              "",
-
-            createdAt:
-              "",
-          } satisfies Employee;
+          createdAt:
+            "",
+        } satisfies Employee;
 
         setEmployeeProfile(
           fallbackEmployee,
@@ -454,15 +396,11 @@ function Header({
 
           const unread =
             data.filter(
-              (
-                notification,
-              ) =>
+              (notification) =>
                 !notification.isRead,
             ).length;
 
-          setUnreadCount(
-            unread,
-          );
+          setUnreadCount(unread);
         } catch (error) {
           console.error(
             "Failed to load notifications:",
@@ -574,10 +512,6 @@ function Header({
 
   /* ==========================================================================
      PROFILE DISPLAY DATA
-
-     Employee table is preferred.
-
-     Authenticated employee data is the fallback.
   ========================================================================== */
 
   const employeeFirstName =
@@ -600,52 +534,16 @@ function Header({
       .trim() ||
     "User";
 
-  /* ==========================================================================
-     SYSTEM ROLE
-
-     The RBAC role belongs to AuthContext.
-
-     Example:
-
-     EMPLOYEE
-     MANAGER
-     RECRUITER
-     HR_ADMINISTRATOR
-     COMPANY_ADMINISTRATOR
-     PAYROLL_ADMINISTRATOR
-     SUPER_ADMINISTRATOR
-  ========================================================================== */
-
   const systemRole =
     roles?.[0]?.trim() ||
     employeeProfile?.systemRole?.trim() ||
     "-";
-
-  /* ==========================================================================
-     DESIGNATION
-
-     Comes from employee record.
-
-     Example:
-
-     Software developer
-     Manager
-     HR Administrator
-     Recruiter
-     Payroll Administrator
-  ========================================================================== */
 
   const designation =
     employeeProfile?.designation?.trim() ||
     authUser?.employee?.designation?.trim() ||
     authUser?.designation?.trim() ||
     "-";
-
-  /* ==========================================================================
-     USERNAME
-
-     Username belongs to the authentication account.
-  ========================================================================== */
 
   const username =
     authUser?.username?.trim() ||
@@ -666,10 +564,7 @@ function Header({
     const last =
       lastName?.trim() || "";
 
-    if (
-      first &&
-      last
-    ) {
+    if (first && last) {
       return `${first[0]}${last[0]}`
         .toUpperCase();
     }
@@ -686,9 +581,7 @@ function Header({
           .trim()
           .split(/\s+/);
 
-      if (
-        parts.length >= 2
-      ) {
+      if (parts.length >= 2) {
         return `${parts[0][0]}${parts[1][0]}`
           .toUpperCase();
       }
@@ -707,6 +600,26 @@ function Header({
       employeeLastName,
       employeeFullName,
     );
+
+  /* ==========================================================================
+     COMPANY SELECT
+  ========================================================================== */
+
+  const handleCompanyChange = (
+    event: React.ChangeEvent<HTMLSelectElement>,
+  ) => {
+    const value =
+      event.target.value;
+
+    if (!value) {
+      setSelectedCompanyId(null);
+      return;
+    }
+
+    setSelectedCompanyId(
+      Number(value),
+    );
+  };
 
   /* ==========================================================================
      TOGGLE NOTIFICATIONS
@@ -731,9 +644,7 @@ function Header({
         (current) => !current,
       );
 
-      setNotificationOpen(
-        false,
-      );
+      setNotificationOpen(false);
     };
 
   /* ==========================================================================
@@ -832,9 +743,7 @@ function Header({
       }
 
       try {
-        setMarkingAllRead(
-          true,
-        );
+        setMarkingAllRead(true);
 
         await markAllNotificationsAsRead();
 
@@ -859,9 +768,7 @@ function Header({
           error,
         );
       } finally {
-        setMarkingAllRead(
-          false,
-        );
+        setMarkingAllRead(false);
       }
     };
 
@@ -871,9 +778,7 @@ function Header({
 
   const handleViewAll =
     () => {
-      setNotificationOpen(
-        false,
-      );
+      setNotificationOpen(false);
 
       navigate(
         "/notifications",
@@ -947,9 +852,7 @@ function Header({
       <div className="flex min-w-0 items-center gap-3">
         <button
           type="button"
-          onClick={
-            onOpenSidebar
-          }
+          onClick={onOpenSidebar}
           className="
             inline-flex
             h-11
@@ -1059,8 +962,124 @@ function Header({
           />
         </label>
 
-        <div className="flex items-center gap-2 sm:gap-3">
+        {/* =================================================
+            SUPER ADMIN COMPANY SELECTOR
+        ================================================= */}
 
+        {isSuperAdministrator && (
+          <div className="relative">
+            <div
+              className="
+                flex
+                min-w-[250px]
+                items-center
+                gap-3
+                rounded-2xl
+                border
+                border-slate-200
+                bg-white
+                px-3
+                py-2
+                transition
+                hover:border-slate-300
+              "
+            >
+              <div
+                className="
+                  flex
+                  h-8
+                  w-8
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-xl
+                  bg-blue-50
+                  text-blue-600
+                "
+              >
+                <Building2
+                  size={16}
+                />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                  Company
+                </p>
+
+                <select
+                  value={
+                    selectedCompanyId ??
+                    ""
+                  }
+                  onChange={
+                    handleCompanyChange
+                  }
+                  disabled={
+                    companyLoading ||
+                    companies.length === 0
+                  }
+                  className="
+                    w-full
+                    cursor-pointer
+                    border-0
+                    bg-transparent
+                    p-0
+                    text-sm
+                    font-semibold
+                    text-slate-800
+                    outline-none
+                    disabled:cursor-not-allowed
+                    disabled:text-slate-400
+                  "
+                  aria-label="Select company"
+                >
+                  <option value="">
+                    {companyLoading
+                      ? "Loading companies..."
+                      : companies.length ===
+                          0
+                        ? "No companies available"
+                        : "Select company"}
+                  </option>
+
+                  {companies.map(
+                    (company) => (
+                      <option
+                        key={company.id}
+                        value={company.id}
+                      >
+                        {company.displayName ||
+                          company.legalName}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </div>
+
+              <ChevronDown
+                size={16}
+                className="shrink-0 text-slate-400"
+              />
+            </div>
+
+            {companyError && (
+              <p className="absolute left-0 top-full z-10 mt-1 whitespace-nowrap text-[10px] text-red-600">
+                {companyError}
+              </p>
+            )}
+
+            {selectedCompany && (
+              <p className="sr-only">
+                Selected company:{" "}
+                {selectedCompany.displayName ||
+                  selectedCompany.legalName}
+              </p>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* =================================================
               NOTIFICATIONS
           ================================================= */}
@@ -1326,20 +1345,16 @@ function Header({
                                   </div>
 
                                   <p className="mt-0.5 text-[11px] text-slate-400">
-                                    {
-                                      notification.recipientType ===
-                                      "ALL"
-                                        ? "Everyone"
-                                        : notification.recipientType
-                                    }
+                                    {notification.recipientType ===
+                                    "ALL"
+                                      ? "Everyone"
+                                      : notification.recipientType}
 
                                     {" • "}
 
-                                    {
-                                      formatNotificationDate(
-                                        notification.createdAt,
-                                      )
-                                    }
+                                    {formatNotificationDate(
+                                      notification.createdAt,
+                                    )}
                                   </p>
                                 </div>
 
@@ -1515,8 +1530,6 @@ function Header({
                   shadow-xl
                 "
               >
-                {/* USER INFORMATION */}
-
                 <div className="border-b border-slate-200 px-4 py-4">
                   <div className="flex items-center gap-3">
                     <div
@@ -1549,12 +1562,7 @@ function Header({
                   </div>
                 </div>
 
-                {/* ACCOUNT DETAILS */}
-
                 <div className="border-b border-slate-100 px-4 py-3">
-
-                  {/* Designation */}
-
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-xs text-slate-500">
                       Designation
@@ -1566,8 +1574,6 @@ function Header({
                         : designation}
                     </span>
                   </div>
-
-                  {/* System Role */}
 
                   <div className="mt-2 flex items-center justify-between gap-3">
                     <span className="text-xs text-slate-500">
@@ -1581,8 +1587,6 @@ function Header({
                     </span>
                   </div>
 
-                  {/* Username */}
-
                   <div className="mt-2 flex items-center justify-between gap-3">
                     <span className="text-xs text-slate-500">
                       Username
@@ -1593,8 +1597,6 @@ function Header({
                     </span>
                   </div>
                 </div>
-
-                {/* ACCOUNT SETTINGS / SIGN OUT */}
 
                 <div className="p-2">
                   <button
