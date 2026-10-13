@@ -55,7 +55,7 @@ function PayrollDetails() {
 
   const canUpdatePayroll = hasPermission("payroll.update");
   const canApprovePayroll = hasPermission("payroll.approve");
-  const canDeletePayroll = hasPermission("payroll.delete");
+  // const canDeletePayroll = hasPermission("payroll.delete");
 
   const [run, setRun] = useState<PayrollRun | null>(null);
 
