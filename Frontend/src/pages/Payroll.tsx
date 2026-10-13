@@ -29,11 +29,18 @@ import {
   deleteEmployeeSalary,
   deletePayrollRun,
   getEmployeeSalaries,
+  getAllEmployeePayrollPayments,
+  payEmployeePayrollPayment,
+  approveEmployeePayrollPayment,
+  completeEmployeePayrollPayment,
+  createEmployeePayrollPayment,
+  deleteEmployeePayrollPayment,
   getPayrollRuns,
   processPayroll,
   updateEmployeeSalary,
   type CreateSalaryPayload,
   type EmployeeSalary,
+  type EmployeePayrollPayment,
   type PayrollRun,
   type PayrollStatus,
 } from "../services/payrollService";
@@ -183,6 +190,36 @@ function Payroll() {
 
 
   /* ==========================================================
+     EMPLOYEE PAYROLL PAYMENT STATE
+  ========================================================== */
+
+  const [employeePayrollPayments, setEmployeePayrollPayments] =
+    useState<EmployeePayrollPayment[]>([]);
+
+  const [paymentLoading, setPaymentLoading] =
+    useState(true);
+
+  const [paymentError, setPaymentError] =
+    useState("");
+
+  const [paymentBusyId, setPaymentBusyId] =
+    useState<number | null>(null);
+
+  const [paymentDeleting, setPaymentDeleting] =
+    useState(false);
+
+  const [paymentCreating, setPaymentCreating] =
+    useState(false);
+
+  const [paymentForm, setPaymentForm] =
+    useState({
+      employeeId: "",
+      payrollRunId: "",
+      salaryId: "",
+    });
+
+
+  /* ==========================================================
      SALARY STATE
   ========================================================== */
 
@@ -250,6 +287,34 @@ function Payroll() {
 
 
   /* ==========================================================
+     LOAD EMPLOYEE PAYROLL PAYMENTS
+  ========================================================== */
+
+  const loadEmployeePayrollPayments = async () => {
+    if (!canViewPayroll) {
+      setEmployeePayrollPayments([]);
+      setPaymentLoading(false);
+      return;
+    }
+
+    try {
+      setPaymentError("");
+      setEmployeePayrollPayments(
+        await getAllEmployeePayrollPayments(),
+      );
+    } catch (requestError) {
+      setPaymentError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to load employee payroll payments.",
+      );
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+
+  /* ==========================================================
      LOAD SALARIES
   ========================================================== */
 
@@ -282,6 +347,8 @@ function Payroll() {
     const timer = window.setTimeout(() => {
       void loadRuns();
       void loadSalaries();
+      void loadEmployeePayrollPayments();
+      void loadEmployeesForSalary();
     }, 0);
 
     return () =>
@@ -692,6 +759,163 @@ function Payroll() {
       );
     } finally {
       setSalaryDeleting(false);
+    }
+  };
+
+
+  /* ==========================================================
+     EMPLOYEE PAYROLL PAYMENT ACTIONS
+  ========================================================== */
+
+  const selectedPaymentEmployeeId = Number(paymentForm.employeeId || 0);
+  const selectedPaymentRunId = Number(paymentForm.payrollRunId || 0);
+  const selectedPaymentRun = runs.find((run) => run.id === selectedPaymentRunId);
+
+  const paymentSalaryOptions = useMemo(() => {
+    if (!selectedPaymentEmployeeId || !selectedPaymentRun) {
+      return [];
+    }
+
+    const payrollDate = selectedPaymentRun.payrollMonth.slice(0, 10);
+    const [year, month] = payrollDate.split("-").map(Number);
+    const payrollMonthEnd = `${year}-${String(month).padStart(2, "0")}-${String(
+      new Date(Date.UTC(year, month, 0)).getUTCDate(),
+    ).padStart(2, "0")}`;
+
+    return salaries
+      .filter((salary) => {
+        if (Number(salary.employeeId) !== selectedPaymentEmployeeId) return false;
+
+        // A salary applies if its effective period overlaps any part of the payroll month.
+        const effectiveFrom = salary.effectiveFrom.slice(0, 10);
+        const effectiveTo = salary.effectiveTo?.slice(0, 10);
+
+        if (effectiveFrom > payrollMonthEnd) return false;
+        if (effectiveTo && effectiveTo < payrollDate) return false;
+
+        return String(salary.status ?? "").trim().toUpperCase() === "ACTIVE";
+      })
+      .sort((a, b) => {
+        const dateA = new Date(a.effectiveFrom).getTime();
+        const dateB = new Date(b.effectiveFrom).getTime();
+        return dateB - dateA || b.id - a.id;
+      });
+  }, [selectedPaymentEmployeeId, selectedPaymentRun, salaries]);
+
+  const selectedPaymentSalary = paymentSalaryOptions.find(
+    (salary) => salary.id === Number(paymentForm.salaryId || 0),
+  );
+
+  const createEmployeePayment = async () => {
+    if (!canUpdatePayroll) return;
+
+    if (!selectedPaymentEmployeeId || !selectedPaymentRunId || !selectedPaymentSalary) {
+      setPaymentError("Please select an employee, payroll month and salary.");
+      return;
+    }
+
+    if (!selectedPaymentRun) {
+      setPaymentError("Please select a valid payroll month.");
+      return;
+    }
+
+    setPaymentCreating(true);
+    setPaymentError("");
+    setActionMessage("");
+
+    try {
+      await createEmployeePayrollPayment({
+        employeeId: selectedPaymentEmployeeId,
+        payrollRunId: selectedPaymentRunId,
+        salaryId: selectedPaymentSalary.id,
+      });
+
+      const employee = salaryEmployees.find((item) => item.id === selectedPaymentEmployeeId);
+      setActionMessage(
+        `${employee?.fullName || employee?.employeeCode || "Employee"}'s ${formatMonth(selectedPaymentRun.payrollMonth)} salary payment was created successfully.`,
+      );
+      setPaymentForm({ employeeId: "", payrollRunId: "", salaryId: "" });
+      await loadEmployeePayrollPayments();
+    } catch (requestError) {
+      setPaymentError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to create employee payroll payment.",
+      );
+    } finally {
+      setPaymentCreating(false);
+    }
+  };
+
+  const handlePaymentAction = async (
+    payment: EmployeePayrollPayment,
+  ) => {
+    if (
+      (payment.status === "READY_TO_PAY" || payment.status === "COMPLETED") &&
+      !canUpdatePayroll
+    ) {
+      return;
+    }
+
+    if (payment.status === "PAID" && !canApprovePayroll) {
+      return;
+    }
+
+    setPaymentBusyId(payment.id);
+    setPaymentError("");
+    setActionMessage("");
+
+    try {
+      if (payment.status === "READY_TO_PAY") {
+        await payEmployeePayrollPayment(payment.id);
+        setActionMessage(`${payment.employeeName}'s payment was marked as paid.`);
+      } else if (payment.status === "PAID") {
+        await approveEmployeePayrollPayment(payment.id);
+        setActionMessage(`${payment.employeeName}'s payment was approved.`);
+      } else if (payment.status === "APPROVED") {
+        await completeEmployeePayrollPayment(payment.id);
+        setActionMessage(`${payment.employeeName}'s payment was completed.`);
+      }
+
+      await loadEmployeePayrollPayments();
+    } catch (requestError) {
+      setPaymentError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to update employee payroll payment.",
+      );
+    } finally {
+      setPaymentBusyId(null);
+    }
+  };
+
+  const handleDeleteEmployeePayment = async (
+    payment: EmployeePayrollPayment,
+  ) => {
+    if (!canDeletePayroll || payment.status !== "COMPLETED") {
+      return;
+    }
+
+    if (!window.confirm(`Delete ${payment.employeeName}'s completed payment record?`)) {
+      return;
+    }
+
+    setPaymentDeleting(true);
+    setPaymentError("");
+    setActionMessage("");
+
+    try {
+      await deleteEmployeePayrollPayment(payment.id);
+      setActionMessage(`${payment.employeeName}'s payment record was deleted.`);
+      await loadEmployeePayrollPayments();
+    } catch (requestError) {
+      setPaymentError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to delete employee payroll payment.",
+      );
+    } finally {
+      setPaymentDeleting(false);
     }
   };
 
@@ -1485,6 +1709,281 @@ function Payroll() {
             </div>
           )}
         </section>
+
+
+        {/* ======================================================
+            EMPLOYEE PAYROLL PAYMENTS
+        ====================================================== */}
+
+   {(
+  runs.some((run) =>
+    ["PROCESSING", "COMPLETED"].includes(
+      String(run.status).toUpperCase()
+    )
+  ) ||
+  employeePayrollPayments.length > 0
+) && (
+        <section className="rounded-xl border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 px-5 py-4">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Employee Payroll Payments
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Select an employee, payroll month and salary to create and manage the salary payment.
+            </p>
+          </div>
+
+          {paymentError && (
+            <div className="mx-5 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {paymentError}
+            </div>
+          )}
+
+          {canUpdatePayroll && (
+            <div className="border-b border-slate-200 bg-slate-50/70 px-5 py-5">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Employee
+                  </label>
+                  <select
+                    value={paymentForm.employeeId}
+                    onChange={(event) =>
+                      setPaymentForm({
+                        employeeId: event.target.value,
+                        payrollRunId: paymentForm.payrollRunId,
+                        salaryId: "",
+                      })
+                    }
+                    disabled={paymentCreating || employeesLoading}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 disabled:bg-slate-100"
+                  >
+                    <option value="">Select employee</option>
+                    {salaryEmployees.map((employee) => (
+                      <option key={employee.id} value={employee.id}>
+                        ID #{employee.id} — {employee.employeeCode} — {employee.fullName || `${employee.firstName || ""} ${employee.lastName || ""}`.trim()}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Payroll Month
+                  </label>
+                  <select
+                    value={paymentForm.payrollRunId}
+                    onChange={(event) =>
+                      setPaymentForm({
+                        employeeId: paymentForm.employeeId,
+                        payrollRunId: event.target.value,
+                        salaryId: "",
+                      })
+                    }
+                    disabled={paymentCreating}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 disabled:bg-slate-100"
+                  >
+                    <option value="">Select payroll month</option>
+                    {runs
+                      // Payments can be created while a run is processing.
+                      // Completed runs remain selectable for any missing payment records.
+                      .filter(
+                        (run) =>
+                          ["PROCESSING", "COMPLETED"].includes(
+                            String(run.status ?? "").toUpperCase(),
+                          ),
+                      )
+                      .map((run) => (
+                        <option key={run.id} value={run.id}>
+                          ID #{run.id} — {formatMonth(run.payrollMonth)}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Salary
+                  </label>
+                  <select
+                    value={paymentForm.salaryId}
+                    onChange={(event) =>
+                      setPaymentForm({
+                        ...paymentForm,
+                        salaryId: event.target.value,
+                      })
+                    }
+                    disabled={paymentCreating || !paymentForm.employeeId || !paymentForm.payrollRunId}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 disabled:bg-slate-100"
+                  >
+                    <option value="">
+                      {!paymentForm.employeeId || !paymentForm.payrollRunId
+                        ? "Select employee and month"
+                        : paymentSalaryOptions.length === 0
+                          ? "No applicable salary"
+                          : "Select salary"}
+                    </option>
+                    {paymentSalaryOptions.map((salary) => (
+                      <option key={salary.id} value={salary.id}>
+                        ₹{Number(salary.netSalary).toLocaleString("en-IN")} — Effective {formatDate(salary.effectiveFrom)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={() => void createEmployeePayment()}
+                    disabled={
+                      paymentCreating ||
+                      !paymentForm.employeeId ||
+                      !paymentForm.payrollRunId ||
+                      !paymentForm.salaryId
+                    }
+                    className="w-full rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {paymentCreating ? "Creating..." : "Create Payment"}
+                  </button>
+                </div>
+              </div>
+
+              {selectedPaymentSalary && (
+                <div className="mt-4 rounded-lg border border-teal-100 bg-white px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Selected Net Salary</p>
+                      <p className="mt-1 text-lg font-bold text-emerald-700">
+                        {formatMoney(selectedPaymentSalary.netSalary)}
+                      </p>
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      Salary ID: <span className="font-semibold text-slate-800">#{selectedPaymentSalary.id}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {paymentLoading ? (
+            <div className="px-6 py-12 text-center text-sm text-slate-500">
+              Loading employee payroll payments...
+            </div>
+          ) : employeePayrollPayments.length === 0 ? (
+            <div className="px-6 py-10 text-center text-sm text-slate-500">
+              No payment records yet. Select an employee, payroll month and salary above to create one.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1450px] text-left text-sm">
+                <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-5 py-3">Employee</th>
+                    <th className="px-5 py-3">Employee Code</th>
+                    <th className="px-5 py-3">Payroll Month</th>
+                    <th className="px-5 py-3">Salary ID</th>
+                    <th className="px-5 py-3">Net Salary</th>
+                    <th className="px-5 py-3">Status</th>
+                    <th className="px-5 py-3">Paid Date</th>
+                    <th className="px-5 py-3">Approved Date</th>
+                    <th className="px-5 py-3">Completed Date</th>
+                    <th className="px-5 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {employeePayrollPayments.map((payment) => {
+                    const paymentRun = runs.find((run) => run.id === payment.payrollRunId);
+                  const canPayThisPayment =
+                      String(paymentRun?.status ?? "").toUpperCase() === "COMPLETED" &&
+                      String(payment.status ?? "").toUpperCase() === "READY_TO_PAY";
+                    const paymentStatusClass =
+                      payment.status === "READY_TO_PAY"
+                        ? "bg-amber-100 text-amber-700"
+                        : payment.status === "PAID"
+                          ? "bg-sky-100 text-sky-700"
+                          : payment.status === "APPROVED"
+                            ? "bg-violet-100 text-violet-700"
+                            : "bg-emerald-100 text-emerald-700";
+
+                    const paymentStatusLabel =
+                      payment.status === "READY_TO_PAY"
+                        ? "Ready to Pay"
+                        : payment.status === "PAID"
+                          ? "Paid"
+                          : payment.status === "APPROVED"
+                            ? "Approved"
+                            : "Completed";
+
+                    return (
+                      <tr key={payment.id} className="transition-colors hover:bg-slate-50">
+                        <td className="px-5 py-4 font-semibold text-slate-800">{payment.employeeName}</td>
+                        <td className="px-5 py-4 text-slate-600">{payment.employeeCode}</td>
+                        <td className="px-5 py-4 font-semibold text-slate-800">
+                          {payment.payrollMonth ? formatMonth(payment.payrollMonth) : `Run #${payment.payrollRunId}`}
+                        </td>
+                        <td className="px-5 py-4 text-slate-600">#{payment.salaryId ?? "—"}</td>
+                        <td className="px-5 py-4 font-semibold text-emerald-700">{formatMoney(payment.netSalary)}</td>
+                        <td className="px-5 py-4">
+                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${paymentStatusClass}`}>
+                            {paymentStatusLabel}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-slate-600">{formatDate(payment.paidAt)}</td>
+                        <td className="px-5 py-4 text-slate-600">{formatDate(payment.approvedAt)}</td>
+                        <td className="px-5 py-4 text-slate-600">{formatDate(payment.completedAt)}</td>
+                        <td className="px-5 py-4">
+                          <div className="flex items-center justify-end gap-2">
+                            {payment.status !== "COMPLETED" && (
+                              <button
+                                type="button"
+                                disabled={
+                                  paymentBusyId === payment.id ||
+                                  paymentDeleting ||
+                                  (payment.status === "PAID" && !canApprovePayroll) ||
+                                  ((payment.status === "READY_TO_PAY" && (!canUpdatePayroll || !canPayThisPayment)) ||
+                                    (payment.status === "APPROVED" && !canUpdatePayroll))
+                                }
+                                title={
+                                  payment.status === "READY_TO_PAY" && !canPayThisPayment
+                                    ? "You can pay this salary after the payroll run is completed and approved."
+                                    : undefined
+                                }
+                                onClick={() => void handlePaymentAction(payment)}
+                                className="inline-flex items-center rounded-lg bg-teal-700 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {paymentBusyId === payment.id
+                                  ? "Updating..."
+                                  : payment.status === "READY_TO_PAY"
+                                    ? canPayThisPayment ? "Pay" : "Awaiting Approval"
+                                    : payment.status === "PAID"
+                                      ? "Approve"
+                                      : "Complete"}
+                              </button>
+                            )}
+
+                            {payment.status === "COMPLETED" && canDeletePayroll && (
+                              <button
+                                type="button"
+                                disabled={paymentDeleting}
+                                onClick={() => void handleDeleteEmployeePayment(payment)}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                <Trash2 size={14} />
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+        )}
 
 
         {/* ======================================================

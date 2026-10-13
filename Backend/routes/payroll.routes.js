@@ -93,6 +93,37 @@ const mapSalary = (salary) => ({
   updatedAt: salary.updated_at,
 });
 
+const mapPayment = (payment) => ({
+  id: Number(payment.id),
+  payrollRunId: Number(payment.payroll_run_id),
+  employeeId: Number(payment.employee_id),
+  salaryId:
+    payment.salary_id === null ||
+    payment.salary_id === undefined
+      ? null
+      : Number(payment.salary_id),
+  companyId: Number(payment.company_id),
+  employeeCode: payment.employee_code,
+  employeeName: payment.employee_name,
+  netSalary: Number(payment.net_salary),
+  status: payment.status,
+  createdAt: payment.created_at,
+  paidAt: payment.paid_at,
+  approvedAt: payment.approved_at,
+  approvedBy:
+    payment.approved_by === null ||
+    payment.approved_by === undefined
+      ? null
+      : Number(payment.approved_by),
+  completedAt: payment.completed_at,
+  completedBy:
+    payment.completed_by === null ||
+    payment.completed_by === undefined
+      ? null
+      : Number(payment.completed_by),
+  updatedAt: payment.updated_at,
+});
+
 const isValidDate = (value) => {
   if (
     typeof value !== "string" ||
@@ -1427,6 +1458,638 @@ router.delete(
    GET /api/payroll/:id
 ============================================================ */
 
+
+/* ============================================================
+   GET EMPLOYEE PAYROLL PAYMENTS
+   GET /api/payroll/:id/payments
+============================================================ */
+
+/* ============================================================
+   CREATE EMPLOYEE PAYROLL PAYMENT
+   POST /api/payroll/payments
+
+   Creates a payment record from an explicitly selected employee,
+   payroll run and applicable salary revision.
+============================================================ */
+// Create one employee payment manually. This route is registered before /:id routes.
+// POST /api/payroll/payments
+router.post("/payments", async (req, res) => {
+  if (req.authorization?.ownOnly) {
+    return res.status(403).json({
+      success: false,
+      message: "You do not have permission to create payroll payments",
+    });
+  }
+
+  const { employeeId, payrollRunId, salaryId } = req.body ?? {};
+  if (!isValidId(employeeId) || !isValidId(payrollRunId) || !isValidId(salaryId)) {
+    return res.status(400).json({
+      success: false,
+      message: "Employee, payroll run and salary are required",
+    });
+  }
+
+  const client = await pool.connect();
+  try {
+    const isPlatform = req.user.roles.includes("SUPER_ADMINISTRATOR");
+    const companyId = req.user.requestedCompanyId ?? null;
+    if (!isPlatform && !companyId) {
+      return res.status(403).json({ success: false, message: "Company context is required" });
+    }
+
+    await client.query("BEGIN");
+    const runResult = await client.query(
+      `SELECT id, payroll_month, status, company_id
+       FROM payroll_runs
+       WHERE id = $1 AND ($2::boolean OR company_id = $3)
+       FOR UPDATE`,
+      [payrollRunId, isPlatform, companyId],
+    );
+    if (!runResult.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ success: false, message: "Payroll run not found in the selected company" });
+    }
+    const run = runResult.rows[0];
+    if (!["PROCESSING", "COMPLETED"].includes(run.status)) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ success: false, message: "Payments can only be created for processing or completed payroll runs" });
+    }
+
+    const employeeResult = await client.query(
+      `SELECT id, company_id, employee_code, first_name, last_name
+       FROM employees WHERE id = $1 AND company_id = $2`,
+      [employeeId, run.company_id],
+    );
+    if (!employeeResult.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ success: false, message: "Employee not found in this payroll company's scope" });
+    }
+
+    const salaryResult = await client.query(
+      `SELECT id, employee_id, company_id, net_salary, effective_from, effective_to, status
+       FROM employee_salaries
+       WHERE id = $1 AND employee_id = $2 AND company_id = $3
+         AND status = 'ACTIVE'
+         AND effective_from <= ($4::date + INTERVAL '1 month - 1 day')::date
+         AND (effective_to IS NULL OR effective_to >= $4::date)
+       LIMIT 1`,
+      [salaryId, employeeId, run.company_id, run.payroll_month],
+    );
+    if (!salaryResult.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ success: false, message: "Selected salary is not active and effective for this employee and payroll month" });
+    }
+
+    const duplicateResult = await client.query(
+      `SELECT id FROM payroll_employee_payments WHERE payroll_run_id = $1 AND employee_id = $2 LIMIT 1`,
+      [payrollRunId, employeeId],
+    );
+    if (duplicateResult.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ success: false, message: "A payment record already exists for this employee and payroll month" });
+    }
+
+    const employee = employeeResult.rows[0];
+    const salary = salaryResult.rows[0];
+    const inserted = await client.query(
+      `INSERT INTO payroll_employee_payments
+         (payroll_run_id, employee_id, salary_id, company_id, employee_code, employee_name, net_salary, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'READY_TO_PAY')
+       RETURNING id, payroll_run_id, employee_id, salary_id, company_id, employee_code,
+         employee_name, net_salary, status, created_at, paid_at, approved_at, approved_by,
+         completed_at, completed_by, updated_at`,
+      [payrollRunId, employeeId, salaryId, run.company_id, employee.employee_code,
+       [employee.first_name, employee.last_name].filter(Boolean).join(" "), salary.net_salary],
+    );
+    await client.query("COMMIT");
+    return res.status(201).json({
+      success: true,
+      message: "Employee payroll payment created successfully",
+      data: { ...mapPayment(inserted.rows[0]), payrollMonth: run.payroll_month },
+    });
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("Create employee payroll payment error:", error);
+    return res.status(500).json({ success: false, message: "Failed to create employee payroll payment" });
+  } finally {
+    client.release();
+  }
+});
+
+router.get(
+  "/payments",
+  async (req, res) => {
+    try {
+      const isSuperAdministrator =
+        req.user.roles.includes("SUPER_ADMINISTRATOR");
+
+      const companyId =
+        req.user.requestedCompanyId ?? null;
+
+      const ownOnly = Boolean(
+        req.authorization?.ownOnly,
+      );
+
+      const employeeId =
+        req.user.employee_id ?? null;
+
+      const result = await pool.query(
+        `
+          SELECT
+            pep.id,
+            pep.payroll_run_id,
+            pep.employee_id,
+            pep.salary_id,
+            pep.company_id,
+            pep.employee_code,
+            pep.employee_name,
+            pep.net_salary,
+            pep.status,
+            pep.created_at,
+            pep.paid_at,
+            pep.approved_at,
+            pep.approved_by,
+            pep.completed_at,
+            pep.completed_by,
+            pep.updated_at,
+            pr.payroll_month
+          FROM payroll_employee_payments pep
+          INNER JOIN payroll_runs pr
+            ON pr.id = pep.payroll_run_id
+          WHERE
+            (
+              $1::boolean
+              OR pep.company_id = $2
+            )
+            AND (
+              NOT $3::boolean
+              OR pep.employee_id = $4
+            )
+          ORDER BY
+            pr.payroll_month DESC,
+            pep.id DESC;
+        `,
+        [
+          isSuperAdministrator,
+          companyId,
+          ownOnly,
+          employeeId,
+        ],
+      );
+
+      res.json({
+        success: true,
+        message: "Employee payroll payments loaded successfully",
+        data: result.rows.map((row) => ({
+          ...mapPayment(row),
+          payrollMonth: row.payroll_month,
+        })),
+        total: result.rows.length,
+      });
+    } catch (error) {
+      console.error(
+        "Get all employee payroll payments error:",
+        error,
+      );
+
+      res.status(500).json({
+        success: false,
+        message: "Failed to load employee payroll payments",
+      });
+    }
+  },
+);
+
+
+router.get(
+  "/:id/payments",
+  async (req, res) => {
+    try {
+      if (!isValidId(req.params.id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid payroll run ID",
+        });
+      }
+
+      const isSuperAdministrator =
+        req.user.roles.includes("SUPER_ADMINISTRATOR");
+
+      const companyId =
+        req.user.requestedCompanyId ?? null;
+
+      const ownOnly = Boolean(
+        req.authorization?.ownOnly,
+      );
+
+      const employeeId =
+        req.user.employee_id ?? null;
+
+      const result = await pool.query(
+        `
+          SELECT
+            pep.id,
+            pep.payroll_run_id,
+            pep.employee_id,
+            pep.salary_id,
+            pep.company_id,
+            pep.employee_code,
+            pep.employee_name,
+            pep.net_salary,
+            pep.status,
+            pep.created_at,
+            pep.paid_at,
+            pep.approved_at,
+            pep.approved_by,
+            pep.completed_at,
+            pep.completed_by,
+            pep.updated_at
+          FROM payroll_employee_payments pep
+          INNER JOIN payroll_runs pr
+            ON pr.id = pep.payroll_run_id
+          WHERE
+            pep.payroll_run_id = $1
+            AND (
+              $2::boolean
+              OR pep.company_id = $3
+            )
+            AND (
+              NOT $4::boolean
+              OR pep.employee_id = $5
+            )
+          ORDER BY pep.id;
+        `,
+        [
+          req.params.id,
+          isSuperAdministrator,
+          companyId,
+          ownOnly,
+          employeeId,
+        ],
+      );
+
+      res.json({
+        success: true,
+        message: "Employee payroll payments loaded successfully",
+        data: result.rows.map((row) => ({
+          ...mapPayment(row),
+        })),
+      });
+    } catch (error) {
+      console.error(
+        "Get employee payroll payments error:",
+        error,
+      );
+
+      res.status(500).json({
+        success: false,
+        message:
+          "Failed to load employee payroll payments",
+      });
+    }
+  },
+);
+
+
+/* ============================================================
+   PAY EMPLOYEE PAYMENT
+   POST /api/payroll/payments/:id/pay
+============================================================ */
+
+router.post(
+  "/payments/:id/pay",
+  async (req, res) => {
+    try {
+      if (!isValidId(req.params.id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid employee payment ID",
+        });
+      }
+
+      const result = await pool.query(
+        `
+          UPDATE payroll_employee_payments pep
+          SET
+            status = 'PAID',
+            paid_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+          FROM payroll_runs pr
+          WHERE
+            pep.id = $1
+            AND pr.id = pep.payroll_run_id
+            AND pep.status = 'READY_TO_PAY'
+            AND pr.status = 'COMPLETED'
+            AND (
+              $2::boolean
+              OR pep.company_id = $3
+            )
+          RETURNING
+            pep.id,
+            pep.payroll_run_id,
+            pep.employee_id,
+            pep.salary_id,
+            pep.company_id,
+            pep.employee_code,
+            pep.employee_name,
+            pep.net_salary,
+            pep.status,
+            pep.created_at,
+            pep.paid_at,
+            pep.approved_at,
+            pep.approved_by,
+            pep.completed_at,
+            pep.completed_by,
+            pep.updated_at;
+        `,
+        [
+          req.params.id,
+          req.user.roles.includes("SUPER_ADMINISTRATOR"),
+          req.user.requestedCompanyId ?? null,
+        ],
+      );
+
+      if (!result.rows.length) {
+        return res.status(409).json({
+          success: false,
+          message:
+            "Employee payment must belong to a completed payroll run and be ready to pay before it can be paid",
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Employee salary payment processed successfully",
+        data: mapPayment(result.rows[0]),
+      });
+    } catch (error) {
+      console.error(
+        "Pay employee payment error:",
+        error,
+      );
+
+      res.status(500).json({
+        success: false,
+        message:
+          "Failed to process employee salary payment",
+      });
+    }
+  },
+);
+
+/* ============================================================
+   APPROVE EMPLOYEE PAYMENT
+   POST /api/payroll/payments/:id/approve
+============================================================ */
+
+router.post(
+  "/payments/:id/approve",
+  async (req, res) => {
+    try {
+      if (!isValidId(req.params.id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid employee payment ID",
+        });
+      }
+
+      const result = await pool.query(
+        `
+          UPDATE payroll_employee_payments pep
+          SET
+            status = 'APPROVED',
+            approved_at = CURRENT_TIMESTAMP,
+            approved_by = $4,
+            updated_at = CURRENT_TIMESTAMP
+          FROM payroll_runs pr
+          WHERE
+            pep.id = $1
+            AND pr.id = pep.payroll_run_id
+            AND pep.status = 'PAID'
+            AND (
+              $2::boolean
+              OR pep.company_id = $3
+            )
+          RETURNING
+            pep.id,
+            pep.payroll_run_id,
+            pep.employee_id,
+            pep.salary_id,
+            pep.company_id,
+            pep.employee_code,
+            pep.employee_name,
+            pep.net_salary,
+            pep.status,
+            pep.created_at,
+            pep.paid_at,
+            pep.approved_at,
+            pep.approved_by,
+            pep.completed_at,
+            pep.completed_by,
+            pep.updated_at;
+        `,
+        [
+          req.params.id,
+          req.user.roles.includes("SUPER_ADMINISTRATOR"),
+          req.user.requestedCompanyId ?? null,
+          req.user.id,
+        ],
+      );
+
+      if (!result.rows.length) {
+        return res.status(409).json({
+          success: false,
+          message:
+            "Employee payment must be paid before it can be approved",
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Employee salary payment approved successfully",
+        data: mapPayment(result.rows[0]),
+      });
+    } catch (error) {
+      console.error(
+        "Approve employee payment error:",
+        error,
+      );
+
+      res.status(500).json({
+        success: false,
+        message:
+          "Failed to approve employee salary payment",
+      });
+    }
+  },
+);
+
+/* ============================================================
+   COMPLETE EMPLOYEE PAYMENT
+   POST /api/payroll/payments/:id/complete
+============================================================ */
+
+router.post(
+  "/payments/:id/complete",
+  async (req, res) => {
+    try {
+      if (!isValidId(req.params.id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid employee payment ID",
+        });
+      }
+
+      const result = await pool.query(
+        `
+          UPDATE payroll_employee_payments pep
+          SET
+            status = 'COMPLETED',
+            completed_at = CURRENT_TIMESTAMP,
+            completed_by = $4,
+            updated_at = CURRENT_TIMESTAMP
+          FROM payroll_runs pr
+          WHERE
+            pep.id = $1
+            AND pr.id = pep.payroll_run_id
+            AND pep.status = 'APPROVED'
+            AND (
+              $2::boolean
+              OR pep.company_id = $3
+            )
+          RETURNING
+            pep.id,
+            pep.payroll_run_id,
+            pep.employee_id,
+            pep.salary_id,
+            pep.company_id,
+            pep.employee_code,
+            pep.employee_name,
+            pep.net_salary,
+            pep.status,
+            pep.created_at,
+            pep.paid_at,
+            pep.approved_at,
+            pep.approved_by,
+            pep.completed_at,
+            pep.completed_by,
+            pep.updated_at;
+        `,
+        [
+          req.params.id,
+          req.user.roles.includes("SUPER_ADMINISTRATOR"),
+          req.user.requestedCompanyId ?? null,
+          req.user.id,
+        ],
+      );
+
+      if (!result.rows.length) {
+        return res.status(409).json({
+          success: false,
+          message:
+            "Employee payment must be approved before it can be completed",
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Employee salary payment completed successfully",
+        data: mapPayment(result.rows[0]),
+      });
+    } catch (error) {
+      console.error(
+        "Complete employee payment error:",
+        error,
+      );
+
+      res.status(500).json({
+        success: false,
+        message:
+          "Failed to complete employee salary payment",
+      });
+    }
+  },
+);
+
+/* ============================================================
+   DELETE EMPLOYEE PAYMENT
+   DELETE /api/payroll/payments/:id
+============================================================ */
+
+router.delete(
+  "/payments/:id",
+  async (req, res) => {
+    try {
+      if (!isValidId(req.params.id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid employee payment ID",
+        });
+      }
+
+      const result = await pool.query(
+        `
+          DELETE FROM payroll_employee_payments pep
+          WHERE
+            pep.id = $1
+            AND pep.status = 'COMPLETED'
+            AND (
+              $2::boolean
+              OR pep.company_id = $3
+            )
+          RETURNING
+            pep.id,
+            pep.payroll_run_id,
+            pep.employee_id,
+            pep.salary_id,
+            pep.company_id,
+            pep.employee_code,
+            pep.employee_name,
+            pep.net_salary,
+            pep.status,
+            pep.created_at,
+            pep.paid_at,
+            pep.approved_at,
+            pep.approved_by,
+            pep.completed_at,
+            pep.completed_by,
+            pep.updated_at;
+        `,
+        [
+          req.params.id,
+          req.user.roles.includes("SUPER_ADMINISTRATOR"),
+          req.user.requestedCompanyId ?? null,
+        ],
+      );
+
+      if (!result.rows.length) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Completed employee payment record not found",
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Employee salary payment deleted successfully",
+        data: mapPayment(result.rows[0]),
+      });
+    } catch (error) {
+      console.error(
+        "Delete employee payment error:",
+        error,
+      );
+
+      res.status(500).json({
+        success: false,
+        message:
+          "Failed to delete employee salary payment",
+      });
+    }
+  },
+);
+
 router.get("/:id", async (req, res) => {
   try {
     if (!isValidId(req.params.id)) {
@@ -2078,6 +2741,8 @@ router.post(
 router.post(
   "/:id/complete",
   async (req, res) => {
+    const client = await pool.connect();
+
     try {
       if (!isValidId(req.params.id)) {
         return res.status(400).json({
@@ -2087,51 +2752,51 @@ router.post(
         });
       }
 
-      const result =
-        await pool.query(
-          `
-            UPDATE payroll_runs
-            SET status = 'COMPLETED'
-            WHERE
-              id = $1
-              AND status = 'PROCESSING'
-              AND pending_approvals = 0
-              AND (
-                $2::boolean
-                OR company_id = $3
-              )
-            RETURNING
-              id,
-              payroll_month,
-              status,
-              pending_approvals,
-              created_at;
-          `,
-          [
-            req.params.id,
-            req.user.roles.includes(
-              "SUPER_ADMINISTRATOR",
-            ),
-            req.user.requestedCompanyId ??
-              null,
-          ],
-        );
+      const isSuperAdministrator =
+        req.user.roles.includes("SUPER_ADMINISTRATOR");
 
-      if (!result.rows.length) {
-        const existing =
-          await getPayrollRun(
-            req,
-            req.params.id,
-          );
+      await client.query("BEGIN");
 
-        if (!existing) {
-          return res.status(404).json({
-            success: false,
-            message:
-              "Payroll run not found",
-          });
-        }
+      const runResult = await client.query(
+        `
+          SELECT
+            id,
+            payroll_month,
+            status,
+            pending_approvals,
+            created_at,
+            company_id
+          FROM payroll_runs
+          WHERE
+            id = $1
+            AND (
+              $2::boolean
+              OR company_id = $3
+            )
+          FOR UPDATE;
+        `,
+        [
+          req.params.id,
+          isSuperAdministrator,
+          req.user.requestedCompanyId ?? null,
+        ],
+      );
 
+      if (!runResult.rows.length) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({
+          success: false,
+          message: "Payroll run not found",
+        });
+      }
+
+      const payrollRun = runResult.rows[0];
+
+      if (
+        payrollRun.status !== "PROCESSING" ||
+        Number(payrollRun.pending_approvals) !== 0
+      ) {
+        await client.query("ROLLBACK");
         return res.status(409).json({
           success: false,
           message:
@@ -2139,15 +2804,32 @@ router.post(
         });
       }
 
+      const result = await client.query(
+        `
+          UPDATE payroll_runs
+          SET status = 'COMPLETED'
+          WHERE id = $1
+          RETURNING
+            id,
+            payroll_month,
+            status,
+            pending_approvals,
+            created_at;
+        `,
+        [req.params.id],
+      );
+
+      await client.query("COMMIT");
+
       res.json({
         success: true,
         message:
           "Payroll run completed successfully",
-        data: mapPayrollRun(
-          result.rows[0],
-        ),
+        data: mapPayrollRun(result.rows[0]),
       });
     } catch (error) {
+      await client.query("ROLLBACK").catch(() => {});
+
       console.error(
         "Complete payroll error:",
         error,
@@ -2158,6 +2840,8 @@ router.post(
         message:
           "Failed to complete payroll run",
       });
+    } finally {
+      client.release();
     }
   },
 );
@@ -2258,3 +2942,4 @@ const validateFields = (
 ============================================================ */
 
 export default router; 
+

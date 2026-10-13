@@ -64,6 +64,10 @@ export interface EmployeeSalary {
   updatedAt: string;
 }
 
+/* ============================================================
+   CREATE / UPDATE SALARY PAYLOAD
+============================================================ */
+
 export interface CreateSalaryPayload {
   employeeId: number;
 
@@ -93,6 +97,7 @@ export type UpdateSalaryPayload =
 
 export type EmployeePayrollPaymentStatus =
   | "READY_TO_PAY"
+  | "PAID"
   | "APPROVED"
   | "COMPLETED";
 
@@ -100,6 +105,7 @@ export interface EmployeePayrollPayment {
   id: number;
 
   payrollRunId: number;
+  payrollMonth?: string;
   employeeId: number;
   salaryId?: number | null;
   companyId: number;
@@ -112,6 +118,7 @@ export interface EmployeePayrollPayment {
   status: EmployeePayrollPaymentStatus;
 
   createdAt: string;
+  paidAt?: string | null;
 
   approvedAt?: string | null;
   approvedBy?: number | null;
@@ -262,8 +269,46 @@ export const completePayroll = (
 ============================================================ */
 
 /**
- * Get all employee payment records belonging
- * to a payroll run.
+ * Get all employee payment records visible
+ * to the authenticated user.
+ */
+export const getAllEmployeePayrollPayments = (): Promise<
+  EmployeePayrollPayment[]
+> =>
+  request(
+    api.get<ApiResponse<EmployeePayrollPayment[]>>(
+      "/payroll/payments",
+    ),
+    "Unable to load employee payroll payments.",
+  );
+
+/**
+ * Payload used to create an employee
+ * payroll payment.
+ */
+export interface CreateEmployeePayrollPaymentPayload {
+  employeeId: number;
+  payrollRunId: number;
+  salaryId: number;
+}
+
+/**
+ * Create an employee payroll payment.
+ */
+export const createEmployeePayrollPayment = (
+  payload: CreateEmployeePayrollPaymentPayload,
+): Promise<EmployeePayrollPayment> =>
+  request(
+    api.post<ApiResponse<EmployeePayrollPayment>>(
+      "/payroll/payments",
+      payload,
+    ),
+    "Unable to create employee payroll payment.",
+  );
+
+/**
+ * Get all employee payment records
+ * belonging to a payroll run.
  */
 export const getEmployeePayrollPayments = (
   payrollRunId: number | string,
@@ -275,6 +320,21 @@ export const getEmployeePayrollPayments = (
       `/payroll/${payrollRunId}/payments`,
     ),
     "Unable to load employee payroll payments.",
+  );
+
+/**
+ * Mark one employee salary payment as paid.
+ */
+export const payEmployeePayrollPayment = (
+  paymentId: number | string,
+): Promise<EmployeePayrollPayment> =>
+  request(
+    api.post<
+      ApiResponse<EmployeePayrollPayment>
+    >(
+      `/payroll/payments/${paymentId}/pay`,
+    ),
+    "Unable to process employee salary payment.",
   );
 
 /**
@@ -308,7 +368,7 @@ export const completeEmployeePayrollPayment = (
   );
 
 /**
- * Delete one completed employee salary payment.
+ * Delete one employee payroll payment.
  */
 export const deleteEmployeePayrollPayment = (
   paymentId: number | string,
@@ -319,7 +379,7 @@ export const deleteEmployeePayrollPayment = (
     >(
       `/payroll/payments/${paymentId}`,
     ),
-    "Unable to delete employee salary payment.",
+    "Unable to delete employee payroll payment.",
   );
 
 /* ============================================================
